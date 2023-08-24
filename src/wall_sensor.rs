@@ -51,6 +51,7 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
 }
 
 pub fn read_ls() -> anyhow::Result<u16> {
+    #[allow(unused_mut)]
     let mut result;
     unsafe {
         result = AD.as_mut().unwrap().read(&mut LS.as_mut().unwrap())?;
@@ -59,6 +60,7 @@ pub fn read_ls() -> anyhow::Result<u16> {
 }
 
 pub fn read_lf() -> anyhow::Result<u16> {
+    #[allow(unused_mut)]
     let mut result;
     unsafe {
         result = AD.as_mut().unwrap().read(&mut LF.as_mut().unwrap())?;
@@ -67,6 +69,7 @@ pub fn read_lf() -> anyhow::Result<u16> {
 }
 
 pub fn read_rf() -> anyhow::Result<u16> {
+    #[allow(unused_mut)]
     let mut result;
     unsafe {
         result = AD.as_mut().unwrap().read(&mut RF.as_mut().unwrap())?;
@@ -75,6 +78,7 @@ pub fn read_rf() -> anyhow::Result<u16> {
 }
 
 pub fn read_rs() -> anyhow::Result<u16> {
+    #[allow(unused_mut)]
     let mut result;
     unsafe {
         result = AD.as_mut().unwrap().read(&mut RS.as_mut().unwrap())?;
@@ -83,6 +87,7 @@ pub fn read_rs() -> anyhow::Result<u16> {
 }
 
 pub fn read_batt() -> anyhow::Result<u16> {
+    #[allow(unused_mut)]
     let mut result;
     unsafe {
         result = AD.as_mut().unwrap().read(&mut BATT.as_mut().unwrap())?;

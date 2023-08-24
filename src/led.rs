@@ -23,6 +23,7 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub enum LedColor {
     Green,
     Blue,
