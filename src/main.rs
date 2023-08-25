@@ -8,7 +8,7 @@ mod led;
 mod motor;
 mod wall_sensor;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 struct SensorData {
     batt: u16,
     ls: u16,
@@ -21,9 +21,13 @@ struct SensorData {
 }
 static mut SENSOR_DATA: Option<SensorData> = None;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 struct InterruptContext {
     step: u8,
+    enable_ls: bool,
+    enable_lf: bool,
+    enable_rf: bool,
+    enable_rs: bool,
 }
 static mut INTERRUPT_CONTEXT: Option<InterruptContext> = None;
 
@@ -64,7 +68,11 @@ fn main() -> anyhow::Result<()> {
         let lf = unsafe { SENSOR_DATA.as_ref().unwrap().lf };
         let rf = unsafe { SENSOR_DATA.as_ref().unwrap().rf };
         let rs = unsafe { SENSOR_DATA.as_ref().unwrap().rs };
-        println!("{} {} {} {}", ls, lf, rf, rs);
+        let batt = unsafe { SENSOR_DATA.as_ref().unwrap().batt };
+        println!(
+            "ls: {}, lf: {}, rf: {}, rs: {}, batt: {}",
+            ls, lf, rf, rs, batt
+        );
         FreeRtos::delay_ms(100);
     }
 }
@@ -97,52 +105,78 @@ const SEQUENCE: [InterruptSequence; 10] = [
 ];
 
 fn timer_isr() {
-    let step = unsafe {
+    interrupt().unwrap();
+}
+
+fn interrupt() -> anyhow::Result<()> {
+    let ctx = unsafe { INTERRUPT_CONTEXT.as_ref().unwrap().clone() };
+    unsafe {
         let step = INTERRUPT_CONTEXT.as_ref().unwrap().step;
         INTERRUPT_CONTEXT.as_mut().unwrap().step = (step + 1) % 10;
-        step
     };
-    let step = SEQUENCE[step as usize];
+    let step = SEQUENCE[ctx.step as usize];
 
     match step {
         InterruptSequence::ReadBattEnableLs => {
-            let batt = wall_sensor::read_batt();
             unsafe {
-                SENSOR_DATA.as_mut().unwrap().batt = batt.unwrap();
+                SENSOR_DATA.as_mut().unwrap().batt = wall_sensor::read_batt()?;
             }
-            let _ = wall_sensor::on_ls();
+            if ctx.enable_ls {
+                wall_sensor::on_ls()?;
+            } else {
+                wall_sensor::off()?;
+            }
         }
 
         InterruptSequence::ReadLsEnableLf => {
-            let ls = wall_sensor::read_ls();
-            unsafe {
-                SENSOR_DATA.as_mut().unwrap().ls = ls.unwrap();
+            if ctx.enable_ls {
+                unsafe {
+                    SENSOR_DATA.as_mut().unwrap().ls = wall_sensor::read_ls()?;
+                }
             }
-            let _ = wall_sensor::on_lf();
+
+            if ctx.enable_lf {
+                wall_sensor::on_lf()?;
+            } else {
+                wall_sensor::off()?;
+            }
         }
 
         InterruptSequence::ReadLfEnableRf => {
-            let lf = wall_sensor::read_lf();
-            unsafe {
-                SENSOR_DATA.as_mut().unwrap().lf = lf.unwrap();
+            if ctx.enable_lf {
+                unsafe {
+                    SENSOR_DATA.as_mut().unwrap().lf = wall_sensor::read_lf()?;
+                }
             }
-            let _ = wall_sensor::on_rf();
+
+            if ctx.enable_rf {
+                wall_sensor::on_rf()?;
+            } else {
+                wall_sensor::off()?;
+            }
         }
 
         InterruptSequence::ReadRfEnableRs => {
-            let rf = wall_sensor::read_rf();
-            unsafe {
-                SENSOR_DATA.as_mut().unwrap().rf = rf.unwrap();
+            if ctx.enable_rf {
+                unsafe {
+                    SENSOR_DATA.as_mut().unwrap().rf = wall_sensor::read_rf()?;
+                }
             }
-            let _ = wall_sensor::on_rs();
+
+            if ctx.enable_rs {
+                wall_sensor::on_rs()?;
+            } else {
+                wall_sensor::off()?;
+            }
         }
 
         InterruptSequence::ReadRsDisable => {
-            let rs = wall_sensor::read_rs();
-            unsafe {
-                SENSOR_DATA.as_mut().unwrap().rs = rs.unwrap();
+            if ctx.enable_rs {
+                unsafe {
+                    SENSOR_DATA.as_mut().unwrap().rs = wall_sensor::read_rs()?;
+                }
             }
-            let _ = wall_sensor::off();
+            wall_sensor::off()?;
         }
 
         InterruptSequence::ReadImu => {}
@@ -155,4 +189,5 @@ fn timer_isr() {
 
         InterruptSequence::Etc => {}
     }
+    Ok(())
 }
