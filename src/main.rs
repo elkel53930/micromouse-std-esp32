@@ -4,6 +4,7 @@ use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_hal::timer;
 use esp_idf_sys as _;
 
+mod fram_logger;
 mod led;
 mod motor;
 mod wall_sensor;
@@ -45,6 +46,7 @@ fn main() -> anyhow::Result<()> {
     led::init(&mut peripherals)?;
     motor::init(&mut peripherals)?;
     wall_sensor::init(&mut peripherals)?;
+    fram_logger::init(&mut peripherals)?;
 
     let mut mot_sleep = PinDriver::output(peripherals.pins.gpio38)?;
     mot_sleep.set_high()?;
