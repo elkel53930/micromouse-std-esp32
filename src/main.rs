@@ -4,6 +4,7 @@ use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_hal::timer;
 use esp_idf_sys as _;
 
+mod encoder;
 mod fram_logger;
 mod imu;
 mod led;
@@ -49,6 +50,7 @@ fn main() -> anyhow::Result<()> {
     wall_sensor::init(&mut peripherals)?;
     fram_logger::init(&mut peripherals)?;
     imu::init(&mut peripherals)?;
+    encoder::init(&mut peripherals)?;
 
     let timer_config = timer::TimerConfig::new().auto_reload(true);
     let mut timer = timer::TimerDriver::new(peripherals.timer00, &timer_config)?;
@@ -67,9 +69,11 @@ fn main() -> anyhow::Result<()> {
         let rs = unsafe { SENSOR_DATA.as_ref().unwrap().rs };
         let batt = unsafe { SENSOR_DATA.as_ref().unwrap().batt };
         let gyro = unsafe { SENSOR_DATA.as_ref().unwrap().gyro };
+        let enc_r = unsafe { SENSOR_DATA.as_ref().unwrap().enc_r };
+        let enc_l = unsafe { SENSOR_DATA.as_ref().unwrap().enc_l };
         println!(
-            "ls: {}, lf: {}, rf: {}, rs: {}, batt: {}, gyro: {}",
-            ls, lf, rf, rs, batt, gyro
+            "ls: {}, lf: {}, rf: {}, rs: {}, batt: {}, gyro: {}, enc_l: {}, enc_r: {}",
+            ls, lf, rf, rs, batt, gyro, enc_l, enc_r
         );
         FreeRtos::delay_ms(100);
     }
@@ -181,7 +185,10 @@ fn interrupt() -> anyhow::Result<()> {
             SENSOR_DATA.as_mut().unwrap().gyro = imu::read()?;
         },
 
-        InterruptSequence::ReadEncoders => {}
+        InterruptSequence::ReadEncoders => unsafe {
+            SENSOR_DATA.as_mut().unwrap().enc_l = encoder::read_l()?;
+            SENSOR_DATA.as_mut().unwrap().enc_r = encoder::read_r()?;
+        },
 
         InterruptSequence::Control => {}
 
