@@ -11,6 +11,8 @@ mod led;
 mod motor;
 mod wall_sensor;
 
+use led::LedColor::{Blue, Green, Red};
+
 #[derive(Debug, Default, Clone)]
 struct SensorData {
     batt: u16,
@@ -62,16 +64,6 @@ fn main() -> anyhow::Result<()> {
 
     timer.enable_alarm(true)?;
     timer.enable(true)?;
-
-    unsafe {
-        INTERRUPT_CONTEXT.as_mut().unwrap().led_pattern.red_pattern = Some("01");
-        INTERRUPT_CONTEXT
-            .as_mut()
-            .unwrap()
-            .led_pattern
-            .green_pattern = Some("0011");
-        INTERRUPT_CONTEXT.as_mut().unwrap().led_pattern.blue_pattern = Some("0001");
-    }
 
     loop {
         let ls = unsafe { SENSOR_DATA.as_ref().unwrap().ls };

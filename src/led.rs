@@ -92,11 +92,14 @@ impl LedPattern {
 
     fn pattern_internal(
         &self,
-        pattern: &str,
+        pattern: Option<&str>,
         step: usize,
         color: LedColor,
     ) -> anyhow::Result<usize> {
-        let pattern = pattern.as_bytes();
+        if pattern.is_none() {
+            return Ok(0);
+        }
+        let pattern = pattern.unwrap().as_bytes();
         let on_char = b'1';
         let off_char = b'0';
         let mut step = step;
@@ -120,21 +123,12 @@ impl LedPattern {
     pub fn pattern(&mut self) -> anyhow::Result<()> {
         self.make_10hz = (self.make_10hz + 1) % 100;
         if self.make_10hz == 0 {
-            self.red_step = self.pattern_internal(
-                self.red_pattern.unwrap_or("0"),
-                self.red_step,
-                LedColor::Red,
-            )?;
-            self.green_step = self.pattern_internal(
-                self.green_pattern.unwrap_or("0"),
-                self.green_step,
-                LedColor::Green,
-            )?;
-            self.blue_step = self.pattern_internal(
-                self.blue_pattern.unwrap_or("0"),
-                self.blue_step,
-                LedColor::Blue,
-            )?;
+            self.red_step =
+                self.pattern_internal(self.red_pattern, self.red_step, LedColor::Red)?;
+            self.green_step =
+                self.pattern_internal(self.green_pattern, self.green_step, LedColor::Green)?;
+            self.blue_step =
+                self.pattern_internal(self.blue_pattern, self.blue_step, LedColor::Blue)?;
         }
         Ok(())
     }
