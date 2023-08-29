@@ -65,3 +65,77 @@ pub fn toggle(color: LedColor) -> anyhow::Result<()> {
     }
     Ok(())
 }
+
+#[derive(Default)]
+pub struct LedPattern {
+    red_step: usize,
+    green_step: usize,
+    blue_step: usize,
+    make_10hz: usize,
+    pub red_pattern: Option<&'static str>,
+    pub green_pattern: Option<&'static str>,
+    pub blue_pattern: Option<&'static str>,
+}
+
+impl LedPattern {
+    pub fn new() -> Self {
+        LedPattern {
+            red_step: 0,
+            green_step: 0,
+            blue_step: 0,
+            make_10hz: 0,
+            red_pattern: None,
+            green_pattern: None,
+            blue_pattern: None,
+        }
+    }
+
+    fn pattern_internal(
+        &self,
+        pattern: &str,
+        step: usize,
+        color: LedColor,
+    ) -> anyhow::Result<usize> {
+        let pattern = pattern.as_bytes();
+        let on_char = b'1';
+        let off_char = b'0';
+        let mut step = step;
+
+        if pattern.len() == 0 {
+            return Ok(0);
+        }
+
+        if pattern.len() <= step {
+            step = 0;
+        }
+
+        match pattern[step] {
+            x if x == on_char => on(color)?,
+            x if x == off_char => off(color)?,
+            _ => {}
+        }
+        Ok(step + 1)
+    }
+
+    pub fn pattern(&mut self) -> anyhow::Result<()> {
+        self.make_10hz = (self.make_10hz + 1) % 100;
+        if self.make_10hz == 0 {
+            self.red_step = self.pattern_internal(
+                self.red_pattern.unwrap_or("0"),
+                self.red_step,
+                LedColor::Red,
+            )?;
+            self.green_step = self.pattern_internal(
+                self.green_pattern.unwrap_or("0"),
+                self.green_step,
+                LedColor::Green,
+            )?;
+            self.blue_step = self.pattern_internal(
+                self.blue_pattern.unwrap_or("0"),
+                self.blue_step,
+                LedColor::Blue,
+            )?;
+        }
+        Ok(())
+    }
+}

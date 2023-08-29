@@ -24,13 +24,14 @@ struct SensorData {
 }
 static mut SENSOR_DATA: Option<SensorData> = None;
 
-#[derive(Debug, Default, Clone)]
+#[derive(Default)]
 struct InterruptContext {
     step: u8,
     enable_ls: bool,
     enable_lf: bool,
     enable_rf: bool,
     enable_rs: bool,
+    led_pattern: led::LedPattern,
 }
 static mut INTERRUPT_CONTEXT: Option<InterruptContext> = None;
 
@@ -62,6 +63,16 @@ fn main() -> anyhow::Result<()> {
     timer.enable_alarm(true)?;
     timer.enable(true)?;
 
+    unsafe {
+        INTERRUPT_CONTEXT.as_mut().unwrap().led_pattern.red_pattern = Some("01");
+        INTERRUPT_CONTEXT
+            .as_mut()
+            .unwrap()
+            .led_pattern
+            .green_pattern = Some("0011");
+        INTERRUPT_CONTEXT.as_mut().unwrap().led_pattern.blue_pattern = Some("0001");
+    }
+
     loop {
         let ls = unsafe { SENSOR_DATA.as_ref().unwrap().ls };
         let lf = unsafe { SENSOR_DATA.as_ref().unwrap().lf };
@@ -89,7 +100,7 @@ enum InterruptSequence {
     ReadImu,
     ReadEncoders,
     Control,
-    Noop,
+    Led,
     Etc,
 }
 
@@ -102,7 +113,7 @@ const SEQUENCE: [InterruptSequence; 10] = [
     InterruptSequence::ReadImu,
     InterruptSequence::ReadEncoders,
     InterruptSequence::Control,
-    InterruptSequence::Noop,
+    InterruptSequence::Led,
     InterruptSequence::Etc,
 ];
 
@@ -192,7 +203,9 @@ fn interrupt() -> anyhow::Result<()> {
 
         InterruptSequence::Control => {}
 
-        InterruptSequence::Noop => {}
+        InterruptSequence::Led => unsafe {
+            INTERRUPT_CONTEXT.as_mut().unwrap().led_pattern.pattern()?;
+        },
 
         InterruptSequence::Etc => {}
     }
