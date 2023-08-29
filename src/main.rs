@@ -5,6 +5,7 @@ use esp_idf_hal::timer;
 use esp_idf_sys as _;
 
 mod fram_logger;
+mod imu;
 mod led;
 mod motor;
 mod wall_sensor;
@@ -16,7 +17,7 @@ struct SensorData {
     lf: u16,
     rf: u16,
     rs: u16,
-    imu: u16,
+    gyro: i16,
     enc_l: u16,
     enc_r: u16,
 }
@@ -47,11 +48,7 @@ fn main() -> anyhow::Result<()> {
     motor::init(&mut peripherals)?;
     wall_sensor::init(&mut peripherals)?;
     fram_logger::init(&mut peripherals)?;
-
-    let mut mot_sleep = PinDriver::output(peripherals.pins.gpio38)?;
-    mot_sleep.set_high()?;
-    motor::set_r(0.0);
-    motor::set_l(0.0);
+    imu::init(&mut peripherals)?;
 
     let timer_config = timer::TimerConfig::new().auto_reload(true);
     let mut timer = timer::TimerDriver::new(peripherals.timer00, &timer_config)?;
@@ -63,17 +60,16 @@ fn main() -> anyhow::Result<()> {
     timer.enable_alarm(true)?;
     timer.enable(true)?;
 
-    motor::enable(true);
-
     loop {
         let ls = unsafe { SENSOR_DATA.as_ref().unwrap().ls };
         let lf = unsafe { SENSOR_DATA.as_ref().unwrap().lf };
         let rf = unsafe { SENSOR_DATA.as_ref().unwrap().rf };
         let rs = unsafe { SENSOR_DATA.as_ref().unwrap().rs };
         let batt = unsafe { SENSOR_DATA.as_ref().unwrap().batt };
+        let gyro = unsafe { SENSOR_DATA.as_ref().unwrap().gyro };
         println!(
-            "ls: {}, lf: {}, rf: {}, rs: {}, batt: {}",
-            ls, lf, rf, rs, batt
+            "ls: {}, lf: {}, rf: {}, rs: {}, batt: {}, gyro: {}",
+            ls, lf, rf, rs, batt, gyro
         );
         FreeRtos::delay_ms(100);
     }
@@ -181,7 +177,9 @@ fn interrupt() -> anyhow::Result<()> {
             wall_sensor::off()?;
         }
 
-        InterruptSequence::ReadImu => {}
+        InterruptSequence::ReadImu => unsafe {
+            SENSOR_DATA.as_mut().unwrap().gyro = imu::read()?;
+        },
 
         InterruptSequence::ReadEncoders => {}
 

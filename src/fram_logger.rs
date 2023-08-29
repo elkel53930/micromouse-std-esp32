@@ -63,7 +63,7 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
     let mut buffer: [u8; 2] = [0; 2];
     read_fram(0x00, &mut buffer)?;
     unsafe {
-        CURSOR = (buffer[0] as u16) << 8 + buffer[1] as u16;
+        CURSOR = ((buffer[0] as u16) << 8) + buffer[1] as u16;
     }
     Ok(())
 }
