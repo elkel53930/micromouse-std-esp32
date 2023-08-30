@@ -65,6 +65,13 @@ fn main() -> anyhow::Result<()> {
     timer.enable_alarm(true)?;
     timer.enable(true)?;
 
+    unsafe {
+        INTERRUPT_CONTEXT.as_mut().unwrap().enable_lf = true;
+        INTERRUPT_CONTEXT.as_mut().unwrap().enable_rf = true;
+        INTERRUPT_CONTEXT.as_mut().unwrap().enable_ls = true;
+        INTERRUPT_CONTEXT.as_mut().unwrap().enable_rs = true;
+    }
+
     loop {
         let ls = unsafe { SENSOR_DATA.as_ref().unwrap().ls };
         let lf = unsafe { SENSOR_DATA.as_ref().unwrap().lf };
