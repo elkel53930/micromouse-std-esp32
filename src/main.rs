@@ -9,6 +9,7 @@ mod fram_logger;
 mod imu;
 mod led;
 mod motor;
+mod uart;
 mod wall_sensor;
 
 use led::LedColor::{Blue, Green, Red};
@@ -55,6 +56,13 @@ fn main() -> anyhow::Result<()> {
     imu::init(&mut peripherals)?;
     encoder::init(&mut peripherals)?;
 
+    // You can use println up to before uart:init.
+    println!("init uart");
+    FreeRtos::delay_ms(100);
+    uart::init(&mut peripherals)?;
+    // After uart:init, you can use uprintln.
+    uprintln!("init uart done");
+
     let timer_config = timer::TimerConfig::new().auto_reload(true);
     let mut timer = timer::TimerDriver::new(peripherals.timer00, &timer_config)?;
     timer.set_alarm(100)?;
@@ -73,6 +81,12 @@ fn main() -> anyhow::Result<()> {
     }
 
     loop {
+        let mut buff: [u8; 10] = [0; 10];
+        uprintln!("read");
+        uart::block_read(&mut buff)?;
+
+        uprintln!("buff: {:?}", buff);
+
         let ls = unsafe { SENSOR_DATA.as_ref().unwrap().ls };
         let lf = unsafe { SENSOR_DATA.as_ref().unwrap().lf };
         let rf = unsafe { SENSOR_DATA.as_ref().unwrap().rf };
@@ -81,9 +95,16 @@ fn main() -> anyhow::Result<()> {
         let gyro = unsafe { SENSOR_DATA.as_ref().unwrap().gyro };
         let enc_r = unsafe { SENSOR_DATA.as_ref().unwrap().enc_r };
         let enc_l = unsafe { SENSOR_DATA.as_ref().unwrap().enc_l };
-        println!(
+        uprintln!(
             "ls: {}, lf: {}, rf: {}, rs: {}, batt: {}, gyro: {}, enc_l: {}, enc_r: {}",
-            ls, lf, rf, rs, batt, gyro, enc_l, enc_r
+            ls,
+            lf,
+            rf,
+            rs,
+            batt,
+            gyro,
+            enc_l,
+            enc_r
         );
         FreeRtos::delay_ms(100);
     }
