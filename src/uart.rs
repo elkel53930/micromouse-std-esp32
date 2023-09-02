@@ -31,14 +31,17 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn block_read(buf: &mut [u8]) -> Result<usize, esp_idf_sys::EspError> {
     unsafe { UART.as_mut().unwrap().read(buf, BLOCK) }
 }
 
+#[allow(dead_code)]
 pub fn read(buf: &mut [u8]) -> Result<usize, esp_idf_sys::EspError> {
     unsafe { UART.as_mut().unwrap().read(buf, NON_BLOCK) }
 }
 
+#[allow(dead_code)]
 pub fn write(buf: &[u8]) -> Result<usize, esp_idf_sys::EspError> {
     unsafe { UART.as_mut().unwrap().write(buf) }
 }

@@ -1,5 +1,4 @@
 use esp_idf_hal::delay::FreeRtos;
-use esp_idf_hal::gpio::*;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_hal::timer;
 use esp_idf_sys as _;
@@ -12,6 +11,7 @@ mod motor;
 mod uart;
 mod wall_sensor;
 
+#[allow(unused_imports)]
 use led::LedColor::{Blue, Green, Red};
 
 #[derive(Debug, Default, Clone)]
