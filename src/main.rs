@@ -27,6 +27,18 @@ struct SensorData {
 }
 static mut SENSOR_DATA: Option<SensorData> = None;
 
+#[derive(Default, Debug)]
+enum MotorMode {
+    #[default]
+    Stop,
+    Forwaed,
+}
+
+#[derive(Default)]
+struct MotorControl {
+    mode: MotorMode,
+}
+
 #[derive(Default)]
 struct InterruptContext {
     step: u8,
@@ -35,6 +47,7 @@ struct InterruptContext {
     enable_rf: bool,
     enable_rs: bool,
     led_pattern: led::LedPattern,
+    motor_mode: MotorMode,
 }
 static mut INTERRUPT_CONTEXT: Option<InterruptContext> = None;
 
@@ -79,6 +92,51 @@ fn main() -> anyhow::Result<()> {
         INTERRUPT_CONTEXT.as_mut().unwrap().enable_ls = true;
         INTERRUPT_CONTEXT.as_mut().unwrap().enable_rs = true;
     }
+
+    unsafe {
+        INTERRUPT_CONTEXT.as_mut().unwrap().led_pattern.red_pattern = Some("1");
+        INTERRUPT_CONTEXT
+            .as_mut()
+            .unwrap()
+            .led_pattern
+            .green_pattern = Some("10");
+    }
+
+    FreeRtos::delay_ms(1000);
+
+    unsafe {
+        INTERRUPT_CONTEXT.as_mut().unwrap().led_pattern.red_pattern = Some("1100");
+    }
+
+    FreeRtos::delay_ms(1000);
+
+    unsafe {
+        INTERRUPT_CONTEXT.as_mut().unwrap().led_pattern.red_pattern = Some("10");
+    }
+
+    FreeRtos::delay_ms(1000);
+
+    unsafe {
+        INTERRUPT_CONTEXT.as_mut().unwrap().led_pattern.red_pattern = Some("0");
+    }
+
+    unsafe {
+        INTERRUPT_CONTEXT.as_mut().unwrap().motor_mode = MotorMode::Forwaed;
+    }
+
+    FreeRtos::delay_ms(1000);
+
+    unsafe {
+        INTERRUPT_CONTEXT.as_mut().unwrap().motor_mode = MotorMode::Stop;
+    }
+
+    motor::enable(true);
+    motor::set_l(30.0);
+    motor::set_r(30.0);
+
+    FreeRtos::delay_ms(300);
+
+    motor::enable(false);
 
     loop {
         let mut buff: [u8; 10] = [0; 10];
