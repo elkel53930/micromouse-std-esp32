@@ -2,13 +2,17 @@ use esp_idf_hal::delay::FreeRtos;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_hal::timer;
 use esp_idf_sys as _;
+use std::thread;
 
+#[macro_use]
+pub mod uart;
+
+mod console;
 mod encoder;
 mod fram_logger;
 mod imu;
 mod led;
 mod motor;
-mod uart;
 mod wall_sensor;
 
 #[allow(unused_imports)]
@@ -27,18 +31,6 @@ struct SensorData {
 }
 static mut SENSOR_DATA: Option<SensorData> = None;
 
-#[derive(Default, Debug)]
-enum MotorMode {
-    #[default]
-    Stop,
-    Forwaed,
-}
-
-#[derive(Default)]
-struct MotorControl {
-    mode: MotorMode,
-}
-
 #[derive(Default)]
 struct InterruptContext {
     step: u8,
@@ -47,8 +39,8 @@ struct InterruptContext {
     enable_rf: bool,
     enable_rs: bool,
     led_pattern: led::LedPattern,
-    motor_mode: MotorMode,
 }
+
 static mut INTERRUPT_CONTEXT: Option<InterruptContext> = None;
 
 fn main() -> anyhow::Result<()> {
@@ -102,71 +94,17 @@ fn main() -> anyhow::Result<()> {
             .green_pattern = Some("10");
     }
 
-    FreeRtos::delay_ms(1000);
+    thread::spawn(|| loop {
+        led::toggle(led::LedColor::Green).unwrap();
+        motor::set_l(0.0);
+        motor::set_r(0.0);
+        FreeRtos::delay_ms(1);
+    });
+    let _ = motor::enable(true);
 
-    unsafe {
-        INTERRUPT_CONTEXT.as_mut().unwrap().led_pattern.red_pattern = Some("1100");
-    }
+    let mut console = console::Console::new();
+    console.run();
 
-    FreeRtos::delay_ms(1000);
-
-    unsafe {
-        INTERRUPT_CONTEXT.as_mut().unwrap().led_pattern.red_pattern = Some("10");
-    }
-
-    FreeRtos::delay_ms(1000);
-
-    unsafe {
-        INTERRUPT_CONTEXT.as_mut().unwrap().led_pattern.red_pattern = Some("0");
-    }
-
-    unsafe {
-        INTERRUPT_CONTEXT.as_mut().unwrap().motor_mode = MotorMode::Forwaed;
-    }
-
-    FreeRtos::delay_ms(1000);
-
-    unsafe {
-        INTERRUPT_CONTEXT.as_mut().unwrap().motor_mode = MotorMode::Stop;
-    }
-
-    motor::enable(true);
-    motor::set_l(30.0);
-    motor::set_r(30.0);
-
-    FreeRtos::delay_ms(300);
-
-    motor::enable(false);
-
-    loop {
-        let mut buff: [u8; 10] = [0; 10];
-        uprintln!("read");
-        uart::block_read(&mut buff)?;
-
-        uprintln!("buff: {:?}", buff);
-
-        let ls = unsafe { SENSOR_DATA.as_ref().unwrap().ls };
-        let lf = unsafe { SENSOR_DATA.as_ref().unwrap().lf };
-        let rf = unsafe { SENSOR_DATA.as_ref().unwrap().rf };
-        let rs = unsafe { SENSOR_DATA.as_ref().unwrap().rs };
-        let batt = unsafe { SENSOR_DATA.as_ref().unwrap().batt };
-        let gyro = unsafe { SENSOR_DATA.as_ref().unwrap().gyro };
-        let enc_r = unsafe { SENSOR_DATA.as_ref().unwrap().enc_r };
-        let enc_l = unsafe { SENSOR_DATA.as_ref().unwrap().enc_l };
-        uprintln!(
-            "ls: {}, lf: {}, rf: {}, rs: {}, batt: {}, gyro: {}, enc_l: {}, enc_r: {}",
-            ls,
-            lf,
-            rf,
-            rs,
-            batt,
-            gyro,
-            enc_l,
-            enc_r
-        );
-        FreeRtos::delay_ms(100);
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum InterruptSequence {
@@ -177,9 +115,9 @@ enum InterruptSequence {
     ReadRsDisable,
     ReadImu,
     ReadEncoders,
-    Control,
     Led,
     Etc,
+    None,
 }
 
 const SEQUENCE: [InterruptSequence; 10] = [
@@ -190,9 +128,9 @@ const SEQUENCE: [InterruptSequence; 10] = [
     InterruptSequence::ReadRsDisable,
     InterruptSequence::ReadImu,
     InterruptSequence::ReadEncoders,
-    InterruptSequence::Control,
     InterruptSequence::Led,
     InterruptSequence::Etc,
+    InterruptSequence::None,
 ];
 
 fn timer_isr() {
@@ -279,13 +217,13 @@ fn interrupt() -> anyhow::Result<()> {
             SENSOR_DATA.as_mut().unwrap().enc_r = encoder::read_r()?;
         },
 
-        InterruptSequence::Control => {}
-
         InterruptSequence::Led => unsafe {
             INTERRUPT_CONTEXT.as_mut().unwrap().led_pattern.pattern()?;
         },
 
         InterruptSequence::Etc => {}
+
+        InterruptSequence::None => {}
     }
     Ok(())
 }
