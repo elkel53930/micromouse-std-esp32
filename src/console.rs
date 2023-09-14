@@ -1,4 +1,8 @@
-use crate::uart::read_line;
+use esp_idf_hal::delay::FreeRtos;
+
+use crate::context;
+use crate::uart::{read, read_line};
+use crate::CS;
 
 pub struct Console {
     commands: Vec<Box<dyn ConsoleCommand>>,
@@ -6,7 +10,8 @@ pub struct Console {
 
 impl Console {
     pub fn new() -> Console {
-        let commands: Vec<Box<dyn ConsoleCommand>> = vec![Box::new(CmdEcho {})];
+        let commands: Vec<Box<dyn ConsoleCommand>> =
+            vec![Box::new(CmdEcho {}), Box::new(CmdSen {})];
         Console { commands }
     }
 
@@ -81,7 +86,7 @@ pub trait ConsoleCommand {
 }
 
 /* sen command */
-pub struct CmdEcho {}
+struct CmdEcho {}
 
 /* show all sensor's values */
 impl ConsoleCommand for CmdEcho {
@@ -103,10 +108,82 @@ impl ConsoleCommand for CmdEcho {
     }
 
     fn hint(&self) {
+        uprintln!("Echo input string.");
         uprintln!("Usage: echo [args...]");
     }
 
     fn name(&self) -> &str {
         "echo"
+    }
+}
+
+struct CmdSen {}
+
+impl ConsoleCommand for CmdSen {
+    fn execute(&self, args: &[&str]) -> anyhow::Result<()> {
+        if args.len() != 0 {
+            return Err(anyhow::anyhow!("Invalid argument"));
+        }
+
+        context::ope(|ctx| {
+            CS.enter();
+            ctx.enable_ls = true;
+            ctx.enable_lf = true;
+            ctx.enable_rf = true;
+            ctx.enable_rs = true;
+        });
+
+        // Print all sensor data until something is received from UART.
+        uprintln!("Press any key to exit.");
+
+        let mut buffer: [u8; 1] = [0];
+        loop {
+            let ctx = {
+                CS.enter();
+                context::get()
+            };
+
+            uprintln!(
+                "batt: {}, ls: {}, lf: {}, rf: {}, rs: {}, gyro: {}, enc_l: {}, enc_r: {}",
+                ctx.batt,
+                ctx.ls,
+                ctx.lf,
+                ctx.rf,
+                ctx.rs,
+                ctx.gyro,
+                ctx.enc_l,
+                ctx.enc_r
+            );
+            FreeRtos::delay_ms(100);
+            match read(&mut buffer) {
+                Ok(size) => {
+                    if size != 0 {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    uprintln!("Error: {}", e);
+                }
+            }
+        }
+
+        context::ope(|ctx| {
+            CS.enter();
+            ctx.enable_ls = false;
+            ctx.enable_lf = false;
+            ctx.enable_rf = false;
+            ctx.enable_rs = false;
+        });
+        println!("");
+        Ok(())
+    }
+
+    fn hint(&self) {
+        uprintln!("Show all sensor's values.");
+        uprintln!("Usage: sen");
+    }
+
+    fn name(&self) -> &str {
+        "sen"
     }
 }

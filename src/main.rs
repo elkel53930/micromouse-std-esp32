@@ -8,6 +8,7 @@ use std::thread;
 pub mod uart;
 
 mod console;
+pub mod context;
 mod encoder;
 mod fram_logger;
 mod imu;
@@ -18,38 +19,10 @@ mod wall_sensor;
 #[allow(unused_imports)]
 use led::LedColor::{Blue, Green, Red};
 
-#[derive(Debug, Default, Clone)]
-struct SensorData {
-    batt: u16,
-    ls: u16,
-    lf: u16,
-    rf: u16,
-    rs: u16,
-    gyro: i16,
-    enc_l: u16,
-    enc_r: u16,
-}
-static mut SENSOR_DATA: Option<SensorData> = None;
-
-#[derive(Default)]
-struct InterruptContext {
-    step: u8,
-    enable_ls: bool,
-    enable_lf: bool,
-    enable_rf: bool,
-    enable_rs: bool,
-    led_pattern: led::LedPattern,
-}
-
-static mut INTERRUPT_CONTEXT: Option<InterruptContext> = None;
+pub static CS: esp_idf_hal::task::CriticalSection = esp_idf_hal::task::CriticalSection::new();
 
 fn main() -> anyhow::Result<()> {
     esp_idf_sys::link_patches();
-
-    unsafe {
-        SENSOR_DATA = Some(SensorData::default());
-        INTERRUPT_CONTEXT = Some(InterruptContext::default());
-    }
 
     let mut peripherals = Peripherals::take().unwrap();
 
@@ -78,21 +51,17 @@ fn main() -> anyhow::Result<()> {
     timer.enable_alarm(true)?;
     timer.enable(true)?;
 
-    unsafe {
-        INTERRUPT_CONTEXT.as_mut().unwrap().enable_lf = true;
-        INTERRUPT_CONTEXT.as_mut().unwrap().enable_rf = true;
-        INTERRUPT_CONTEXT.as_mut().unwrap().enable_ls = true;
-        INTERRUPT_CONTEXT.as_mut().unwrap().enable_rs = true;
-    }
-
-    unsafe {
-        INTERRUPT_CONTEXT.as_mut().unwrap().led_pattern.red_pattern = Some("1");
-        INTERRUPT_CONTEXT
-            .as_mut()
-            .unwrap()
-            .led_pattern
-            .green_pattern = Some("10");
-    }
+    {
+        CS.enter(); // enter critical section
+        context::ope(|ctx| {
+            ctx.enable_ls = true;
+            ctx.enable_lf = true;
+            ctx.enable_rf = true;
+            ctx.enable_rs = true;
+        });
+        led::set(Green, "1");
+        led::set(Red, "10");
+    } // end critical section
 
     thread::spawn(|| loop {
         led::toggle(led::LedColor::Green).unwrap();
@@ -104,7 +73,7 @@ fn main() -> anyhow::Result<()> {
 
     let mut console = console::Console::new();
     console.run();
-
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum InterruptSequence {
@@ -138,18 +107,13 @@ fn timer_isr() {
 }
 
 fn interrupt() -> anyhow::Result<()> {
-    let ctx = unsafe { INTERRUPT_CONTEXT.as_ref().unwrap().clone() };
-    unsafe {
-        let step = INTERRUPT_CONTEXT.as_ref().unwrap().step;
-        INTERRUPT_CONTEXT.as_mut().unwrap().step = (step + 1) % 10;
-    };
+    let mut ctx = context::get();
     let step = SEQUENCE[ctx.step as usize];
+    ctx.step = (ctx.step + 1) % SEQUENCE.len() as u8;
 
     match step {
         InterruptSequence::ReadBattEnableLs => {
-            unsafe {
-                SENSOR_DATA.as_mut().unwrap().batt = wall_sensor::read_batt()?;
-            }
+            ctx.batt = wall_sensor::read_batt()?;
             if ctx.enable_ls {
                 wall_sensor::on_ls()?;
             } else {
@@ -159,9 +123,7 @@ fn interrupt() -> anyhow::Result<()> {
 
         InterruptSequence::ReadLsEnableLf => {
             if ctx.enable_ls {
-                unsafe {
-                    SENSOR_DATA.as_mut().unwrap().ls = wall_sensor::read_ls()?;
-                }
+                ctx.ls = wall_sensor::read_ls()?;
             }
 
             if ctx.enable_lf {
@@ -173,9 +135,7 @@ fn interrupt() -> anyhow::Result<()> {
 
         InterruptSequence::ReadLfEnableRf => {
             if ctx.enable_lf {
-                unsafe {
-                    SENSOR_DATA.as_mut().unwrap().lf = wall_sensor::read_lf()?;
-                }
+                ctx.lf = wall_sensor::read_lf()?;
             }
 
             if ctx.enable_rf {
@@ -187,9 +147,7 @@ fn interrupt() -> anyhow::Result<()> {
 
         InterruptSequence::ReadRfEnableRs => {
             if ctx.enable_rf {
-                unsafe {
-                    SENSOR_DATA.as_mut().unwrap().rf = wall_sensor::read_rf()?;
-                }
+                ctx.rf = wall_sensor::read_rf()?;
             }
 
             if ctx.enable_rs {
@@ -201,29 +159,28 @@ fn interrupt() -> anyhow::Result<()> {
 
         InterruptSequence::ReadRsDisable => {
             if ctx.enable_rs {
-                unsafe {
-                    SENSOR_DATA.as_mut().unwrap().rs = wall_sensor::read_rs()?;
-                }
+                ctx.rs = wall_sensor::read_rs()?;
             }
             wall_sensor::off()?;
         }
 
-        InterruptSequence::ReadImu => unsafe {
-            SENSOR_DATA.as_mut().unwrap().gyro = imu::read()?;
-        },
+        InterruptSequence::ReadImu => {
+            ctx.gyro = imu::read()?;
+        }
 
-        InterruptSequence::ReadEncoders => unsafe {
-            SENSOR_DATA.as_mut().unwrap().enc_l = encoder::read_l()?;
-            SENSOR_DATA.as_mut().unwrap().enc_r = encoder::read_r()?;
-        },
+        InterruptSequence::ReadEncoders => {
+            ctx.enc_l = encoder::read_l()?;
+            ctx.enc_r = encoder::read_r()?;
+        }
 
-        InterruptSequence::Led => unsafe {
-            INTERRUPT_CONTEXT.as_mut().unwrap().led_pattern.pattern()?;
-        },
+        InterruptSequence::Led => {
+            led::pattern()?;
+        }
 
         InterruptSequence::Etc => {}
 
         InterruptSequence::None => {}
     }
+    context::set(&ctx);
     Ok(())
 }
