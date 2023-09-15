@@ -7,8 +7,12 @@ use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_hal::spi::*;
 use esp_idf_hal::units::FromValueType;
 
+use crate::misc::{correct_value, FIR};
+
 static mut SPI: Option<SpiDeviceDriver<'static, SpiDriver<'static>>> = None;
 static mut CS: Option<PinDriver<'_, Gpio9, Output>> = None;
+static mut FIR_X: Option<FIR<f32>> = None;
+static mut OFFSET_X: i16 = 0;
 
 fn transfer(read: &mut [u8], write: &[u8]) -> anyhow::Result<()> {
     unsafe {
@@ -44,6 +48,26 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
         SPI = Some(spi);
         CS = Some(PinDriver::output(cs)?);
         CS.as_mut().unwrap().set_high()?;
+
+        /*
+            Filter length : N = 11
+            Filter type : LPF
+            Window type : Hamming
+            Normalized cutoff frequency : 0.4
+        */
+        FIR_X = Some(FIR::new(vec![
+            -2.494829972812401e-18,
+            -7.851195903558143e-03,
+            4.014735544403485e-02,
+            -1.032535402203297e-01,
+            1.706609016841135e-01,
+            8.000000000000000e-01,
+            1.706609016841135e-01,
+            -1.032535402203297e-01,
+            4.014735544403485e-02,
+            -7.851195903558143e-03,
+            -2.494829972812401e-18,
+        ]));
     }
 
     let mut r_buffer = [0x00, 0x00];
@@ -64,4 +88,18 @@ pub fn read() -> anyhow::Result<i16> {
 
     let result = ((r_buffer[2] as i16) << 8) | (r_buffer[1] as i16);
     Ok(result)
+}
+
+const YAW_TABLE: [(i16, f32); 2] = [(-32768, -2293.76), (32767, 2293.69)];
+
+pub fn correct(raw_value: i16) -> f32 {
+    let offset_removed = raw_value - unsafe { OFFSET_X };
+    let corrected = correct_value(
+        &YAW_TABLE,
+        offset_removed,
+        YAW_TABLE[0].1,
+        YAW_TABLE[YAW_TABLE.len() - 1].1,
+    );
+    let filtered = unsafe { FIR_X.as_mut().unwrap().filter(corrected) };
+    filtered
 }

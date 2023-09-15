@@ -144,15 +144,16 @@ impl ConsoleCommand for CmdSen {
             };
 
             uprintln!(
-                "batt: {}, ls: {}, lf: {}, rf: {}, rs: {}, gyro: {}, enc_l: {}, enc_r: {}",
-                ctx.batt,
-                ctx.ls,
-                ctx.lf,
-                ctx.rf,
-                ctx.rs,
-                ctx.gyro,
-                ctx.enc_l,
-                ctx.enc_r
+                "batt: {}, ls: {}, lf: {}, rf: {}, rs: {}, gyro: {}, enc_l: {}, enc_r: {}, yaw: {}",
+                ctx.batt_raw,
+                ctx.ls_raw,
+                ctx.lf_raw,
+                ctx.rf_raw,
+                ctx.rs_raw,
+                ctx.gyro_yaw_raw,
+                ctx.enc_l_raw,
+                ctx.enc_r_raw,
+                ctx.control_context.gyro_yaw,
             );
             FreeRtos::delay_ms(100);
             match read(&mut buffer) {

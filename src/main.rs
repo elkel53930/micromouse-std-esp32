@@ -14,6 +14,7 @@ mod encoder;
 mod fram_logger;
 mod imu;
 mod led;
+pub mod misc;
 mod motor;
 mod wall_sensor;
 
@@ -66,9 +67,18 @@ fn main() -> anyhow::Result<()> {
 
     thread::spawn(|| {
         let control = control::Control::default();
-        let context: control::ControlContext = control::ControlContext::default();
         loop {
-            let (en, l, r) = control.control(&context);
+            context::ope(|ctx| {
+                CS.enter();
+                let gyro_yaw = imu::correct(ctx.gyro_yaw_raw);
+                ctx.control_context.gyro_yaw = gyro_yaw;
+            });
+
+            let control_context: control::ControlContext = {
+                CS.enter();
+                context::get().control_context.clone()
+            };
+            let (en, l, r) = control.control(&control_context);
             motor::set_l(l);
             motor::set_r(r);
             motor::enable(en);
@@ -119,7 +129,7 @@ fn interrupt() -> anyhow::Result<()> {
 
     match step {
         InterruptSequence::ReadBattEnableLs => {
-            ctx.batt = wall_sensor::read_batt()?;
+            ctx.batt_raw = wall_sensor::read_batt()?;
             if ctx.enable_ls {
                 wall_sensor::on_ls()?;
             } else {
@@ -129,7 +139,7 @@ fn interrupt() -> anyhow::Result<()> {
 
         InterruptSequence::ReadLsEnableLf => {
             if ctx.enable_ls {
-                ctx.ls = wall_sensor::read_ls()?;
+                ctx.ls_raw = wall_sensor::read_ls()?;
             }
 
             if ctx.enable_lf {
@@ -141,7 +151,7 @@ fn interrupt() -> anyhow::Result<()> {
 
         InterruptSequence::ReadLfEnableRf => {
             if ctx.enable_lf {
-                ctx.lf = wall_sensor::read_lf()?;
+                ctx.lf_raw = wall_sensor::read_lf()?;
             }
 
             if ctx.enable_rf {
@@ -153,7 +163,7 @@ fn interrupt() -> anyhow::Result<()> {
 
         InterruptSequence::ReadRfEnableRs => {
             if ctx.enable_rf {
-                ctx.rf = wall_sensor::read_rf()?;
+                ctx.rf_raw = wall_sensor::read_rf()?;
             }
 
             if ctx.enable_rs {
@@ -165,18 +175,18 @@ fn interrupt() -> anyhow::Result<()> {
 
         InterruptSequence::ReadRsDisable => {
             if ctx.enable_rs {
-                ctx.rs = wall_sensor::read_rs()?;
+                ctx.rs_raw = wall_sensor::read_rs()?;
             }
             wall_sensor::off()?;
         }
 
         InterruptSequence::ReadImu => {
-            ctx.gyro = imu::read()?;
+            ctx.gyro_yaw_raw = imu::read()?;
         }
 
         InterruptSequence::ReadEncoders => {
-            ctx.enc_l = encoder::read_l()?;
-            ctx.enc_r = encoder::read_r()?;
+            ctx.enc_l_raw = encoder::read_l()?;
+            ctx.enc_r_raw = encoder::read_r()?;
         }
 
         InterruptSequence::Led => {
