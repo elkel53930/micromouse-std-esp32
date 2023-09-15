@@ -9,6 +9,7 @@ pub mod uart;
 
 mod console;
 pub mod context;
+pub mod control;
 mod encoder;
 mod fram_logger;
 mod imu;
@@ -63,11 +64,16 @@ fn main() -> anyhow::Result<()> {
         led::set(Red, "10");
     } // end critical section
 
-    thread::spawn(|| loop {
-        led::toggle(led::LedColor::Green).unwrap();
-        motor::set_l(0.0);
-        motor::set_r(0.0);
-        FreeRtos::delay_ms(1);
+    thread::spawn(|| {
+        let control = control::Control::default();
+        let context: control::ControlContext = control::ControlContext::default();
+        loop {
+            let (en, l, r) = control.control(&context);
+            motor::set_l(l);
+            motor::set_r(r);
+            motor::enable(en);
+            FreeRtos::delay_ms(1);
+        }
     });
     let _ = motor::enable(true);
 
