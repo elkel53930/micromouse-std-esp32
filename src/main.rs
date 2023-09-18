@@ -7,6 +7,7 @@ use std::thread;
 #[macro_use]
 pub mod uart;
 
+mod config;
 mod console;
 pub mod context;
 pub mod control;
@@ -82,7 +83,7 @@ fn main() -> anyhow::Result<()> {
             motor::set_l(l);
             motor::set_r(r);
             motor::enable(en);
-            FreeRtos::delay_ms(1);
+            FreeRtos::delay_ms(config::CONTROL_CYCLE);
         }
     });
     let _ = motor::enable(true);
