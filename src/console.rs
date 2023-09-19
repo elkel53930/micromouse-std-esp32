@@ -126,7 +126,7 @@ impl ConsoleCommand for CmdSen {
         }
 
         context::ope(|ctx| {
-            CS.enter();
+            let _guard = CS.enter();
             ctx.enable_ls = true;
             ctx.enable_lf = true;
             ctx.enable_rf = true;
@@ -139,7 +139,7 @@ impl ConsoleCommand for CmdSen {
         let mut buffer: [u8; 1] = [0];
         loop {
             let ctx = {
-                CS.enter();
+                let _guard = CS.enter();
                 context::get()
             };
 
@@ -169,7 +169,7 @@ impl ConsoleCommand for CmdSen {
         }
 
         context::ope(|ctx| {
-            CS.enter();
+            let _guard = CS.enter();
             ctx.enable_ls = false;
             ctx.enable_lf = false;
             ctx.enable_rf = false;

@@ -11,8 +11,6 @@ use crate::misc::{correct_value, FIR};
 
 static mut SPI: Option<SpiDeviceDriver<'static, SpiDriver<'static>>> = None;
 static mut CS: Option<PinDriver<'_, Gpio9, Output>> = None;
-static mut FIR_X: Option<FIR<f32>> = None;
-static mut OFFSET_X: i16 = 0;
 
 fn transfer(read: &mut [u8], write: &[u8]) -> anyhow::Result<()> {
     unsafe {
@@ -48,26 +46,6 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
         SPI = Some(spi);
         CS = Some(PinDriver::output(cs)?);
         CS.as_mut().unwrap().set_high()?;
-
-        /*
-            Filter length : N = 11
-            Filter type : LPF
-            Window type : Hamming
-            Normalized cutoff frequency : 0.4
-        */
-        FIR_X = Some(FIR::new(vec![
-            -2.494829972812401e-18,
-            -7.851195903558143e-03,
-            4.014735544403485e-02,
-            -1.032535402203297e-01,
-            1.706609016841135e-01,
-            8.000000000000000e-01,
-            1.706609016841135e-01,
-            -1.032535402203297e-01,
-            4.014735544403485e-02,
-            -7.851195903558143e-03,
-            -2.494829972812401e-18,
-        ]));
     }
 
     let mut r_buffer = [0x00, 0x00];
@@ -92,14 +70,70 @@ pub fn read() -> anyhow::Result<i16> {
 
 const YAW_TABLE: [(i16, f32); 2] = [(-32768, -2293.76), (32767, 2293.69)];
 
-pub fn correct(raw_value: i16) -> f32 {
-    let offset_removed = raw_value - unsafe { OFFSET_X };
-    let corrected = correct_value(
-        &YAW_TABLE,
-        offset_removed,
-        YAW_TABLE[0].1,
-        YAW_TABLE[YAW_TABLE.len() - 1].1,
-    );
-    let filtered = unsafe { FIR_X.as_mut().unwrap().filter(corrected) };
-    filtered
+pub struct GyroSensor {
+    fir: FIR<f32>,
+    offset: f32,
+}
+
+impl GyroSensor {
+    pub fn new() -> Self {
+        /*
+            Filter length : N = 11
+            Filter type : LPF
+            Window type : Hamming
+            Normalized cutoff frequency : 0.4
+        */
+        let fir = FIR::new(vec![
+            -2.494829972812401e-18,
+            -7.851195903558143e-03,
+            4.014735544403485e-02,
+            -1.032535402203297e-01,
+            1.706609016841135e-01,
+            8.000000000000000e-01,
+            1.706609016841135e-01,
+            -1.032535402203297e-01,
+            4.014735544403485e-02,
+            -7.851195903558143e-03,
+            -2.494829972812401e-18,
+        ]);
+
+        GyroSensor {
+            fir: fir,
+            offset: 0.0,
+        }
+    }
+
+    pub fn correct(&mut self, raw_value: i16) -> f32 {
+        let corrected = correct_value(
+            &YAW_TABLE,
+            raw_value,
+            YAW_TABLE[0].1,
+            YAW_TABLE[YAW_TABLE.len() - 1].1,
+        ) - self.offset;
+        let filtered = self.fir.filter(corrected);
+        filtered
+    }
+
+    pub fn reset_filter(&mut self) {
+        self.fir.reset();
+    }
+
+    pub fn measure_offset<F>(&mut self, mut get_raw_value: F)
+    where
+        F: FnMut() -> i16,
+    {
+        let mut sum = 0.0;
+        for _ in 0..100 {
+            let raw_value = get_raw_value();
+            let corrected = correct_value(
+                &YAW_TABLE,
+                raw_value,
+                YAW_TABLE[0].1,
+                YAW_TABLE[YAW_TABLE.len() - 1].1,
+            );
+            sum += corrected as f32;
+            FreeRtos::delay_ms(1);
+        }
+        self.offset = sum / 100.0;
+    }
 }

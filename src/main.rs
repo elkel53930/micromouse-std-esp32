@@ -11,9 +11,10 @@ mod config;
 mod console;
 pub mod context;
 pub mod control;
+mod control_thread;
 mod encoder;
 mod fram_logger;
-mod imu;
+pub mod imu;
 mod led;
 pub mod misc;
 mod motor;
@@ -55,7 +56,7 @@ fn main() -> anyhow::Result<()> {
     timer.enable(true)?;
 
     {
-        CS.enter(); // enter critical section
+        let _guard = CS.enter(); // enter critical section
         context::ope(|ctx| {
             ctx.enable_ls = true;
             ctx.enable_lf = true;
@@ -66,26 +67,7 @@ fn main() -> anyhow::Result<()> {
         led::set(Red, "10");
     } // end critical section
 
-    thread::spawn(|| {
-        let control = control::Control::default();
-        loop {
-            context::ope(|ctx| {
-                CS.enter();
-                let gyro_yaw = imu::correct(ctx.gyro_yaw_raw);
-                ctx.control_context.gyro_yaw = gyro_yaw;
-            });
-
-            let control_context: control::ControlContext = {
-                CS.enter();
-                context::get().control_context.clone()
-            };
-            let (en, l, r) = control.control(&control_context);
-            motor::set_l(l);
-            motor::set_r(r);
-            motor::enable(en);
-            FreeRtos::delay_ms(config::CONTROL_CYCLE);
-        }
-    });
+    thread::spawn(control_thread::control_thread);
     let _ = motor::enable(true);
 
     let mut console = console::Console::new();

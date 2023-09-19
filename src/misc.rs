@@ -79,7 +79,7 @@ where
         output
     }
 
-    pub fn reset_buffer(&mut self) {
+    pub fn reset(&mut self) {
         for item in self.buffer.iter_mut() {
             *item = T::default();
         }
