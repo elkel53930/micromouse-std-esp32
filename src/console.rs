@@ -1,8 +1,9 @@
 use esp_idf_hal::delay::FreeRtos;
 
-use crate::context;
+use crate::{context, control};
 use crate::uart::{read, read_line};
 use crate::CS;
+use crate::control_thread::{self, ControlThreadCommand};
 
 pub struct Console {
     commands: Vec<Box<dyn ConsoleCommand>>,
@@ -85,7 +86,7 @@ pub trait ConsoleCommand {
     fn name(&self) -> &str;
 }
 
-/* sen command */
+/* echo command */
 struct CmdEcho {}
 
 /* show all sensor's values */
@@ -186,5 +187,29 @@ impl ConsoleCommand for CmdSen {
 
     fn name(&self) -> &str {
         "sen"
+    }
+}
+
+
+/* goffset cmd */
+struct CmdGoffset {}
+
+/* show all sensor's values */
+impl ConsoleCommand for CmdGoffset {
+    fn execute(&self, _args: &[&str]) -> anyhow::Result<()> {
+        control_thread::wait_idle(Some(1000))?;
+        control_thread::set_command(ControlThreadCommand::MeasureGyroOffset);
+        control_thread::wait_idle(None)?;
+        uprintln!("done");
+        Ok(())
+    }
+
+    fn hint(&self) {
+        uprintln!("Measure the offset of the gyro.");
+        uprintln!("Usage: goffset");
+    }
+
+    fn name(&self) -> &str {
+        "goffset"
     }
 }

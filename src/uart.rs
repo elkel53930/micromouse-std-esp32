@@ -3,7 +3,9 @@ use esp_idf_hal::gpio;
 use esp_idf_hal::peripheral::Peripheral;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_hal::prelude::*;
-use esp_idf_hal::uart::*;
+use esp_idf_hal::uart::{self, UartDriver};
+
+use crate::config;
 
 static mut UART: Option<UartDriver> = None;
 
@@ -31,7 +33,7 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
         rx = peripherals.pins.gpio44.clone_unchecked();
     }
 
-    let config = config::Config::new().baudrate(Hertz(115_200));
+    let config = uart::config::Config::new().baudrate(Hertz(115_200));
     unsafe {
         let uart = UartDriver::new(
             peripherals.uart1.clone_unchecked(),
@@ -62,7 +64,7 @@ pub fn read_line(buffer: &mut [u8]) -> anyhow::Result<()> {
         match read(&mut read_buffer) {
             Ok(size) => {
                 if size == 0 {
-                    FreeRtos::delay_ms(1);
+                    FreeRtos::delay_ms(config::CONTROL_CYCLE);
                     continue;
                 }
                 if read_buffer[0] == b'\n' || read_buffer[0] == b'\r' {

@@ -4,9 +4,10 @@ use esp_idf_hal::delay::FreeRtos;
 use esp_idf_hal::gpio::{Gpio9, Output, PinDriver};
 use esp_idf_hal::peripheral::Peripheral;
 use esp_idf_hal::peripherals::Peripherals;
-use esp_idf_hal::spi::*;
+use esp_idf_hal::spi::{self, SpiDeviceDriver, SpiDriver, SpiDriverConfig};
 use esp_idf_hal::units::FromValueType;
 
+use crate::config;
 use crate::misc::{correct_value, FIR};
 
 static mut SPI: Option<SpiDeviceDriver<'static, SpiDriver<'static>>> = None;
@@ -31,7 +32,7 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
         let sda = peripherals.pins.gpio7.clone_unchecked();
         let sdi = peripherals.pins.gpio6.clone_unchecked();
         let cs = peripherals.pins.gpio9.clone_unchecked();
-        let config = config::Config::new()
+        let config = spi::config::Config::new()
             .baudrate(5.MHz().into())
             .data_mode(MODE_3);
         let spi = SpiDeviceDriver::new_single(
@@ -132,7 +133,7 @@ impl GyroSensor {
                 YAW_TABLE[YAW_TABLE.len() - 1].1,
             );
             sum += corrected as f32;
-            FreeRtos::delay_ms(1);
+            FreeRtos::delay_ms(config::CONTROL_CYCLE);
         }
         self.offset = sum / 100.0;
     }
