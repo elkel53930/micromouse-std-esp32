@@ -2,6 +2,7 @@ use esp_idf_hal::delay::FreeRtos;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_hal::timer;
 use esp_idf_sys as _;
+use std::sync::mpsc;
 use std::thread;
 
 #[macro_use]
@@ -70,8 +71,20 @@ fn main() -> anyhow::Result<()> {
     thread::spawn(control_thread::control_thread);
     let _ = motor::enable(true);
 
-    let mut console = console::Console::new();
-    console.run();
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || loop {
+        tx.send(Blue).unwrap();
+        FreeRtos::delay_ms(1);
+    });
+
+    loop {
+        let received = rx.recv().unwrap();
+        led::toggle(received)?;
+        FreeRtos::delay_ms(1);
+    }
+
+    //    let mut console = console::Console::new();
+    //    console.run();
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
