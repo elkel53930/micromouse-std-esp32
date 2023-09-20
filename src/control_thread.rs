@@ -57,7 +57,6 @@ pub fn wait_idle(timeout: Option<u32>) -> anyhow::Result<()> {
             }
         }
     }
-
 }
 
 pub fn control_thread() -> ! {

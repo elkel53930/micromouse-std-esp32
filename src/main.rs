@@ -25,6 +25,8 @@ use led::LedColor::{Blue, Green, Red};
 
 pub static CS: esp_idf_hal::task::CriticalSection = esp_idf_hal::task::CriticalSection::new();
 
+static mut COUNTER: u32 = 0;
+
 fn main() -> anyhow::Result<()> {
     esp_idf_sys::link_patches();
 
@@ -67,11 +69,46 @@ fn main() -> anyhow::Result<()> {
         led::set(Red, "10");
     } // end critical section
 
-    thread::spawn(control_thread::control_thread);
-    let _ = motor::enable(true);
+    thread::spawn(|| loop {
+        {
+            let _guard = CS.enter(); // enter critical section
+            unsafe {
+                COUNTER += 1;
+            }
+        }
+        let _ = led::toggle(Blue);
+        FreeRtos::delay_ms(1);
+    });
 
-    let mut console = console::Console::new();
-    console.run();
+    thread::spawn(|| {
+        let mut prev_counter = 0;
+        loop {
+            let counter = {
+                let _guard = CS.enter(); // enter critical section
+                unsafe { COUNTER }
+            };
+            if counter - prev_counter > 1 {
+                uprintln!("counter jumps! {} -> {}", prev_counter, counter);
+            }
+            prev_counter = counter;
+            FreeRtos::delay_ms(1);
+        }
+    });
+
+    loop {
+        let counter = {
+            let _guard = CS.enter(); // enter critical section
+            unsafe { COUNTER }
+        };
+        uprintln!("counter: {}", counter);
+        FreeRtos::delay_ms(1000);
+    }
+
+    //    thread::spawn(control_thread::control_thread);
+    //    let _ = motor::enable(true);
+    //
+    //    let mut console = console::Console::new();
+    //    console.run();
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

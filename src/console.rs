@@ -1,9 +1,9 @@
 use esp_idf_hal::delay::FreeRtos;
 
-use crate::{context, control};
+use crate::control_thread::{self, ControlThreadCommand};
 use crate::uart::{read, read_line};
 use crate::CS;
-use crate::control_thread::{self, ControlThreadCommand};
+use crate::{context, control};
 
 pub struct Console {
     commands: Vec<Box<dyn ConsoleCommand>>,
@@ -189,7 +189,6 @@ impl ConsoleCommand for CmdSen {
         "sen"
     }
 }
-
 
 /* goffset cmd */
 struct CmdGoffset {}
