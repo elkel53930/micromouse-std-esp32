@@ -8,7 +8,6 @@ static mut PATTERN: LedPattern = LedPattern {
     red_step: 0,
     green_step: 0,
     blue_step: 0,
-    make_10hz: 0,
     red_pattern: None,
     green_pattern: None,
     blue_pattern: None,
@@ -80,7 +79,6 @@ struct LedPattern {
     red_step: usize,
     green_step: usize,
     blue_step: usize,
-    make_10hz: usize,
     pub red_pattern: Option<&'static str>,
     pub green_pattern: Option<&'static str>,
     pub blue_pattern: Option<&'static str>,
@@ -123,15 +121,11 @@ pub fn set(color: LedColor, pattern: &'static str) {
 
 pub fn pattern() -> anyhow::Result<()> {
     unsafe {
-        PATTERN.make_10hz = (PATTERN.make_10hz + 1) % 100;
-        if PATTERN.make_10hz == 0 {
-            PATTERN.red_step =
-                pattern_internal(PATTERN.red_pattern, PATTERN.red_step, LedColor::Red)?;
-            PATTERN.green_step =
-                pattern_internal(PATTERN.green_pattern, PATTERN.green_step, LedColor::Green)?;
-            PATTERN.blue_step =
-                pattern_internal(PATTERN.blue_pattern, PATTERN.blue_step, LedColor::Blue)?;
-        }
+        PATTERN.red_step = pattern_internal(PATTERN.red_pattern, PATTERN.red_step, LedColor::Red)?;
+        PATTERN.green_step =
+            pattern_internal(PATTERN.green_pattern, PATTERN.green_step, LedColor::Green)?;
+        PATTERN.blue_step =
+            pattern_internal(PATTERN.blue_pattern, PATTERN.blue_step, LedColor::Blue)?;
     }
     Ok(())
 }

@@ -18,6 +18,7 @@ pub mod imu;
 mod led;
 pub mod misc;
 mod motor;
+pub mod timer_interrupt;
 mod wall_sensor;
 
 #[allow(unused_imports)]
@@ -57,9 +58,20 @@ fn main() -> anyhow::Result<()> {
     timer.enable_alarm(true)?;
     timer.enable(true)?;
 
+    // Start LED pattern thread
+    thread::spawn(|| loop {
+        let _ = led::pattern();
+        FreeRtos::delay_ms(100);
+    });
+
+    thread::spawn(|| loop {
+        imu::physical_conversion();
+        FreeRtos::delay_ms(config::CONTROL_CYCLE);
+    });
+
     {
-        let _guard = CS.enter(); // enter critical section
-        context::ope(|ctx| {
+        let guard = CS.enter(); // enter critical section
+        context::ope(&guard, |ctx| {
             ctx.enable_ls = true;
             ctx.enable_lf = true;
             ctx.enable_rf = true;
@@ -69,154 +81,12 @@ fn main() -> anyhow::Result<()> {
         led::set(Red, "10");
     } // end critical section
 
-    thread::spawn(|| loop {
-        {
-            let _guard = CS.enter(); // enter critical section
-            unsafe {
-                COUNTER += 1;
-            }
-        }
-        let _ = led::toggle(Blue);
-        FreeRtos::delay_ms(1);
-    });
+    thread::spawn(control_thread::control_thread);
 
-    thread::spawn(|| {
-        let mut prev_counter = 0;
-        loop {
-            let counter = {
-                let _guard = CS.enter(); // enter critical section
-                unsafe { COUNTER }
-            };
-            if counter - prev_counter > 1 {
-                uprintln!("counter jumps! {} -> {}", prev_counter, counter);
-            }
-            prev_counter = counter;
-            FreeRtos::delay_ms(1);
-        }
-    });
-
-    loop {
-        let counter = {
-            let _guard = CS.enter(); // enter critical section
-            unsafe { COUNTER }
-        };
-        uprintln!("counter: {}", counter);
-        FreeRtos::delay_ms(1000);
-    }
-
-    //    thread::spawn(control_thread::control_thread);
-    //    let _ = motor::enable(true);
-    //
-    //    let mut console = console::Console::new();
-    //    console.run();
+    let mut console = console::Console::new();
+    console.run();
 }
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum InterruptSequence {
-    ReadBattEnableLs,
-    ReadLsEnableLf,
-    ReadLfEnableRf,
-    ReadRfEnableRs,
-    ReadRsDisable,
-    ReadImu,
-    ReadEncoders,
-    Led,
-    Etc,
-    None,
-}
-
-const SEQUENCE: [InterruptSequence; 10] = [
-    InterruptSequence::ReadBattEnableLs,
-    InterruptSequence::ReadLsEnableLf,
-    InterruptSequence::ReadLfEnableRf,
-    InterruptSequence::ReadRfEnableRs,
-    InterruptSequence::ReadRsDisable,
-    InterruptSequence::ReadImu,
-    InterruptSequence::ReadEncoders,
-    InterruptSequence::Led,
-    InterruptSequence::Etc,
-    InterruptSequence::None,
-];
 
 fn timer_isr() {
-    interrupt().unwrap();
-}
-
-fn interrupt() -> anyhow::Result<()> {
-    let mut ctx = context::get();
-    let step = SEQUENCE[ctx.step as usize];
-    ctx.step = (ctx.step + 1) % SEQUENCE.len() as u8;
-
-    match step {
-        InterruptSequence::ReadBattEnableLs => {
-            ctx.batt_raw = wall_sensor::read_batt()?;
-            if ctx.enable_ls {
-                wall_sensor::on_ls()?;
-            } else {
-                wall_sensor::off()?;
-            }
-        }
-
-        InterruptSequence::ReadLsEnableLf => {
-            if ctx.enable_ls {
-                ctx.ls_raw = wall_sensor::read_ls()?;
-            }
-
-            if ctx.enable_lf {
-                wall_sensor::on_lf()?;
-            } else {
-                wall_sensor::off()?;
-            }
-        }
-
-        InterruptSequence::ReadLfEnableRf => {
-            if ctx.enable_lf {
-                ctx.lf_raw = wall_sensor::read_lf()?;
-            }
-
-            if ctx.enable_rf {
-                wall_sensor::on_rf()?;
-            } else {
-                wall_sensor::off()?;
-            }
-        }
-
-        InterruptSequence::ReadRfEnableRs => {
-            if ctx.enable_rf {
-                ctx.rf_raw = wall_sensor::read_rf()?;
-            }
-
-            if ctx.enable_rs {
-                wall_sensor::on_rs()?;
-            } else {
-                wall_sensor::off()?;
-            }
-        }
-
-        InterruptSequence::ReadRsDisable => {
-            if ctx.enable_rs {
-                ctx.rs_raw = wall_sensor::read_rs()?;
-            }
-            wall_sensor::off()?;
-        }
-
-        InterruptSequence::ReadImu => {
-            ctx.gyro_yaw_raw = imu::read()?;
-        }
-
-        InterruptSequence::ReadEncoders => {
-            ctx.enc_l_raw = encoder::read_l()?;
-            ctx.enc_r_raw = encoder::read_r()?;
-        }
-
-        InterruptSequence::Led => {
-            led::pattern()?;
-        }
-
-        InterruptSequence::Etc => {}
-
-        InterruptSequence::None => {}
-    }
-    context::set(&ctx);
-    Ok(())
+    timer_interrupt::interrupt().unwrap();
 }

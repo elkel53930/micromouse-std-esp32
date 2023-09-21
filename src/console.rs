@@ -1,6 +1,7 @@
 use esp_idf_hal::delay::FreeRtos;
 
 use crate::control_thread::{self, ControlThreadCommand};
+use crate::imu;
 use crate::uart::{read, read_line};
 use crate::CS;
 use crate::{context, control};
@@ -125,36 +126,42 @@ impl ConsoleCommand for CmdSen {
         if args.len() != 0 {
             return Err(anyhow::anyhow!("Invalid argument"));
         }
-
-        context::ope(|ctx| {
-            let _guard = CS.enter();
-            ctx.enable_ls = true;
-            ctx.enable_lf = true;
-            ctx.enable_rf = true;
-            ctx.enable_rs = true;
-        });
+        {
+            let guard = CS.enter();
+            context::ope(&guard, |ctx| {
+                let _guard = CS.enter();
+                ctx.enable_ls = true;
+                ctx.enable_lf = true;
+                ctx.enable_rf = true;
+                ctx.enable_rs = true;
+            });
+        }
 
         // Print all sensor data until something is received from UART.
         uprintln!("Press any key to exit.");
 
         let mut buffer: [u8; 1] = [0];
         loop {
-            let ctx = {
-                let _guard = CS.enter();
-                context::get()
+            let mut gyro_yaw = 0.0;
+            let ctx: context::Context;
+            {
+                let guard = CS.enter();
+                ctx = context::get();
+                unsafe {
+                    imu::PHYSICAL.access(&guard, |physical| gyro_yaw = *physical);
+                }
             };
 
             uprintln!(
-                "batt: {}, ls: {}, lf: {}, rf: {}, rs: {}, gyro: {}, enc_l: {}, enc_r: {}, yaw: {}",
+                "batt: {}, ls: {}, lf: {}, rf: {}, rs: {}, gyro: {}, enc_l: {}, enc_r: {}",
                 ctx.batt_raw,
                 ctx.ls_raw,
                 ctx.lf_raw,
                 ctx.rf_raw,
                 ctx.rs_raw,
-                ctx.gyro_yaw_raw,
+                gyro_yaw,
                 ctx.enc_l_raw,
                 ctx.enc_r_raw,
-                ctx.control_context.gyro_yaw,
             );
             FreeRtos::delay_ms(100);
             match read(&mut buffer) {
@@ -168,14 +175,16 @@ impl ConsoleCommand for CmdSen {
                 }
             }
         }
-
-        context::ope(|ctx| {
-            let _guard = CS.enter();
-            ctx.enable_ls = false;
-            ctx.enable_lf = false;
-            ctx.enable_rf = false;
-            ctx.enable_rs = false;
-        });
+        {
+            let guard = CS.enter();
+            context::ope(&guard, |ctx| {
+                let _guard = CS.enter();
+                ctx.enable_ls = false;
+                ctx.enable_lf = false;
+                ctx.enable_rf = false;
+                ctx.enable_rs = false;
+            });
+        }
         println!("");
         Ok(())
     }

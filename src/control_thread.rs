@@ -4,8 +4,9 @@ use crate::control;
 use crate::imu;
 use crate::motor;
 use esp_idf_hal::delay::FreeRtos;
+use esp_idf_hal::task::CriticalSection;
 
-pub static CS: esp_idf_hal::task::CriticalSection = esp_idf_hal::task::CriticalSection::new();
+static CS: CriticalSection = CriticalSection::new();
 
 static mut COMMAND: ControlThreadCommand = ControlThreadCommand::None;
 static mut STATUS: ControlThreadStatus = ControlThreadStatus::Idle;
@@ -60,8 +61,7 @@ pub fn wait_idle(timeout: Option<u32>) -> anyhow::Result<()> {
 }
 
 pub fn control_thread() -> ! {
-    let control = control::Control::default();
-    let mut gyro = imu::GyroSensor::new();
+    let mut control = control::Control::default();
 
     loop {
         set_status(ControlThreadStatus::Idle);
@@ -73,24 +73,18 @@ pub fn control_thread() -> ! {
             ControlThreadCommand::None => {}
             ControlThreadCommand::MeasureGyroOffset => {
                 set_status(ControlThreadStatus::MeasureGyroOffset);
-                measure_gyro_offset(&mut gyro);
+                measure_gyro_offset();
             }
             ControlThreadCommand::Run => {
                 set_status(ControlThreadStatus::Run);
-                run(&mut gyro, &control);
+                run(&mut control);
             }
         }
     }
 }
 
-fn run(gyro: &mut imu::GyroSensor, control: &control::Control) {
+fn run(control: &mut control::Control) {
     loop {
-        context::ope(|ctx| {
-            let _guard = CS.enter();
-            let gyro_yaw = gyro.correct(ctx.gyro_yaw_raw);
-            ctx.control_context.gyro_yaw = gyro_yaw;
-        });
-
         let control_context: control::ControlContext = {
             let _guard = CS.enter();
             context::get().control_context.clone()
@@ -103,9 +97,6 @@ fn run(gyro: &mut imu::GyroSensor, control: &control::Control) {
     }
 }
 
-fn measure_gyro_offset(gyro: &mut imu::GyroSensor) {
-    gyro.measure_offset(|| {
-        let _guard = CS.enter();
-        context::get().gyro_yaw_raw
-    });
+fn measure_gyro_offset() {
+    imu::measure_offset();
 }
