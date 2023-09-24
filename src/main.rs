@@ -2,7 +2,10 @@ use esp_idf_hal::delay::FreeRtos;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_hal::timer;
 use esp_idf_sys as _;
-use std::thread;
+use std::{
+    io::{Read, Write},
+    thread,
+};
 
 #[macro_use]
 pub mod uart;
@@ -14,6 +17,7 @@ pub mod control;
 mod control_thread;
 mod encoder;
 mod fram_logger;
+mod fs;
 pub mod imu;
 mod led;
 pub mod misc;
@@ -47,6 +51,9 @@ fn main() -> anyhow::Result<()> {
     uart::init(&mut peripherals)?;
     // After uart:init, you can use uprintln.
     uprintln!("init uart done");
+
+    // File system initialization
+    fs::mount();
 
     let timer_config = timer::TimerConfig::new().auto_reload(true);
     let mut timer = timer::TimerDriver::new(peripherals.timer00, &timer_config)?;
