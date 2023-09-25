@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+
+import sys
+import serial
+import os
+import time
+
+# Send the file given as an argument via the serial port.
+serial_port = '/dev/ttyUSB0'
+
+if len(sys.argv) != 3:
+	print('usage: ft [file] [destination]')
+	sys.exit(1)
+
+with serial.Serial(serial_port, 115200, timeout=1) as ser:
+	# First, send an enter key to refresh the command prompt.
+	ser.write('\n'.encode('utf-8'))
+	time.sleep(0.5)
+	# Discard the next line.
+	ser.readline()
+	time.sleep(0.5)
+
+	print("Starting transfer")	
+	# Send 'ft /sf/{filename} {filesize}'.
+	ser.write(('ft /sf/' + sys.argv[2] + ' ' + str(os.path.getsize(sys.argv[1])) + '\n').encode('utf-8'))
+
+	# Wait until the string 'Start' is received.
+	while True:
+		line = ser.readline().decode('utf-8').rstrip()
+		if line == 'Start':
+			break
+
+	with open(sys.argv[1], 'rb') as f:
+		# A CRC16 value is returned every 256 bytes.
+		while True:
+			# Send the first 256 bytes.
+			data = f.read(256)
+			if len(data) == 0:
+				break
+			print(data)
+			ser.write(data)
+			# Receive the CRC16 value.
+			crc = ser.readline().decode('utf-8').rstrip()
+			print("CRC", crc)

@@ -1,10 +1,19 @@
 use esp_idf_sys::{esp_err_to_name, esp_vfs_fat_mount_config_t, esp_vfs_fat_spiflash_mount};
 
-pub const BASE_PATH: &str = "/spiflash";
-pub const PARTITION: &str = "storage0";
-
 const MAX_FILES: i32 = 16;
 const ALLOCATION_UNIT_SIZE: usize = 512;
+
+use lazy_static::lazy_static;
+use std::ffi::CString;
+
+pub const BASE_PATH_RAW: &'static str = "/sf";
+pub const PARTITION_RAW: &'static str = "storage0";
+lazy_static! {
+    static ref PARTITION: CString =
+        CString::new(PARTITION_RAW).expect("Failed to convert to CString");
+    static ref BASE_PATH: CString =
+        CString::new(BASE_PATH_RAW).expect("Failed to convert to CString");
+}
 
 pub fn mount() {
     // Mount FAT filesystem
@@ -17,8 +26,8 @@ pub fn mount() {
         };
         let mut handle: esp_idf_sys::wl_handle_t = esp_idf_sys::WL_INVALID_HANDLE;
         let mount_result = esp_vfs_fat_spiflash_mount(
-            std::ffi::CString::new(BASE_PATH).unwrap().as_ptr(),
-            std::ffi::CString::new(PARTITION).unwrap().as_ptr(),
+            BASE_PATH.as_ptr(),
+            PARTITION.as_ptr(),
             &mount_config,
             &mut handle,
         );
@@ -34,11 +43,10 @@ pub fn mount() {
 
 pub fn path(path: &str) -> String {
     if path.starts_with("/") {
-        return format!("{}{}", BASE_PATH, path);
+        return format!("{}{}", BASE_PATH_RAW, path);
     }
-    format!("{}/{}", BASE_PATH, path)
+    format!("{}/{}", BASE_PATH_RAW, path)
 }
-
 
 /*
 usage

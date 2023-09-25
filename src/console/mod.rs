@@ -1,10 +1,38 @@
 use esp_idf_hal::delay::FreeRtos;
 
+use crate::context;
 use crate::control_thread::{self, ControlThreadCommand};
 use crate::imu;
 use crate::uart::{read, read_line};
 use crate::CS;
-use crate::{context, control};
+
+mod file;
+
+fn blocking_uart_read(buffer: &mut [u8], timeout_ms: u32) -> anyhow::Result<()> {
+    let size = buffer.len();
+    let mut i = 0;
+    let mut time_count = 0;
+    while i < size {
+        if time_count > timeout_ms {
+            return Err(anyhow::anyhow!("Receive timeout"));
+        }
+        time_count += 1;
+        FreeRtos::delay_ms(1);
+        match read(&mut buffer[i..]) {
+            Ok(size) => {
+                if size == 0 {
+                    continue;
+                }
+                i += size;
+            }
+            Err(e) => {
+                uprintln!("Error: {}", e);
+                continue;
+            }
+        }
+    }
+    Ok(())
+}
 
 pub struct Console {
     commands: Vec<Box<dyn ConsoleCommand>>,
@@ -12,8 +40,15 @@ pub struct Console {
 
 impl Console {
     pub fn new() -> Console {
-        let commands: Vec<Box<dyn ConsoleCommand>> =
-            vec![Box::new(CmdEcho {}), Box::new(CmdSen {})];
+        let commands: Vec<Box<dyn ConsoleCommand>> = vec![
+            Box::new(CmdEcho {}),
+            Box::new(CmdSen {}),
+            Box::new(CmdGoffset {}),
+            Box::new(file::CmdFt {}),
+            Box::new(file::CmdShow {}),
+            Box::new(file::CmdLs {}),
+            Box::new(file::CmdRm {}),
+        ];
         Console { commands }
     }
 
