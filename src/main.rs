@@ -2,10 +2,7 @@ use esp_idf_hal::delay::FreeRtos;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_hal::timer;
 use esp_idf_sys as _;
-use std::{
-    io::{Read, Write},
-    thread,
-};
+use std::thread;
 
 #[macro_use]
 pub mod uart;
