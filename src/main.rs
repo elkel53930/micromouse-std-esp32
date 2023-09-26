@@ -28,9 +28,15 @@ mod wall_sensor;
 #[allow(unused_imports)]
 use led::LedColor::{Blue, Green, Red};
 
+use yaml_rust::YamlLoader;
+
 pub static CS: esp_idf_hal::task::CriticalSection = esp_idf_hal::task::CriticalSection::new();
 
-static mut COUNTER: u32 = 0;
+fn load_yaml(path: &str) -> anyhow::Result<Vec<yaml_rust::Yaml>> {
+    let y_str = std::fs::read_to_string(path)?.to_string();
+    let docs = YamlLoader::load_from_str(&y_str)?;
+    Ok(docs)
+}
 
 fn main() -> anyhow::Result<()> {
     esp_idf_sys::link_patches();
@@ -89,6 +95,16 @@ fn main() -> anyhow::Result<()> {
     } // end critical section
 
     thread::spawn(control_thread::control_thread);
+
+    let path = "/sf/sample.yaml";
+    let docs = load_yaml(&path)?;
+    let doc = &docs[0];
+
+    uprintln!("{:?}", doc["a"][0].as_str().unwrap_or("default"));
+    uprintln!("{:?}", doc["a"][1].as_i64().unwrap_or(0));
+    uprintln!("{:?}", doc["b"][0].as_i64().unwrap_or(0));
+    uprintln!("{:?}", doc["b"][1].as_f64().unwrap_or(0.0));
+    uprintln!("{:?}", doc["b"][2].as_str().unwrap_or("default"));
 
     let mut console = console::Console::new();
     console.run();
