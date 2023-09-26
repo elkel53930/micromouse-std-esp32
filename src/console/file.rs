@@ -126,11 +126,11 @@ impl ConsoleCommand for CmdLs {
                                 uprintln!("{}", path.display());
                             }
                         }
-                        Err(e) => uprintln!("Error reading entry: {}", e),
+                        Err(e) => return Err(anyhow::anyhow!("Error reading entry: {}", e)),
                     }
                 }
             }
-            Err(e) => uprintln!("Error reading directory: {}", e),
+            Err(e) => return Err(anyhow::anyhow!("Error reading directory: {}", e)),
         }
         Ok(())
     }
@@ -156,7 +156,7 @@ impl ConsoleCommand for CmdRm {
 
         match std::fs::remove_file(args[0]) {
             Ok(_) => {}
-            Err(e) => uprintln!("Error removing file: {}", e),
+            Err(e) => return Err(anyhow::anyhow!("Error removing file: {}", e)),
         }
         Ok(())
     }
@@ -182,7 +182,7 @@ impl ConsoleCommand for CmdMv {
 
         match std::fs::rename(args[0], args[1]) {
             Ok(_) => {}
-            Err(e) => uprintln!("Error moving file: {}", e),
+            Err(e) => return Err(anyhow::anyhow!("Error moving file: {}", e)),
         }
         Ok(())
     }
