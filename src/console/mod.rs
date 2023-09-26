@@ -44,6 +44,7 @@ impl Console {
             Box::new(CmdEcho {}),
             Box::new(CmdSen {}),
             Box::new(CmdGoffset {}),
+            Box::new(CmdReset {}),
             Box::new(file::CmdFt {}),
             Box::new(file::CmdShow {}),
             Box::new(file::CmdLs {}),
@@ -255,5 +256,27 @@ impl ConsoleCommand for CmdGoffset {
 
     fn name(&self) -> &str {
         "goffset"
+    }
+}
+
+struct CmdReset {}
+
+impl ConsoleCommand for CmdReset {
+    fn execute(&self, args: &[&str]) -> anyhow::Result<()> {
+        if args.len() != 0 {
+            return Err(anyhow::anyhow!("Invalid argument"));
+        }
+        unsafe {
+            esp_idf_sys::abort();
+        }
+    }
+
+    fn hint(&self) {
+        uprintln!("Reset the robot.");
+        uprintln!("Usage: reset");
+    }
+
+    fn name(&self) -> &str {
+        "reset"
     }
 }
