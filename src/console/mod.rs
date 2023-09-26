@@ -48,6 +48,7 @@ impl Console {
             Box::new(file::CmdShow {}),
             Box::new(file::CmdLs {}),
             Box::new(file::CmdRm {}),
+            Box::new(file::CmdMv {}),
         ];
         Console { commands }
     }

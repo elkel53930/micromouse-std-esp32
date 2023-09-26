@@ -170,3 +170,29 @@ impl ConsoleCommand for CmdRm {
         "rm"
     }
 }
+
+/* Move file */
+pub struct CmdMv {}
+
+impl ConsoleCommand for CmdMv {
+    fn execute(&self, args: &[&str]) -> anyhow::Result<()> {
+        if args.len() != 2 {
+            return Err(anyhow::anyhow!("Invalid argument"));
+        }
+
+        match std::fs::rename(args[0], args[1]) {
+            Ok(_) => {}
+            Err(e) => uprintln!("Error moving file: {}", e),
+        }
+        Ok(())
+    }
+
+    fn hint(&self) {
+        uprintln!("Move file");
+        uprintln!("Usage: mv {{src}} {{dst}}");
+    }
+
+    fn name(&self) -> &str {
+        "mv"
+    }
+}
