@@ -17,11 +17,11 @@ pub mod control;
 mod control_thread;
 mod encoder;
 mod fram_logger;
-mod fs;
 pub mod imu;
 mod led;
 pub mod misc;
 mod motor;
+mod spiflash;
 pub mod timer_interrupt;
 mod wall_sensor;
 
@@ -59,7 +59,7 @@ fn main() -> anyhow::Result<()> {
     uprintln!("init uart done");
 
     // File system initialization
-    fs::mount();
+    spiflash::mount();
 
     let timer_config = timer::TimerConfig::new().auto_reload(true);
     let mut timer = timer::TimerDriver::new(peripherals.timer00, &timer_config)?;
