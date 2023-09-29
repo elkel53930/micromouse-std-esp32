@@ -18,6 +18,7 @@ pub mod imu;
 mod led;
 pub mod misc;
 mod motor;
+mod physical_conversion_thread;
 mod spiflash;
 pub mod timer_interrupt;
 mod wall_sensor;
@@ -70,22 +71,10 @@ fn main() -> anyhow::Result<()> {
         FreeRtos::delay_ms(100);
     });
 
-    thread::spawn(|| loop {
-        imu::physical_conversion();
-        FreeRtos::delay_ms(config::CONTROL_CYCLE);
-    });
+    thread::spawn(|| physical_conversion_thread::physical_conversion_thread());
 
-    {
-        let guard = CS.enter(); // enter critical section
-        context::ope(&guard, |ctx| {
-            ctx.enable_ls = true;
-            ctx.enable_lf = true;
-            ctx.enable_rf = true;
-            ctx.enable_rs = true;
-        });
-        led::set(Green, "1");
-        led::set(Red, "10");
-    } // end critical section
+    led::set(Green, "1");
+    led::set(Red, "10");
 
     thread::spawn(control_thread::control_thread);
 

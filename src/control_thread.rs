@@ -1,5 +1,4 @@
 use crate::config;
-use crate::context;
 use crate::control;
 use crate::imu;
 use crate::motor;
@@ -85,14 +84,9 @@ pub fn control_thread() -> ! {
 
 fn run(control: &mut control::Control) {
     loop {
-        let control_context: control::ControlContext = {
-            let _guard = CS.enter();
-            context::get().control_context.clone()
-        };
-        let (en, l, r) = control.control(&control_context);
-        motor::set_l(l);
-        motor::set_r(r);
-        motor::enable(en);
+        motor::set_l(0.0);
+        motor::set_r(0.0);
+        motor::enable(false);
         FreeRtos::delay_ms(config::CONTROL_CYCLE);
     }
 }

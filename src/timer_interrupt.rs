@@ -6,10 +6,10 @@ use crate::wall_sensor;
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum InterruptSequence {
     ReadBattEnableLs,
-    ReadLsEnableLf,
-    ReadLfEnableRf,
-    ReadRfEnableRs,
-    ReadRsDisable,
+    ReadLsEnableRs,
+    ReadRsEnableLs,
+    ReadLsEnableRf,
+    ReadRfDisable,
     ReadImu,
     ReadEncoders,
     None,
@@ -17,10 +17,10 @@ enum InterruptSequence {
 
 const SEQUENCE: [InterruptSequence; 10] = [
     InterruptSequence::ReadBattEnableLs,
-    InterruptSequence::ReadLsEnableLf,
-    InterruptSequence::ReadLfEnableRf,
-    InterruptSequence::ReadRfEnableRs,
-    InterruptSequence::ReadRsDisable,
+    InterruptSequence::ReadLsEnableRs,
+    InterruptSequence::ReadRsEnableLs,
+    InterruptSequence::ReadLsEnableRf,
+    InterruptSequence::ReadRfDisable,
     InterruptSequence::ReadImu,
     InterruptSequence::ReadEncoders,
     InterruptSequence::None,
@@ -28,6 +28,7 @@ const SEQUENCE: [InterruptSequence; 10] = [
     InterruptSequence::None,
 ];
 
+// Called from interrupt handler
 pub fn interrupt() -> anyhow::Result<()> {
     let mut ctx = context::get();
     let step = SEQUENCE[ctx.step as usize];
@@ -35,55 +36,23 @@ pub fn interrupt() -> anyhow::Result<()> {
 
     match step {
         InterruptSequence::ReadBattEnableLs => {
-            ctx.batt_raw = wall_sensor::read_batt()?;
-            if ctx.enable_ls {
-                wall_sensor::on_ls()?;
-            } else {
-                wall_sensor::off()?;
-            }
+            wall_sensor::sequence(wall_sensor::Sequence::ReadBattEnableLs)?;
         }
 
-        InterruptSequence::ReadLsEnableLf => {
-            if ctx.enable_ls {
-                ctx.ls_raw = wall_sensor::read_ls()?;
-            }
-
-            if ctx.enable_lf {
-                wall_sensor::on_lf()?;
-            } else {
-                wall_sensor::off()?;
-            }
+        InterruptSequence::ReadLsEnableRs => {
+            wall_sensor::sequence(wall_sensor::Sequence::ReadLsEnableRs)?;
         }
 
-        InterruptSequence::ReadLfEnableRf => {
-            if ctx.enable_lf {
-                ctx.lf_raw = wall_sensor::read_lf()?;
-            }
-
-            if ctx.enable_rf {
-                wall_sensor::on_rf()?;
-            } else {
-                wall_sensor::off()?;
-            }
+        InterruptSequence::ReadRsEnableLs => {
+            wall_sensor::sequence(wall_sensor::Sequence::ReadRsEnableLs)?;
         }
 
-        InterruptSequence::ReadRfEnableRs => {
-            if ctx.enable_rf {
-                ctx.rf_raw = wall_sensor::read_rf()?;
-            }
-
-            if ctx.enable_rs {
-                wall_sensor::on_rs()?;
-            } else {
-                wall_sensor::off()?;
-            }
+        InterruptSequence::ReadLsEnableRf => {
+            wall_sensor::sequence(wall_sensor::Sequence::ReadLsEnableRf)?;
         }
 
-        InterruptSequence::ReadRsDisable => {
-            if ctx.enable_rs {
-                ctx.rs_raw = wall_sensor::read_rs()?;
-            }
-            wall_sensor::off()?;
+        InterruptSequence::ReadRfDisable => {
+            wall_sensor::sequence(wall_sensor::Sequence::ReadRfDisable)?;
         }
 
         InterruptSequence::ReadImu => {

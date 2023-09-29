@@ -1,10 +1,11 @@
 use esp_idf_hal::delay::FreeRtos;
+use esp_idf_sys::_WANT_REENT_SMALL;
 
-use crate::context;
 use crate::control_thread::{self, ControlThreadCommand};
 use crate::imu;
 use crate::uart::{read, read_line};
 use crate::CS;
+use crate::{context, wall_sensor};
 
 mod file;
 
@@ -163,39 +164,24 @@ impl ConsoleCommand for CmdSen {
         if args.len() != 0 {
             return Err(anyhow::anyhow!("Invalid argument"));
         }
-        {
-            let guard = CS.enter();
-            context::ope(&guard, |ctx| {
-                let _guard = CS.enter();
-                ctx.enable_ls = true;
-                ctx.enable_lf = true;
-                ctx.enable_rf = true;
-                ctx.enable_rs = true;
-            });
-        }
+        wall_sensor::enable(true);
 
         // Print all sensor data until something is received from UART.
         uprintln!("Press any key to exit.");
 
         let mut buffer: [u8; 1] = [0];
         loop {
-            let mut gyro_yaw = 0.0;
-            let ctx: context::Context;
-            {
-                let guard = CS.enter();
-                ctx = context::get();
-                unsafe {
-                    imu::PHYSICAL.access(&guard, |physical| gyro_yaw = *physical);
-                }
-            };
+            let gyro_yaw = imu::get_physical_value();
+            let wall_sensor = wall_sensor::get_physical_value();
+            let ctx = context::get();
 
             uprintln!(
                 "batt: {}, ls: {}, lf: {}, rf: {}, rs: {}, gyro: {}, enc_l: {}, enc_r: {}",
-                ctx.batt_raw,
-                ctx.ls_raw,
-                ctx.lf_raw,
-                ctx.rf_raw,
-                ctx.rs_raw,
+                wall_sensor.get_batt(),
+                wall_sensor.get_ls(),
+                wall_sensor.get_lf(),
+                wall_sensor.get_rf(),
+                wall_sensor.get_rs(),
                 gyro_yaw,
                 ctx.enc_l_raw,
                 ctx.enc_r_raw,
@@ -212,17 +198,9 @@ impl ConsoleCommand for CmdSen {
                 }
             }
         }
-        {
-            let guard = CS.enter();
-            context::ope(&guard, |ctx| {
-                let _guard = CS.enter();
-                ctx.enable_ls = false;
-                ctx.enable_lf = false;
-                ctx.enable_rf = false;
-                ctx.enable_rs = false;
-            });
-        }
         println!("");
+
+        wall_sensor::enable(false);
         Ok(())
     }
 

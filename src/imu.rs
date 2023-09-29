@@ -5,7 +5,7 @@ use esp_idf_hal::gpio::{Gpio9, Output, PinDriver};
 use esp_idf_hal::peripheral::Peripheral;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_hal::spi::{self, SpiDeviceDriver, SpiDriver, SpiDriverConfig};
-use esp_idf_hal::task::{CriticalSection, CriticalSectionGuard};
+use esp_idf_hal::task::CriticalSection;
 use esp_idf_hal::units::FromValueType;
 
 use crate::config;
@@ -133,7 +133,7 @@ pub fn get_raw_value() -> i16 {
 const YAW_TABLE: [(i16, f32); 2] = [(-32768, -2293.76), (32767, 2293.69)];
 
 // Called from thread
-pub fn physical_conversion() -> f32 {
+pub fn physical_conversion() {
     let (raw_value, offset) = unsafe {
         let raw_value = get_raw_value();
         (raw_value, CONTEXT.as_mut().unwrap().offset)
@@ -153,7 +153,16 @@ pub fn physical_conversion() -> f32 {
             *physical = filtered;
         });
     }
-    filtered
+}
+
+pub fn get_physical_value() -> f32 {
+    unsafe {
+        let mut physical_value = 0.0;
+        PHYSICAL.access(&CS.enter(), |physical| {
+            physical_value = *physical;
+        });
+        physical_value
+    }
 }
 
 // Called from thread
