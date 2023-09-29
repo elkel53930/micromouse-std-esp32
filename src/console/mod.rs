@@ -1,6 +1,7 @@
 use esp_idf_hal::delay::FreeRtos;
 use esp_idf_sys::_WANT_REENT_SMALL;
 
+use crate::control;
 use crate::control_thread::{self, ControlThreadCommand};
 use crate::imu;
 use crate::uart::{read, read_line};
@@ -164,19 +165,27 @@ impl ConsoleCommand for CmdSen {
         if args.len() != 0 {
             return Err(anyhow::anyhow!("Invalid argument"));
         }
+
+        FreeRtos::delay_ms(500);
+        uprintln!("Calibration...");
+        uprintln!("offset is {}", imu::measure_offset(1000));
+        uprintln!("done");
+
+        uprintln!("Press any key to exit.");
+        FreeRtos::delay_ms(500);
+
         wall_sensor::enable(true);
 
         // Print all sensor data until something is received from UART.
-        uprintln!("Press any key to exit.");
-
         let mut buffer: [u8; 1] = [0];
         loop {
             let gyro_yaw = imu::get_physical_value();
             let wall_sensor = wall_sensor::get_physical_value();
             let ctx = context::get();
+            let angle_yaw = control::get_angle_yaw();
 
             uprintln!(
-                "batt: {}, ls: {}, lf: {}, rf: {}, rs: {}, gyro: {}, enc_l: {}, enc_r: {}",
+                "batt: {}, ls: {}, lf: {}, rf: {}, rs: {}, gyro: {}, enc_l: {}, enc_r: {}, angle: {}",
                 wall_sensor.get_batt(),
                 wall_sensor.get_ls(),
                 wall_sensor.get_lf(),
@@ -185,6 +194,7 @@ impl ConsoleCommand for CmdSen {
                 gyro_yaw,
                 ctx.enc_l_raw,
                 ctx.enc_r_raw,
+                angle_yaw,
             );
             FreeRtos::delay_ms(100);
             match read(&mut buffer) {
@@ -220,9 +230,9 @@ struct CmdGoffset {}
 /* show all sensor's values */
 impl ConsoleCommand for CmdGoffset {
     fn execute(&self, _args: &[&str]) -> anyhow::Result<()> {
-        control_thread::wait_idle(Some(1000))?;
-        control_thread::set_command(ControlThreadCommand::MeasureGyroOffset);
-        control_thread::wait_idle(None)?;
+        FreeRtos::delay_ms(500);
+        uprintln!("Calibration...");
+        uprintln!("offset is {}", imu::measure_offset(1000));
         uprintln!("done");
         Ok(())
     }

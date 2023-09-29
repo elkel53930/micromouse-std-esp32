@@ -13,14 +13,12 @@ static mut STATUS: ControlThreadStatus = ControlThreadStatus::Idle;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ControlThreadStatus {
     Idle,
-    MeasureGyroOffset,
     Run,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ControlThreadCommand {
     None,
-    MeasureGyroOffset,
     Run,
 }
 
@@ -60,37 +58,31 @@ pub fn wait_idle(timeout: Option<u32>) -> anyhow::Result<()> {
 }
 
 pub fn control_thread() -> ! {
-    let mut control = control::Control::default();
-
     loop {
         set_status(ControlThreadStatus::Idle);
         while (unsafe { COMMAND } == ControlThreadCommand::None) {
             FreeRtos::delay_ms(config::CONTROL_CYCLE);
+            control::estimate_mouse_state();
         }
 
-        match unsafe { COMMAND } {
-            ControlThreadCommand::None => {}
-            ControlThreadCommand::MeasureGyroOffset => {
-                set_status(ControlThreadStatus::MeasureGyroOffset);
-                measure_gyro_offset();
-            }
-            ControlThreadCommand::Run => {
-                set_status(ControlThreadStatus::Run);
-                run(&mut control);
-            }
+        let command = unsafe { COMMAND };
+        set_command(ControlThreadCommand::None);
+
+        match command {
+            ControlThreadCommand::Run => {}
+            _ => {}
         }
+
+        control::control();
+        FreeRtos::delay_ms(config::CONTROL_CYCLE);
     }
 }
 
-fn run(control: &mut control::Control) {
+fn run(control: &mut control::ControlContext) {
     loop {
         motor::set_l(0.0);
         motor::set_r(0.0);
         motor::enable(false);
         FreeRtos::delay_ms(config::CONTROL_CYCLE);
     }
-}
-
-fn measure_gyro_offset() {
-    imu::measure_offset();
 }

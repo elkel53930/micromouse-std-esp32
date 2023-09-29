@@ -173,9 +173,9 @@ pub fn reset_filter() {
 }
 
 // Called from thread
-pub fn measure_offset() {
+pub fn measure_offset(sample_size: usize) -> f32 {
     let mut sum = 0.0;
-    for _ in 0..100 {
+    for _ in 0..sample_size {
         let raw_value = get_raw_value();
         let corrected = correct_value(
             &YAW_TABLE,
@@ -186,7 +186,9 @@ pub fn measure_offset() {
         sum += corrected as f32;
         FreeRtos::delay_ms(config::CONTROL_CYCLE);
     }
+    let result = sum / sample_size as f32;
     unsafe {
-        CONTEXT.as_mut().unwrap().offset = sum / 100.0;
+        CONTEXT.as_mut().unwrap().offset = result;
     }
+    result
 }

@@ -40,6 +40,7 @@ fn main() -> anyhow::Result<()> {
     fram_logger::init(&mut peripherals)?;
     imu::init(&mut peripherals)?;
     encoder::init(&mut peripherals)?;
+    control::init();
 
     // You can use println up to before uart:init.
     println!("init uart");
