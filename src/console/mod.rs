@@ -4,7 +4,7 @@ use esp_idf_sys::_WANT_REENT_SMALL;
 use crate::control;
 use crate::control_thread::{self, ControlThreadCommand};
 use crate::imu;
-use crate::uart::{read, read_line};
+use crate::uart::{self, read, read_line};
 use crate::CS;
 use crate::{context, wall_sensor};
 
@@ -48,6 +48,7 @@ impl Console {
             Box::new(CmdGoffset {}),
             Box::new(CmdReset {}),
             Box::new(file::CmdFt {}),
+            Box::new(file::CmdDl {}),
             Box::new(file::CmdShow {}),
             Box::new(file::CmdLs {}),
             Box::new(file::CmdRm {}),
@@ -66,10 +67,16 @@ impl Console {
 
             uprint!("> ");
 
-            match read_line(&mut buf) {
-                Ok(_) => {}
+            match read_line(&mut buf, true) {
+                Ok(result) => {
+                    if result == uart::ReadLineResult::Escape {
+                        FreeRtos::delay_ms(10);
+                        println!("");
+                        continue;
+                    }
+                }
                 Err(e) => {
-                    uprintln!("Error: {}", e);
+                    uprintln!("{}", e);
                     continue;
                 }
             }
@@ -139,7 +146,7 @@ impl ConsoleCommand for CmdEcho {
         } else {
             let mut buffer: [u8; 32] = [0; 32];
             uprint!("Intput : ");
-            read_line(&mut buffer)?;
+            read_line(&mut buffer, true)?;
             let s = std::str::from_utf8(&buffer).expect("Invalid UTF-8");
 
             uprintln!("Echo  : '{}'", s);

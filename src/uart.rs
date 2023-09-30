@@ -55,9 +55,15 @@ pub fn read(buf: &mut [u8]) -> Result<usize, esp_idf_sys::EspError> {
     unsafe { UART.as_mut().unwrap().read(buf, NON_BLOCK) }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ReadLineResult {
+    Ok,
+    Escape,
+}
+
 // Read until '\n' is received, using read fn.
 #[allow(dead_code)]
-pub fn read_line(buffer: &mut [u8]) -> anyhow::Result<()> {
+pub fn read_line(buffer: &mut [u8], escape: bool) -> anyhow::Result<ReadLineResult> {
     let mut i = 0;
     let mut read_buffer: [u8; 1] = [0];
     loop {
@@ -70,6 +76,9 @@ pub fn read_line(buffer: &mut [u8]) -> anyhow::Result<()> {
                 if read_buffer[0] == b'\n' || read_buffer[0] == b'\r' {
                     break;
                 }
+                if escape && read_buffer[0] == 0x1b {
+                    return Ok(ReadLineResult::Escape);
+                }
                 buffer[i] = read_buffer[0];
                 i = i + 1;
                 if buffer.len() == i {
@@ -81,7 +90,7 @@ pub fn read_line(buffer: &mut [u8]) -> anyhow::Result<()> {
             }
         }
     }
-    Ok(())
+    Ok(ReadLineResult::Ok)
 }
 
 pub fn write(buf: &[u8]) -> Result<usize, esp_idf_sys::EspError> {

@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+
+import serial
+import sys
+import time
+
+serial_port = '/dev/ttyUSB0'
+
+def receive_file(filename):
+	ser = serial.Serial(serial_port, 115200, timeout=1)
+
+	ser.write('\n'.encode('utf-8'))
+	time.sleep(0.5)
+	ser.readline()
+	time.sleep(0.5)
+
+	# Send dl command
+	fullpath = "/sf/" + filename
+	command = f"dl {fullpath}\n"
+	print(command)
+	ser.write(command.encode('ascii'))
+
+	# Receive file size
+	file_size_str = ser.readline().decode('ascii').strip()
+	print("filesize", file_size_str)
+	file_size = int(file_size_str)
+
+	# Download
+	ser.write("\n".encode('ascii'))
+	data = ser.read(file_size)
+
+	with open(filename, 'wb') as f:
+		f.write(data)
+
+	ser.close()
+
+if __name__ == "__main__":
+	if len(sys.argv) != 2:
+		print("Usage: python dl {filename}")
+		sys.exit(1)
+
+	filename = sys.argv[1]
+
+	receive_file(filename)

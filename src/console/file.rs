@@ -4,8 +4,11 @@ pub struct CmdFt {}
 use super::blocking_uart_read;
 use super::ConsoleCommand;
 
+use esp_idf_hal::delay::FreeRtos;
 use std::io::Write;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read};
+
+use crate::uart;
 
 impl ConsoleCommand for CmdFt {
     fn execute(&self, args: &[&str]) -> anyhow::Result<()> {
@@ -70,6 +73,69 @@ impl ConsoleCommand for CmdFt {
 
     fn name(&self) -> &str {
         "ft"
+    }
+}
+
+/* Download file */
+pub struct CmdDl {}
+
+impl ConsoleCommand for CmdDl {
+    fn execute(&self, args: &[&str]) -> anyhow::Result<()> {
+        const CHUNK_SIZE: usize = 256;
+        if args.len() != 1 {
+            return Err(anyhow::anyhow!("Invalid argument"));
+        }
+
+        let filename = args[0];
+
+        if !std::path::Path::new(filename).exists() {
+            return Err(anyhow::anyhow!("File not found"));
+        }
+
+        FreeRtos::delay_ms(500);
+
+        // Send file size
+        let metadata = std::fs::metadata(filename)?;
+        let filesize = metadata.len();
+        uprintln!("{}", filesize);
+
+        let mut buf: [u8; 10] = [0; 10];
+        loop {
+            match uart::read(&mut buf) {
+                Ok(size) => {
+                    if size == 0 {
+                        FreeRtos::delay_ms(100);
+                        continue;
+                    }
+                    break;
+                }
+                Err(e) => {
+                    uprintln!("Error: {}", e);
+                }
+            }
+        }
+        // Open as binary.
+        let mut file = std::fs::File::open(filename)?;
+        let mut buffer = [0u8; CHUNK_SIZE];
+
+        while let Ok(size) = file.read(&mut buffer) {
+            if size == 0 {
+                break;
+            }
+
+            uart::write(&buffer[..size])?;
+        }
+
+        Ok(())
+    }
+
+    fn hint(&self) {
+        uprintln!("Download file");
+        uprintln!("Usage: dl {{filename}}");
+    }
+
+    fn name(&self) -> &str {
+        "dl"
     }
 }
 
