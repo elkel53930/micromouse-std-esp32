@@ -34,7 +34,7 @@ fn main() -> anyhow::Result<()> {
     let mut peripherals = Peripherals::take().unwrap();
 
     // Initialize LEDs
-    led::init(&mut peripherals)?;
+    let led_tx = led::init(&mut peripherals)?;
     motor::init(&mut peripherals)?;
     wall_sensor::init(&mut peripherals)?;
     fram_logger::init(&mut peripherals)?;
@@ -66,16 +66,11 @@ fn main() -> anyhow::Result<()> {
     timer.enable_alarm(true)?;
     timer.enable(true)?;
 
-    // Start LED pattern thread
-    thread::spawn(|| loop {
-        let _ = led::pattern();
-        FreeRtos::delay_ms(100);
-    });
-
     thread::spawn(|| physical_conversion_thread::physical_conversion_thread());
 
-    led::set(Green, "1");
-    led::set(Red, "10");
+    led_tx.send((Green, Some("1"))).unwrap();
+    led_tx.send((Red, Some("10"))).unwrap();
+    led_tx.send((Blue, Some("1100"))).unwrap();
 
     thread::spawn(control_thread::control_thread);
 

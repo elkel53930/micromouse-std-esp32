@@ -1,6 +1,10 @@
+use esp_idf_hal::delay::FreeRtos;
 use esp_idf_hal::gpio::{Gpio19, Gpio20, Gpio21, Output, PinDriver};
 use esp_idf_hal::peripheral::Peripheral;
 use esp_idf_hal::peripherals::Peripherals;
+use std::sync::mpsc::{self, Receiver, Sender};
+use std::thread;
+
 static mut LED_GREEN: Option<PinDriver<'_, Gpio19, Output>> = None;
 static mut LED_BLUE: Option<PinDriver<'_, Gpio20, Output>> = None;
 static mut LED_RED: Option<PinDriver<'_, Gpio21, Output>> = None;
@@ -13,7 +17,25 @@ static mut PATTERN: LedPattern = LedPattern {
     blue_pattern: None,
 };
 
-pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
+#[derive(Debug)]
+pub enum LedColor {
+    Green,
+    Blue,
+    Red,
+}
+
+pub type LedCommand = (LedColor, Option<&'static str>);
+
+struct LedPattern {
+    red_step: usize,
+    green_step: usize,
+    blue_step: usize,
+    red_pattern: Option<&'static str>,
+    green_pattern: Option<&'static str>,
+    blue_pattern: Option<&'static str>,
+}
+
+pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<Sender<LedCommand>> {
     unsafe {
         LED_GREEN = Some(PinDriver::output(
             peripherals.pins.gpio19.clone_unchecked(),
@@ -28,14 +50,49 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
         LED_BLUE.as_mut().unwrap().set_high()?;
         LED_RED.as_mut().unwrap().set_high()?;
     }
-    Ok(())
-}
+    let (tx, rx): (Sender<LedCommand>, Receiver<LedCommand>) = mpsc::channel();
 
-#[allow(dead_code)]
-pub enum LedColor {
-    Green,
-    Blue,
-    Red,
+    thread::spawn(move || {
+        let mut ctx: LedPattern = LedPattern {
+            red_step: 0,
+            green_step: 0,
+            blue_step: 0,
+            red_pattern: None,
+            green_pattern: None,
+            blue_pattern: None,
+        };
+        loop {
+            loop {
+                match rx.try_recv() {
+                    Ok(cmd) => match cmd.0 {
+                        LedColor::Green => {
+                            ctx.green_pattern = cmd.1;
+                            ctx.green_step = 0;
+                        }
+                        LedColor::Blue => {
+                            ctx.blue_pattern = cmd.1;
+                            ctx.blue_step = 0;
+                        }
+                        LedColor::Red => {
+                            ctx.red_pattern = cmd.1;
+                            ctx.red_step = 0;
+                        }
+                    },
+                    _ => {
+                        break;
+                    }
+                };
+            }
+            ctx.red_step = pattern_internal(ctx.red_pattern, ctx.red_step, LedColor::Red).unwrap();
+            ctx.green_step =
+                pattern_internal(ctx.green_pattern, ctx.green_step, LedColor::Green).unwrap();
+            ctx.blue_step =
+                pattern_internal(ctx.blue_pattern, ctx.blue_step, LedColor::Blue).unwrap();
+            FreeRtos::delay_ms(100);
+        }
+    });
+
+    Ok(tx)
 }
 
 #[allow(dead_code)]
@@ -74,16 +131,6 @@ pub fn toggle(color: LedColor) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(Default)]
-struct LedPattern {
-    red_step: usize,
-    green_step: usize,
-    blue_step: usize,
-    pub red_pattern: Option<&'static str>,
-    pub green_pattern: Option<&'static str>,
-    pub blue_pattern: Option<&'static str>,
-}
-
 fn pattern_internal(pattern: Option<&str>, step: usize, color: LedColor) -> anyhow::Result<usize> {
     if pattern.is_none() {
         return Ok(0);
@@ -107,25 +154,4 @@ fn pattern_internal(pattern: Option<&str>, step: usize, color: LedColor) -> anyh
         _ => {}
     }
     Ok(step + 1)
-}
-
-pub fn set(color: LedColor, pattern: &'static str) {
-    unsafe {
-        match color {
-            LedColor::Green => PATTERN.green_pattern = Some(pattern),
-            LedColor::Blue => PATTERN.blue_pattern = Some(pattern),
-            LedColor::Red => PATTERN.red_pattern = Some(pattern),
-        }
-    }
-}
-
-pub fn pattern() -> anyhow::Result<()> {
-    unsafe {
-        PATTERN.red_step = pattern_internal(PATTERN.red_pattern, PATTERN.red_step, LedColor::Red)?;
-        PATTERN.green_step =
-            pattern_internal(PATTERN.green_pattern, PATTERN.green_step, LedColor::Green)?;
-        PATTERN.blue_step =
-            pattern_internal(PATTERN.blue_pattern, PATTERN.blue_step, LedColor::Blue)?;
-    }
-    Ok(())
 }
