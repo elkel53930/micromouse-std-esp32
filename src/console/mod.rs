@@ -2,7 +2,7 @@ use esp_idf_hal::delay::FreeRtos;
 use esp_idf_sys::_WANT_REENT_SMALL;
 
 use crate::control;
-use crate::control_thread::{self, ControlThreadCommand};
+use crate::control_thread;
 use crate::imu;
 use crate::uart::{self, read, read_line};
 use crate::CS;

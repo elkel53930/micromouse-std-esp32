@@ -1,71 +1,67 @@
-use crate::context;
-use crate::encoder;
-use crate::imu;
-use crate::wall_sensor;
+use esp_idf_hal::peripheral::Peripheral;
+use esp_idf_hal::peripherals::Peripherals;
+use esp_idf_hal::timer;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum InterruptSequence {
-    ReadBattEnableLs,
-    ReadLsEnableRs,
-    ReadRsEnableLs,
-    ReadLsEnableRf,
-    ReadRfDisable,
-    ReadImu,
-    ReadEncoders,
-    None,
+static mut COUNTER_MS: u32 = 0;
+static mut TIMER: Option<timer::TimerDriver> = None;
+
+pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
+    unsafe {
+        COUNTER_MS = 0;
+    }
+    let timer_config = timer::TimerConfig::new().auto_reload(true);
+    let timer00 = unsafe { peripherals.timer00.clone_unchecked() };
+    let mut timer = timer::TimerDriver::new(timer00, &timer_config)?;
+    timer.set_alarm(1000)?;
+    unsafe {
+        timer.subscribe(timer_isr)?;
+    }
+    timer.enable_alarm(true)?;
+    timer.enable(true)?;
+    unsafe {
+        TIMER = Some(timer);
+    }
+
+    Ok(())
 }
 
-const SEQUENCE: [InterruptSequence; 10] = [
-    InterruptSequence::ReadBattEnableLs,
-    InterruptSequence::ReadLsEnableRs,
-    InterruptSequence::ReadRsEnableLs,
-    InterruptSequence::ReadLsEnableRf,
-    InterruptSequence::ReadRfDisable,
-    InterruptSequence::ReadImu,
-    InterruptSequence::ReadEncoders,
-    InterruptSequence::None,
-    InterruptSequence::None,
-    InterruptSequence::None,
-];
+fn get_us() -> u32 {
+    let counter = unsafe { TIMER.as_mut().unwrap().counter().unwrap() };
+    counter as u32
+}
 
-// Called from interrupt handler
-pub fn interrupt() -> anyhow::Result<()> {
-    let mut ctx = context::get();
-    let step = SEQUENCE[ctx.step as usize];
-    ctx.step = (ctx.step + 1) % SEQUENCE.len() as u8;
+pub fn wait_us(duration_us: u32) {
+    let start_us = get_us();
+    let mut current_us = start_us;
 
-    match step {
-        InterruptSequence::ReadBattEnableLs => {
-            wall_sensor::sequence(wall_sensor::Sequence::ReadBattEnableLs)?;
+    loop {
+        let elapsed_us = if current_us >= start_us {
+            current_us - start_us
+        } else {
+            (1000 - start_us) + current_us
+        };
+
+        if elapsed_us >= duration_us {
+            break;
         }
 
-        InterruptSequence::ReadLsEnableRs => {
-            wall_sensor::sequence(wall_sensor::Sequence::ReadLsEnableRs)?;
-        }
-
-        InterruptSequence::ReadRsEnableLs => {
-            wall_sensor::sequence(wall_sensor::Sequence::ReadRsEnableLs)?;
-        }
-
-        InterruptSequence::ReadLsEnableRf => {
-            wall_sensor::sequence(wall_sensor::Sequence::ReadLsEnableRf)?;
-        }
-
-        InterruptSequence::ReadRfDisable => {
-            wall_sensor::sequence(wall_sensor::Sequence::ReadRfDisable)?;
-        }
-
-        InterruptSequence::ReadImu => {
-            imu::read()?;
-        }
-
-        InterruptSequence::ReadEncoders => {
-            ctx.enc_l_raw = encoder::read_l()?;
-            ctx.enc_r_raw = encoder::read_r()?;
-        }
-
-        InterruptSequence::None => {}
+        current_us = get_us();
     }
-    context::set(&ctx);
-    Ok(())
+}
+
+pub fn sync_ms() {
+    let mut prev = get_us();
+    loop {
+        let now = get_us();
+        if prev > 500 && now < 500 {
+            break;
+        }
+        prev = now;
+    }
+}
+
+fn timer_isr() {
+    unsafe {
+        COUNTER_MS += 1;
+    }
 }

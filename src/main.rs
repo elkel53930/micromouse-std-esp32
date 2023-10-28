@@ -1,7 +1,7 @@
 use esp_idf_hal::delay::FreeRtos;
 use esp_idf_hal::peripherals::Peripherals;
-use esp_idf_hal::timer;
 use esp_idf_sys as _;
+use std::sync::Arc;
 use std::thread;
 
 #[macro_use]
@@ -18,6 +18,7 @@ pub mod imu;
 mod led;
 pub mod misc;
 mod motor;
+pub mod ods;
 mod physical_conversion_thread;
 mod spiflash;
 pub mod timer_interrupt;
@@ -30,6 +31,8 @@ pub static CS: esp_idf_hal::task::CriticalSection = esp_idf_hal::task::CriticalS
 
 fn main() -> anyhow::Result<()> {
     esp_idf_sys::link_patches();
+
+    let ods: Arc<ods::Ods> = Arc::new(ods::Ods::new());
 
     let mut peripherals = Peripherals::take().unwrap();
 
@@ -45,7 +48,7 @@ fn main() -> anyhow::Result<()> {
     // You can use println up to before uart:init.
     println!("init uart");
     FreeRtos::delay_ms(100);
-    uart::init(&mut peripherals)?;
+    //    uart::init(&mut peripherals)?;
     // After uart:init, you can use uprintln.
     uprintln!("init uart done");
 
@@ -56,28 +59,16 @@ fn main() -> anyhow::Result<()> {
 
     uprintln!("f32_example is {}", config::f32_example());
 
-    let timer_config = timer::TimerConfig::new().auto_reload(true);
-    let mut timer = timer::TimerDriver::new(peripherals.timer00, &timer_config)?;
-    timer.set_alarm(100)?;
-    unsafe {
-        timer.subscribe(timer_isr)?;
-    }
-
-    timer.enable_alarm(true)?;
-    timer.enable(true)?;
+    timer_interrupt::init(&mut peripherals)?;
 
     thread::spawn(|| physical_conversion_thread::physical_conversion_thread());
 
-    led_tx.send((Green, Some("1"))).unwrap();
-    led_tx.send((Red, Some("10"))).unwrap();
-    led_tx.send((Blue, Some("1100"))).unwrap();
+    led_tx.send((Green, Some("1")))?;
+    led_tx.send((Red, Some("10")))?;
+    led_tx.send((Blue, None))?;
 
-    thread::spawn(control_thread::control_thread);
+    control_thread::init(&ods)?;
 
     let mut console = console::Console::new();
     console.run();
-}
-
-fn timer_isr() {
-    timer_interrupt::interrupt().unwrap();
 }

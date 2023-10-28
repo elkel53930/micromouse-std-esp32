@@ -52,7 +52,13 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
 // Read multiple bytes into a slice
 #[allow(dead_code)]
 pub fn read(buf: &mut [u8]) -> Result<usize, esp_idf_sys::EspError> {
-    unsafe { UART.as_mut().unwrap().read(buf, NON_BLOCK) }
+    unsafe {
+        if UART.is_some() {
+            UART.as_mut().unwrap().read(buf, NON_BLOCK)
+        } else {
+            Ok(0)
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -94,7 +100,12 @@ pub fn read_line(buffer: &mut [u8], escape: bool) -> anyhow::Result<ReadLineResu
 }
 
 pub fn write(buf: &[u8]) -> Result<usize, esp_idf_sys::EspError> {
-    unsafe { UART.as_mut().unwrap().write(buf) }
+    unsafe {
+        if UART.is_some() {
+            return UART.as_mut().unwrap().write(buf);
+        }
+    }
+    Ok(buf.len())
 }
 
 use core::fmt::{self, Write};
