@@ -1,11 +1,9 @@
-use crate::context;
 use esp_idf_hal::adc::{config::Config, AdcChannelDriver, AdcDriver, Atten11dB, ADC1};
 use esp_idf_hal::gpio::{
     Gpio1, Gpio14, Gpio15, Gpio16, Gpio2, Gpio3, Gpio4, Gpio5, Output, PinDriver,
 };
 use esp_idf_hal::peripheral::Peripheral;
 use esp_idf_hal::peripherals::Peripherals;
-use esp_idf_hal::task::CriticalSection;
 
 struct WallSensorHardware<'a> {
     ad: AdcDriver<'a, ADC1>,

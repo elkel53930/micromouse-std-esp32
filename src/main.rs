@@ -9,7 +9,6 @@ pub mod uart;
 mod config;
 mod console;
 pub mod context;
-pub mod control;
 mod control_thread;
 mod encoder;
 mod fram_logger;
@@ -36,12 +35,6 @@ fn main() -> anyhow::Result<()> {
 
     // Initialize LEDs
     let led_tx = led::init(&mut peripherals)?;
-    motor::init(&mut peripherals)?;
-    wall_sensor::init(&mut peripherals)?;
-    fram_logger::init(&mut peripherals)?;
-    imu::init(&mut peripherals)?;
-    encoder::init(&mut peripherals)?;
-    control::init();
 
     // File system initialization
     spiflash::mount();
@@ -52,12 +45,11 @@ fn main() -> anyhow::Result<()> {
         yaml_config.load("f32_example")?.as_f64().unwrap() as f32
     );
 
-    // You can use println up to before uart:init.
-    println!("init uart");
-    FreeRtos::delay_ms(100);
-    uart::init(&mut peripherals)?;
-    // After uart:init, you can use uprintln.
-    uprintln!("init uart done");
+    motor::init(&mut peripherals)?;
+    wall_sensor::init(&mut peripherals)?;
+    fram_logger::init(&mut peripherals)?;
+    imu::init(&mut peripherals)?;
+    encoder::init(&mut peripherals)?;
 
     timer_interrupt::init(&mut peripherals)?;
 
@@ -65,7 +57,14 @@ fn main() -> anyhow::Result<()> {
     led_tx.send((Red, Some("10")))?;
     led_tx.send((Blue, None))?;
 
-    control_thread::init(&ods)?;
+    control_thread::init(&yaml_config, &ods)?;
+
+    // You can use println up to before uart:init.
+    println!("init uart");
+    FreeRtos::delay_ms(100);
+    uart::init(&mut peripherals)?;
+    // After uart:init, you can use uprintln.
+    uprintln!("init uart done");
 
     let mut console = console::Console::new();
     console.run(&ods);

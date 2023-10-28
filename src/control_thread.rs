@@ -1,6 +1,6 @@
+use crate::config;
 use crate::encoder;
 use crate::imu;
-use crate::led;
 use crate::motor;
 use crate::ods;
 use crate::timer_interrupt::{sync_ms, wait_us};
@@ -8,7 +8,10 @@ use crate::wall_sensor;
 
 use std::sync::Arc;
 
-pub fn init(ods: &Arc<ods::Ods>) -> anyhow::Result<()> {
+pub fn init(config: &config::YamlConfig, ods: &Arc<ods::Ods>) -> anyhow::Result<()> {
+    let led_rise_time = config.load("led_rise_time")?.as_i64().unwrap_or(30) as u32;
+    println!("led_rise_time = {}\n", led_rise_time);
+
     esp_idf_hal::task::thread::ThreadSpawnConfiguration {
         name: None,
         stack_size: 4096,
@@ -23,22 +26,23 @@ pub fn init(ods: &Arc<ods::Ods>) -> anyhow::Result<()> {
     std::thread::Builder::new().spawn(move || -> anyhow::Result<()> {
         wall_sensor::off()?;
         loop {
+            //crate::led::on(crate::led::LedColor::Blue)?;
             let batt = wall_sensor::read_batt()?;
 
             wall_sensor::on_ls()?;
-            wait_us(30);
+            wait_us(led_rise_time);
             let ls = wall_sensor::read_ls()?;
 
             wall_sensor::on_lf()?;
-            wait_us(30);
+            wait_us(led_rise_time);
             let lf = wall_sensor::read_lf()?;
 
             wall_sensor::on_rf()?;
-            wait_us(30);
+            wait_us(led_rise_time);
             let rf = wall_sensor::read_rf()?;
 
             wall_sensor::on_rs()?;
-            wait_us(30);
+            wait_us(led_rise_time);
             let rs = wall_sensor::read_rs()?;
 
             let gyro_x = imu::read()?;
@@ -64,6 +68,7 @@ pub fn init(ods: &Arc<ods::Ods>) -> anyhow::Result<()> {
                 (*ws).batt_raw = batt;
             }
 
+            //crate::led::off(crate::led::LedColor::Blue)?;
             sync_ms();
         }
     })?;
