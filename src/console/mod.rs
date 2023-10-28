@@ -133,7 +133,7 @@ pub trait ConsoleCommand {
 /* echo command */
 struct CmdEcho {}
 
-/* show all sensor's values */
+/* echo arguments */
 impl ConsoleCommand for CmdEcho {
     fn execute(&self, args: &[&str], mut _ods: &ods::Ods) -> anyhow::Result<()> {
         if args.len() != 0 {
@@ -239,7 +239,7 @@ impl ConsoleCommand for CmdSen {
 /* goffset cmd */
 struct CmdGoffset {}
 
-/* show all sensor's values */
+/* Update gyro offset */
 impl ConsoleCommand for CmdGoffset {
     fn execute(&self, _args: &[&str], mut _ods: &ods::Ods) -> anyhow::Result<()> {
         FreeRtos::delay_ms(500);
