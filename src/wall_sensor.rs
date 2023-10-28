@@ -116,7 +116,7 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn read_ls() -> anyhow::Result<u16> {
+pub fn read_ls() -> anyhow::Result<u16> {
     #[allow(unused_mut)]
     let mut result;
     unsafe {
@@ -129,7 +129,7 @@ fn read_ls() -> anyhow::Result<u16> {
     Ok(result)
 }
 
-fn read_lf() -> anyhow::Result<u16> {
+pub fn read_lf() -> anyhow::Result<u16> {
     #[allow(unused_mut)]
     let mut result;
     unsafe {
@@ -142,7 +142,7 @@ fn read_lf() -> anyhow::Result<u16> {
     Ok(result)
 }
 
-fn read_rf() -> anyhow::Result<u16> {
+pub fn read_rf() -> anyhow::Result<u16> {
     #[allow(unused_mut)]
     let mut result;
     unsafe {
@@ -155,7 +155,7 @@ fn read_rf() -> anyhow::Result<u16> {
     Ok(result)
 }
 
-fn read_rs() -> anyhow::Result<u16> {
+pub fn read_rs() -> anyhow::Result<u16> {
     #[allow(unused_mut)]
     let mut result;
     unsafe {
@@ -188,7 +188,7 @@ pub fn read_batt() -> anyhow::Result<u16> {
       0    1   RF(D3)
       0    0   RS(D4)
 */
-fn on_ls() -> anyhow::Result<()> {
+pub fn on_ls() -> anyhow::Result<()> {
     unsafe {
         HARDWARE.as_mut().unwrap().sel0.set_high()?;
         HARDWARE.as_mut().unwrap().sel1.set_low()?;
@@ -197,7 +197,7 @@ fn on_ls() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn on_lf() -> anyhow::Result<()> {
+pub fn on_lf() -> anyhow::Result<()> {
     unsafe {
         HARDWARE.as_mut().unwrap().sel0.set_high()?;
         HARDWARE.as_mut().unwrap().sel1.set_high()?;
@@ -206,7 +206,7 @@ fn on_lf() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn on_rf() -> anyhow::Result<()> {
+pub fn on_rf() -> anyhow::Result<()> {
     unsafe {
         HARDWARE.as_mut().unwrap().sel0.set_low()?;
         HARDWARE.as_mut().unwrap().sel1.set_high()?;
@@ -215,7 +215,7 @@ fn on_rf() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn on_rs() -> anyhow::Result<()> {
+pub fn on_rs() -> anyhow::Result<()> {
     unsafe {
         HARDWARE.as_mut().unwrap().sel0.set_low()?;
         HARDWARE.as_mut().unwrap().sel1.set_low()?;
@@ -224,77 +224,11 @@ fn on_rs() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn off() -> anyhow::Result<()> {
+pub fn off() -> anyhow::Result<()> {
     unsafe {
         HARDWARE.as_mut().unwrap().ena.set_low()?;
     }
     Ok(())
-}
-
-pub fn enable(enable: bool) {
-    unsafe {
-        CONTEXT.as_mut().unwrap().enable = enable;
-    }
-}
-
-pub enum Sequence {
-    ReadBattEnableLs,
-    ReadLsEnableRs,
-    ReadRsEnableLs,
-    ReadLsEnableRf,
-    ReadRfDisable,
-}
-
-pub fn sequence(step: Sequence) -> anyhow::Result<()> {
-    if !unsafe { CONTEXT.as_mut().unwrap().enable } {
-        return Ok(());
-    }
-
-    match step {
-        /*
-           LF -> RS - LS -> RF
-        */
-        Sequence::ReadBattEnableLs => {
-            off()?;
-            unsafe {
-                RAW.write(|data| data.batt = read_batt().unwrap());
-                RAW.write(|data| data.lf_off = read_lf().unwrap());
-            }
-            on_lf()?;
-        }
-
-        Sequence::ReadLsEnableRs => {
-            unsafe {
-                RAW.write(|data| data.lf_on = read_lf().unwrap());
-                RAW.write(|data| data.rs_off = read_rs().unwrap());
-            }
-            on_rs()?;
-        }
-
-        Sequence::ReadRsEnableLs => {
-            unsafe {
-                RAW.write(|data| data.rs_on = read_rs().unwrap());
-                RAW.write(|data| data.ls_off = read_ls().unwrap());
-            }
-            on_ls()?;
-        }
-
-        Sequence::ReadLsEnableRf => {
-            unsafe {
-                RAW.write(|data| data.ls_on = read_ls().unwrap());
-                RAW.write(|data| data.rf_off = read_rf().unwrap());
-            }
-            on_rf()?;
-        }
-
-        Sequence::ReadRfDisable => {
-            unsafe {
-                RAW.write(|data| data.rf_on = read_rf().unwrap());
-            }
-            off()?;
-        }
-    }
-    return Ok(());
 }
 
 pub fn physical_conversion() {

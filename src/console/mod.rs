@@ -1,12 +1,8 @@
 use esp_idf_hal::delay::FreeRtos;
 use esp_idf_sys::_WANT_REENT_SMALL;
 
-use crate::control;
-use crate::control_thread;
-use crate::imu;
+use crate::ods;
 use crate::uart::{self, read, read_line};
-use crate::CS;
-use crate::{context, wall_sensor};
 
 mod file;
 
@@ -57,7 +53,7 @@ impl Console {
         Console { commands }
     }
 
-    pub fn run(&mut self) -> ! {
+    pub fn run(&mut self, mut ods: &ods::Ods) -> ! {
         println!("Welcome to ExtraICE console!");
         loop {
             let mut buf = [0u8; 256];
@@ -109,7 +105,7 @@ impl Console {
             let mut found = false;
             for cmd in self.commands.iter_mut() {
                 if cmd.name() == args[0] {
-                    match cmd.execute(&args[1..arg_num]) {
+                    match cmd.execute(&args[1..arg_num], &mut ods) {
                         Ok(_) => {}
                         Err(e) => {
                             uprintln!("Error: {}", e);
@@ -128,7 +124,7 @@ impl Console {
 }
 
 pub trait ConsoleCommand {
-    fn execute(&self, args: &[&str]) -> anyhow::Result<()>;
+    fn execute(&self, args: &[&str], ods: &ods::Ods) -> anyhow::Result<()>;
     fn hint(&self);
     fn name(&self) -> &str;
 }
@@ -138,7 +134,7 @@ struct CmdEcho {}
 
 /* show all sensor's values */
 impl ConsoleCommand for CmdEcho {
-    fn execute(&self, args: &[&str]) -> anyhow::Result<()> {
+    fn execute(&self, args: &[&str], mut _ods: &ods::Ods) -> anyhow::Result<()> {
         if args.len() != 0 {
             for arg in args {
                 uprintln!("{}", arg);
@@ -168,40 +164,49 @@ impl ConsoleCommand for CmdEcho {
 struct CmdSen {}
 
 impl ConsoleCommand for CmdSen {
-    fn execute(&self, args: &[&str]) -> anyhow::Result<()> {
+    fn execute(&self, args: &[&str], mut ods: &ods::Ods) -> anyhow::Result<()> {
         if args.len() != 0 {
             return Err(anyhow::anyhow!("Invalid argument"));
         }
 
-        FreeRtos::delay_ms(500);
-        uprintln!("Calibration...");
-        uprintln!("offset is {}", imu::measure_offset(1000));
-        uprintln!("done");
-
         uprintln!("Press any key to exit.");
         FreeRtos::delay_ms(500);
 
-        wall_sensor::enable(true);
-
         // Print all sensor data until something is received from UART.
         let mut buffer: [u8; 1] = [0];
-        loop {
-            let gyro_yaw = imu::get_physical_value();
-            let wall_sensor = wall_sensor::get_physical_value();
-            let ctx = context::get();
-            let angle_yaw = control::get_angle_yaw();
 
+        let mut batt_raw = 0;
+        let mut ls_raw = 0;
+        let mut lf_raw = 0;
+        let mut rf_raw = 0;
+        let mut rs_raw = 0;
+        let mut gyro_x_raw = 0;
+        let mut l_raw = 0;
+        let mut r_raw = 0;
+        loop {
+            {
+                let imu = ods.imu.lock().unwrap();
+                let encoder = ods.encoder.lock().unwrap();
+                let wall_sensor = ods.wall_sensor.lock().unwrap();
+                batt_raw = wall_sensor.batt_raw;
+                ls_raw = wall_sensor.ls_raw;
+                lf_raw = wall_sensor.lf_raw;
+                rf_raw = wall_sensor.rf_raw;
+                rs_raw = wall_sensor.rs_raw;
+                gyro_x_raw = imu.gyro_x_raw;
+                l_raw = encoder.l_raw;
+                r_raw = encoder.r_raw;
+            }
             uprintln!(
-                "batt: {}, ls: {}, lf: {}, rf: {}, rs: {}, gyro: {}, enc_l: {}, enc_r: {}, angle: {}",
-                wall_sensor.get_batt(),
-                wall_sensor.get_ls(),
-                wall_sensor.get_lf(),
-                wall_sensor.get_rf(),
-                wall_sensor.get_rs(),
-                gyro_yaw,
-                ctx.enc_l_raw,
-                ctx.enc_r_raw,
-                angle_yaw,
+                "batt: {}, ls: {}, lf: {}, rf: {}, rs: {}, gyro: {}, enc_l: {}, enc_r: {}",
+                batt_raw,
+                ls_raw,
+                lf_raw,
+                rf_raw,
+                rs_raw,
+                gyro_x_raw,
+                l_raw,
+                r_raw
             );
             FreeRtos::delay_ms(100);
             match read(&mut buffer) {
@@ -217,7 +222,6 @@ impl ConsoleCommand for CmdSen {
         }
         println!("");
 
-        wall_sensor::enable(false);
         Ok(())
     }
 
@@ -236,11 +240,11 @@ struct CmdGoffset {}
 
 /* show all sensor's values */
 impl ConsoleCommand for CmdGoffset {
-    fn execute(&self, _args: &[&str]) -> anyhow::Result<()> {
+    fn execute(&self, _args: &[&str], mut _ods: &ods::Ods) -> anyhow::Result<()> {
         FreeRtos::delay_ms(500);
         uprintln!("Calibration...");
-        uprintln!("offset is {}", imu::measure_offset(1000));
-        uprintln!("done");
+        //        uprintln!("offset is {}", imu::measure_offset(1000));
+        uprintln!("NOT IMPLEMENTED YET!");
         Ok(())
     }
 
@@ -257,7 +261,7 @@ impl ConsoleCommand for CmdGoffset {
 struct CmdReset {}
 
 impl ConsoleCommand for CmdReset {
-    fn execute(&self, args: &[&str]) -> anyhow::Result<()> {
+    fn execute(&self, args: &[&str], mut _ods: &ods::Ods) -> anyhow::Result<()> {
         if args.len() != 0 {
             return Err(anyhow::anyhow!("Invalid argument"));
         }

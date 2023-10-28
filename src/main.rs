@@ -19,7 +19,6 @@ mod led;
 pub mod misc;
 mod motor;
 pub mod ods;
-mod physical_conversion_thread;
 mod spiflash;
 pub mod timer_interrupt;
 mod wall_sensor;
@@ -48,7 +47,7 @@ fn main() -> anyhow::Result<()> {
     // You can use println up to before uart:init.
     println!("init uart");
     FreeRtos::delay_ms(100);
-    //    uart::init(&mut peripherals)?;
+    uart::init(&mut peripherals)?;
     // After uart:init, you can use uprintln.
     uprintln!("init uart done");
 
@@ -61,8 +60,6 @@ fn main() -> anyhow::Result<()> {
 
     timer_interrupt::init(&mut peripherals)?;
 
-    thread::spawn(|| physical_conversion_thread::physical_conversion_thread());
-
     led_tx.send((Green, Some("1")))?;
     led_tx.send((Red, Some("10")))?;
     led_tx.send((Blue, None))?;
@@ -70,5 +67,5 @@ fn main() -> anyhow::Result<()> {
     control_thread::init(&ods)?;
 
     let mut console = console::Console::new();
-    console.run();
+    console.run(&ods);
 }

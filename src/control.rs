@@ -19,18 +19,7 @@ pub fn init() {
     }
 }
 
-pub fn estimate_mouse_state() {
-    unsafe {
-        let guard = CS.enter();
-        CONTROL.access(&guard, |control| {
-            control.angle_yaw +=
-                imu::get_physical_value() * (config::CONTROL_CYCLE as f32 / 1000.0);
-        });
-    }
-}
-
 pub fn control() -> (bool, f32, f32) {
-    estimate_mouse_state();
     (false, 0.0, 0.0)
 }
 

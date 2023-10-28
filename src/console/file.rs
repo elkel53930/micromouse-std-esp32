@@ -8,10 +8,11 @@ use esp_idf_hal::delay::FreeRtos;
 use std::io::Write;
 use std::io::{BufRead, BufReader, Read};
 
+use crate::ods;
 use crate::uart;
 
 impl ConsoleCommand for CmdFt {
-    fn execute(&self, args: &[&str]) -> anyhow::Result<()> {
+    fn execute(&self, args: &[&str], mut _ods: &ods::Ods) -> anyhow::Result<()> {
         const CHUNK_SIZE: usize = 256;
         if args.len() != 2 {
             return Err(anyhow::anyhow!("Invalid argument"));
@@ -80,7 +81,7 @@ impl ConsoleCommand for CmdFt {
 pub struct CmdDl {}
 
 impl ConsoleCommand for CmdDl {
-    fn execute(&self, args: &[&str]) -> anyhow::Result<()> {
+    fn execute(&self, args: &[&str], mut _ods: &ods::Ods) -> anyhow::Result<()> {
         const CHUNK_SIZE: usize = 256;
         if args.len() != 1 {
             return Err(anyhow::anyhow!("Invalid argument"));
@@ -143,7 +144,7 @@ impl ConsoleCommand for CmdDl {
 pub struct CmdShow {}
 
 impl ConsoleCommand for CmdShow {
-    fn execute(&self, args: &[&str]) -> anyhow::Result<()> {
+    fn execute(&self, args: &[&str], mut _ods: &ods::Ods) -> anyhow::Result<()> {
         if args.len() != 1 {
             return Err(anyhow::anyhow!("Invalid argument"));
         }
@@ -177,7 +178,7 @@ impl ConsoleCommand for CmdShow {
 pub struct CmdLs {}
 
 impl ConsoleCommand for CmdLs {
-    fn execute(&self, args: &[&str]) -> anyhow::Result<()> {
+    fn execute(&self, args: &[&str], mut _ods: &ods::Ods) -> anyhow::Result<()> {
         if args.len() != 1 {
             return Err(anyhow::anyhow!("Invalid argument"));
         }
@@ -215,7 +216,7 @@ impl ConsoleCommand for CmdLs {
 pub struct CmdRm {}
 
 impl ConsoleCommand for CmdRm {
-    fn execute(&self, args: &[&str]) -> anyhow::Result<()> {
+    fn execute(&self, args: &[&str], mut _ods: &ods::Ods) -> anyhow::Result<()> {
         if args.len() != 1 {
             return Err(anyhow::anyhow!("Invalid argument"));
         }
@@ -241,7 +242,7 @@ impl ConsoleCommand for CmdRm {
 pub struct CmdMv {}
 
 impl ConsoleCommand for CmdMv {
-    fn execute(&self, args: &[&str]) -> anyhow::Result<()> {
+    fn execute(&self, args: &[&str], mut _ods: &ods::Ods) -> anyhow::Result<()> {
         if args.len() != 2 {
             return Err(anyhow::anyhow!("Invalid argument"));
         }

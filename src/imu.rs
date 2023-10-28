@@ -5,33 +5,15 @@ use esp_idf_hal::gpio::{Gpio9, Output, PinDriver};
 use esp_idf_hal::peripheral::Peripheral;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_hal::spi::{self, SpiDeviceDriver, SpiDriver, SpiDriverConfig};
-use esp_idf_hal::task::CriticalSection;
 use esp_idf_hal::units::FromValueType;
-
-use crate::config;
-use crate::context;
-use crate::misc::{correct_value, FIR};
-
-struct ImuContext {
-    fir: FIR<f32>,
-    offset: f32,
-}
 
 struct ImuHardware<'a> {
     spi: SpiDeviceDriver<'static, SpiDriver<'static>>,
     chip_select: PinDriver<'a, Gpio9, Output>,
 }
 
-// Write by interrupt, read by thread
-pub static mut RAW: context::WriteByInterrupt<i16> = context::WriteByInterrupt::Data(0);
-
-// Shared by thread
-pub static mut PHYSICAL: context::ShareWithThread<f32> = context::ShareWithThread::Data(0.0);
-
 // Called from timer interrupt
 static mut HARDWARE: Option<ImuHardware<'static>> = None;
-static mut CONTEXT: Option<ImuContext> = None;
-static CS: CriticalSection = CriticalSection::new();
 
 fn transfer(read: &mut [u8], write: &[u8]) -> anyhow::Result<()> {
     unsafe {
@@ -65,32 +47,11 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
             &SpiDriverConfig::new(),
             &config,
         )?;
-        let fir = FIR::new(vec![
-            -2.494829972812401e-18,
-            -7.851195903558143e-03,
-            4.014735544403485e-02,
-            -1.032535402203297e-01,
-            1.706609016841135e-01,
-            8.000000000000000e-01,
-            1.706609016841135e-01,
-            -1.032535402203297e-01,
-            4.014735544403485e-02,
-            -7.851195903558143e-03,
-            -2.494829972812401e-18,
-        ]);
-
-        CONTEXT = Some(ImuContext {
-            fir: fir,
-            offset: 0.0,
-        });
 
         HARDWARE = Some(ImuHardware {
             spi: spi,
             chip_select: PinDriver::output(cs)?,
         });
-
-        RAW = context::WriteByInterrupt::Data(0);
-        PHYSICAL = context::ShareWithThread::Data(0.0);
     }
 
     let mut r_buffer = [0x00, 0x00];
@@ -111,84 +72,6 @@ pub fn read() -> anyhow::Result<i16> {
     transfer(&mut r_buffer, &w_buffer)?;
 
     let result = ((r_buffer[2] as i16) << 8) | (r_buffer[1] as i16);
-    unsafe {
-        RAW.write(|raw| {
-            *raw = result;
-        });
-    }
+
     Ok(result)
-}
-
-// Called from thread
-pub fn get_raw_value() -> i16 {
-    unsafe {
-        let mut raw_value = 0;
-        RAW.read(&context::enter_ics(), |raw| {
-            raw_value = *raw;
-        });
-        raw_value
-    }
-}
-
-const YAW_TABLE: [(i16, f32); 2] = [(-32768, -2293.76), (32767, 2293.69)];
-
-// Called from thread
-pub fn physical_conversion() {
-    let (raw_value, offset) = unsafe {
-        let raw_value = get_raw_value();
-        (raw_value, CONTEXT.as_mut().unwrap().offset)
-    };
-    let corrected = correct_value(
-        &YAW_TABLE,
-        raw_value,
-        YAW_TABLE[0].1,
-        YAW_TABLE[YAW_TABLE.len() - 1].1,
-    ) - offset;
-
-    let filtered = unsafe { CONTEXT.as_mut().unwrap().fir.filter(corrected) };
-
-    unsafe {
-        let guard = CS.enter();
-        PHYSICAL.access(&guard, |physical| {
-            *physical = filtered;
-        });
-    }
-}
-
-pub fn get_physical_value() -> f32 {
-    unsafe {
-        let mut physical_value = 0.0;
-        PHYSICAL.access(&CS.enter(), |physical| {
-            physical_value = *physical;
-        });
-        physical_value
-    }
-}
-
-// Called from thread
-pub fn reset_filter() {
-    unsafe {
-        CONTEXT.as_mut().unwrap().fir.reset();
-    }
-}
-
-// Called from thread
-pub fn measure_offset(sample_size: usize) -> f32 {
-    let mut sum = 0.0;
-    for _ in 0..sample_size {
-        let raw_value = get_raw_value();
-        let corrected = correct_value(
-            &YAW_TABLE,
-            raw_value,
-            YAW_TABLE[0].1,
-            YAW_TABLE[YAW_TABLE.len() - 1].1,
-        );
-        sum += corrected as f32;
-        FreeRtos::delay_ms(config::CONTROL_CYCLE);
-    }
-    let result = sum / sample_size as f32;
-    unsafe {
-        CONTEXT.as_mut().unwrap().offset = result;
-    }
-    result
 }
