@@ -22,4 +22,20 @@ impl YamlConfig {
     pub fn load(&self, field: &str) -> anyhow::Result<Yaml> {
         Ok(self.yaml[field].clone())
     }
+
+    #[allow(dead_code)]
+    pub fn show(&self) {
+        println!("Configuration:");
+        for item in self.yaml.as_hash().unwrap() {
+            println!("  {}: {:?}", item.0.as_str().unwrap(), item.1);
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn ushow(&self) {
+        uprintln!("Configuration:");
+        for item in self.yaml.as_hash().unwrap() {
+            uprintln!("  {}: {:?}", item.0.as_str().unwrap(), item.1);
+        }
+    }
 }

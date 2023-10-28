@@ -43,6 +43,7 @@ impl Console {
             Box::new(CmdSen {}),
             Box::new(CmdGoffset {}),
             Box::new(CmdReset {}),
+            Box::new(CmdConfig {}),
             Box::new(file::CmdFt {}),
             Box::new(file::CmdDl {}),
             Box::new(file::CmdShow {}),
@@ -277,5 +278,36 @@ impl ConsoleCommand for CmdReset {
 
     fn name(&self) -> &str {
         "reset"
+    }
+}
+
+struct CmdConfig {}
+
+impl ConsoleCommand for CmdConfig {
+    fn execute(&self, args: &[&str], mut _ods: &ods::Ods) -> anyhow::Result<()> {
+        if args.len() == 0 {
+            let yaml_config = crate::config::YamlConfig::new()?;
+            yaml_config.ushow();
+            return Ok(());
+        }
+
+        if args.len() == 1 {
+            let yaml_config = crate::config::YamlConfig::new()?;
+            let value = yaml_config.load(args[0])?;
+            uprintln!("{}: {:?}", args[0], value);
+            return Ok(());
+        }
+
+        return Err(anyhow::anyhow!("Invalid argument"));
+    }
+
+    fn hint(&self) {
+        uprintln!("Show current configurations.");
+        uprintln!("Usage: config [parameter_name]");
+        uprintln!("  if parameter_name is not specified, show all parameters.");
+    }
+
+    fn name(&self) -> &str {
+        "config"
     }
 }

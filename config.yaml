@@ -1,3 +1,6 @@
-f32_example: 1919.0202
+# Sensor configuration
+led_rise_time: 40 # [us]
 
-led_rise_time: 40
+# Hardware constants
+wheel_diameter: 13.0 # [mm]
+gear_ratio: 1.5

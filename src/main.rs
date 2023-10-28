@@ -39,25 +39,24 @@ fn main() -> anyhow::Result<()> {
     // File system initialization
     spiflash::mount();
 
-    let yaml_config = config::YamlConfig::new()?;
-    println!(
-        "f32_example = {}",
-        yaml_config.load("f32_example")?.as_f64().unwrap() as f32
-    );
+    {
+        let yaml_config = config::YamlConfig::new()?;
+        yaml_config.show();
 
-    motor::init(&mut peripherals)?;
-    wall_sensor::init(&mut peripherals)?;
-    fram_logger::init(&mut peripherals)?;
-    imu::init(&mut peripherals)?;
-    encoder::init(&mut peripherals)?;
+        motor::init(&mut peripherals)?;
+        wall_sensor::init(&mut peripherals)?;
+        fram_logger::init(&mut peripherals)?;
+        imu::init(&mut peripherals)?;
+        encoder::init(&mut peripherals)?;
 
-    timer_interrupt::init(&mut peripherals)?;
+        timer_interrupt::init(&mut peripherals)?;
 
-    led_tx.send((Green, Some("1")))?;
-    led_tx.send((Red, Some("10")))?;
-    led_tx.send((Blue, None))?;
+        led_tx.send((Green, Some("1")))?;
+        led_tx.send((Red, Some("10")))?;
+        led_tx.send((Blue, None))?;
 
-    control_thread::init(&yaml_config, &ods)?;
+        control_thread::init(&yaml_config, &ods)?;
+    } // yaml_config is dropped here
 
     // You can use println up to before uart:init.
     println!("init uart");
