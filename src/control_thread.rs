@@ -26,19 +26,19 @@ pub fn init(ods: &Arc<ods::Ods>) -> anyhow::Result<()> {
             let batt = wall_sensor::read_batt()?;
 
             wall_sensor::on_ls()?;
-            wait_us(50);
+            wait_us(30);
             let ls = wall_sensor::read_ls()?;
 
             wall_sensor::on_lf()?;
-            wait_us(50);
+            wait_us(30);
             let lf = wall_sensor::read_lf()?;
 
             wall_sensor::on_rf()?;
-            wait_us(50);
+            wait_us(30);
             let rf = wall_sensor::read_rf()?;
 
             wall_sensor::on_rs()?;
-            wait_us(50);
+            wait_us(30);
             let rs = wall_sensor::read_rs()?;
 
             let gyro_x = imu::read()?;
@@ -64,8 +64,6 @@ pub fn init(ods: &Arc<ods::Ods>) -> anyhow::Result<()> {
                 (*ws).batt_raw = batt;
             }
 
-            let mut counter = ods.counter.lock().unwrap();
-            *counter += 1;
             sync_ms();
         }
     })?;

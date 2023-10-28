@@ -19,7 +19,6 @@ pub struct OdsWallSensor {
 }
 
 pub struct Ods {
-    pub counter: Mutex<u32>,
     pub imu: Mutex<OdsImu>,
     pub encoder: Mutex<OdsEncoder>,
     pub wall_sensor: Mutex<OdsWallSensor>,
@@ -28,7 +27,6 @@ pub struct Ods {
 impl Ods {
     pub fn new() -> Self {
         Ods {
-            counter: Mutex::new(0),
             imu: Mutex::new(OdsImu {
                 gyro_x_raw: 0,
                 gyro_x_phy: 0.0,

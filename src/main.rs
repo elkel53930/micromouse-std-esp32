@@ -2,7 +2,6 @@ use esp_idf_hal::delay::FreeRtos;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_sys as _;
 use std::sync::Arc;
-use std::thread;
 
 #[macro_use]
 pub mod uart;
@@ -44,19 +43,21 @@ fn main() -> anyhow::Result<()> {
     encoder::init(&mut peripherals)?;
     control::init();
 
+    // File system initialization
+    spiflash::mount();
+
+    let yaml_config = config::YamlConfig::new()?;
+    println!(
+        "f32_example = {}",
+        yaml_config.load("f32_example")?.as_f64().unwrap() as f32
+    );
+
     // You can use println up to before uart:init.
     println!("init uart");
     FreeRtos::delay_ms(100);
     uart::init(&mut peripherals)?;
     // After uart:init, you can use uprintln.
     uprintln!("init uart done");
-
-    // File system initialization
-    spiflash::mount();
-
-    config::init();
-
-    uprintln!("f32_example is {}", config::f32_example());
 
     timer_interrupt::init(&mut peripherals)?;
 

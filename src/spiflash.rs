@@ -31,7 +31,7 @@ pub fn mount() {
             &mount_config,
             &mut handle,
         );
-        uprintln!(
+        println!(
             "mount result: {:?} = {:?}",
             mount_result,
             std::ffi::CStr::from_ptr(esp_err_to_name(mount_result))

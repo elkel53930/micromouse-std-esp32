@@ -7,8 +7,6 @@ use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_hal::spi::{self, *};
 use esp_idf_hal::units::FromValueType;
 
-use crate::config;
-
 static mut SPI: Option<SpiDeviceDriver<'static, SpiDriver<'static>>> = None;
 static mut CS_R: Option<PinDriver<'_, Gpio46, Output>> = None;
 static mut CS_L: Option<PinDriver<'_, Gpio10, Output>> = None;
@@ -84,57 +82,4 @@ pub fn read_l() -> anyhow::Result<u16> {
     let mut r_buffer: [u8; 2] = [0, 0];
     transfer_l(&mut r_buffer, &w_buffer)?;
     Ok(concat(r_buffer[0], r_buffer[1]))
-}
-
-struct Encoder {
-    prev_angle: f32,
-}
-
-impl Encoder {
-    // Initialize the encoder with an initial angle
-    pub fn new(initial_angle: f32) -> Self {
-        Encoder {
-            prev_angle: initial_angle,
-        }
-    }
-
-    pub fn to_physical_value(&self, raw: u16) -> f32 {
-        2.0 * std::f32::consts::PI * raw as f32 / 16384.0
-    }
-
-    pub fn calculate_distance_delta(&mut self, current_raw_angle: u16) -> f32 {
-        let current_raw_angle = self.to_physical_value(current_raw_angle);
-
-        // Calculate the change in angle (in radians)
-        let mut delta_angle = current_raw_angle - self.prev_angle;
-
-        // Handle overflow
-        if delta_angle > std::f32::consts::PI {
-            delta_angle -= 2.0 * std::f32::consts::PI;
-        } else if delta_angle < -std::f32::consts::PI {
-            delta_angle += 2.0 * std::f32::consts::PI;
-        }
-
-        // Calculate the distance moved by the wheel
-        let distance_moved = (delta_angle / (2.0 * std::f32::consts::PI)) * config::WHEEL_DIAMETER
-            / config::GEAR_RATIO;
-
-        // Update the previous angle
-        self.prev_angle = current_raw_angle;
-
-        distance_moved
-    }
-
-    // Calculate the velocity based on the current angle
-    pub fn calculate_velocity(&mut self, distance_moved: f32) -> f32 {
-        // Calculate the velocity
-        let velocity = distance_moved / (config::CONTROL_CYCLE as f32 / 1000.0);
-
-        velocity
-    }
-
-    // Reset the previous angle
-    pub fn reset_prev_angle(&mut self, angle: f32) {
-        self.prev_angle = angle;
-    }
 }

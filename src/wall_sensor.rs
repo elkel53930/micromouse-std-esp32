@@ -19,74 +19,7 @@ struct WallSensorHardware<'a> {
     batt: AdcChannelDriver<'a, Gpio5, Atten11dB<ADC1>>,
 }
 
-#[derive(Debug, Default, Clone, Copy)]
-pub struct RawValue {
-    ls_on: u16,
-    ls_off: u16,
-    lf_on: u16,
-    lf_off: u16,
-    rf_on: u16,
-    rf_off: u16,
-    rs_on: u16,
-    rs_off: u16,
-    batt: u16,
-}
-
-#[derive(Debug, Default, Clone, Copy)]
-pub struct Context {
-    enable: bool,
-}
-
-#[derive(Debug, Default, Clone, Copy)]
-pub struct PhysicalValue {
-    ls: f32,
-    lf: f32,
-    rf: f32,
-    rs: f32,
-    batt: f32,
-}
-
-impl PhysicalValue {
-    pub fn get_ls(&self) -> f32 {
-        self.ls
-    }
-    pub fn get_lf(&self) -> f32 {
-        self.lf
-    }
-    pub fn get_rf(&self) -> f32 {
-        self.rf
-    }
-    pub fn get_rs(&self) -> f32 {
-        self.rs
-    }
-    pub fn get_batt(&self) -> f32 {
-        self.batt
-    }
-}
-
-pub static mut RAW: context::WriteByInterrupt<RawValue> =
-    context::WriteByInterrupt::Data(RawValue {
-        ls_on: 0,
-        ls_off: 0,
-        lf_on: 0,
-        lf_off: 0,
-        rf_on: 0,
-        rf_off: 0,
-        rs_on: 0,
-        rs_off: 0,
-        batt: 0,
-    });
-pub static mut PHYSICAL: context::ShareWithThread<PhysicalValue> =
-    context::ShareWithThread::Data(PhysicalValue {
-        ls: 0.0,
-        lf: 0.0,
-        rf: 0.0,
-        rs: 0.0,
-        batt: 0.0,
-    });
 static mut HARDWARE: Option<WallSensorHardware<'static>> = None;
-static mut CONTEXT: Option<Context> = None;
-static CS: CriticalSection = CriticalSection::new();
 
 pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
     unsafe {
@@ -110,8 +43,6 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
             sel1: sel1,
             batt: batt,
         });
-
-        CONTEXT = Some(Context { enable: false });
     }
     Ok(())
 }
@@ -229,35 +160,4 @@ pub fn off() -> anyhow::Result<()> {
         HARDWARE.as_mut().unwrap().ena.set_low()?;
     }
     Ok(())
-}
-
-pub fn physical_conversion() {
-    let raw = unsafe { RAW.get() };
-    let physical = PhysicalValue {
-        ls: raw.ls_on as f32 - raw.ls_off as f32,
-        lf: raw.lf_on as f32 - raw.lf_off as f32,
-        rf: raw.rf_on as f32 - raw.rf_off as f32,
-        rs: raw.rs_on as f32 - raw.rs_off as f32,
-        batt: raw.batt as f32,
-    };
-    unsafe {
-        let guard = CS.enter();
-        PHYSICAL.access(&guard, |data| *data = physical);
-    }
-}
-
-pub fn get_physical_value() -> PhysicalValue {
-    unsafe {
-        let mut physical_value = PhysicalValue {
-            ls: 0.0,
-            lf: 0.0,
-            rf: 0.0,
-            rs: 0.0,
-            batt: 0.0,
-        };
-        PHYSICAL.access(&CS.enter(), |data| {
-            physical_value = *data;
-        });
-        physical_value
-    }
 }

@@ -175,14 +175,14 @@ impl ConsoleCommand for CmdSen {
         // Print all sensor data until something is received from UART.
         let mut buffer: [u8; 1] = [0];
 
-        let mut batt_raw = 0;
-        let mut ls_raw = 0;
-        let mut lf_raw = 0;
-        let mut rf_raw = 0;
-        let mut rs_raw = 0;
-        let mut gyro_x_raw = 0;
-        let mut l_raw = 0;
-        let mut r_raw = 0;
+        let mut batt_raw;
+        let mut ls_raw;
+        let mut lf_raw;
+        let mut rf_raw;
+        let mut rs_raw;
+        let mut gyro_x_raw;
+        let mut l_raw;
+        let mut r_raw;
         loop {
             {
                 let imu = ods.imu.lock().unwrap();

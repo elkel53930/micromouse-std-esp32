@@ -8,14 +8,6 @@ use std::thread;
 static mut LED_GREEN: Option<PinDriver<'_, Gpio19, Output>> = None;
 static mut LED_BLUE: Option<PinDriver<'_, Gpio20, Output>> = None;
 static mut LED_RED: Option<PinDriver<'_, Gpio21, Output>> = None;
-static mut PATTERN: LedPattern = LedPattern {
-    red_step: 0,
-    green_step: 0,
-    blue_step: 0,
-    red_pattern: None,
-    green_pattern: None,
-    blue_pattern: None,
-};
 
 #[derive(Debug)]
 pub enum LedColor {
