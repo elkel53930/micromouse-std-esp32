@@ -16,7 +16,7 @@ pub enum LedColor {
     Red,
 }
 
-pub type LedCommand = (LedColor, Option<&'static str>);
+pub type Command = (LedColor, Option<&'static str>);
 
 struct LedPattern {
     red_step: usize,
@@ -27,7 +27,7 @@ struct LedPattern {
     blue_pattern: Option<&'static str>,
 }
 
-pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<Sender<LedCommand>> {
+pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<Sender<Command>> {
     unsafe {
         LED_GREEN = Some(PinDriver::output(
             peripherals.pins.gpio19.clone_unchecked(),
@@ -42,7 +42,7 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<Sender<LedCommand>>
         LED_BLUE.as_mut().unwrap().set_high()?;
         LED_RED.as_mut().unwrap().set_high()?;
     }
-    let (tx, rx): (Sender<LedCommand>, Receiver<LedCommand>) = mpsc::channel();
+    let (tx, rx): (Sender<Command>, Receiver<Command>) = mpsc::channel();
 
     thread::spawn(move || {
         let mut ctx: LedPattern = LedPattern {

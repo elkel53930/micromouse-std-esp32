@@ -1,8 +1,11 @@
-use esp_idf_hal::delay::FreeRtos;
-use esp_idf_sys::_WANT_REENT_SMALL;
+use std::any;
 
-use crate::ods;
+use esp_idf_hal::delay::FreeRtos;
+
+use crate::control_thread;
+use crate::led::LedColor::*;
 use crate::uart::{self, read, read_line};
+use crate::OperationContext;
 
 mod file;
 
@@ -43,7 +46,7 @@ impl Console {
             Box::new(CmdSen {}),
             Box::new(CmdGoffset {}),
             Box::new(CmdReset {}),
-            Box::new(CmdConfig {}),
+            // Box::new(CmdConfig {}),
             Box::new(file::CmdFt {}),
             Box::new(file::CmdDl {}),
             Box::new(file::CmdShow {}),
@@ -54,9 +57,10 @@ impl Console {
         Console { commands }
     }
 
-    pub fn run(&mut self, mut ods: &ods::Ods) -> ! {
+    pub fn run(&mut self, mut ctx: &OperationContext) -> anyhow::Result<()> {
         println!("Welcome to ExtraICE console!");
         loop {
+            ctx.led_tx.send((Green, Some("10")))?;
             let mut buf = [0u8; 256];
             let mut args = [""; 16];
             let mut arg_num = 0;
@@ -106,13 +110,15 @@ impl Console {
             let mut found = false;
             for cmd in self.commands.iter_mut() {
                 if cmd.name() == args[0] {
-                    match cmd.execute(&args[1..arg_num], &mut ods) {
+                    ctx.led_tx.send((Red, Some("1")))?;
+                    match cmd.execute(&args[1..arg_num], &mut ctx) {
                         Ok(_) => {}
                         Err(e) => {
                             uprintln!("Error: {}", e);
                             cmd.hint();
                         }
                     }
+                    ctx.led_tx.send((Red, Some("0")))?;
                     found = true;
                     break;
                 }
@@ -125,7 +131,7 @@ impl Console {
 }
 
 pub trait ConsoleCommand {
-    fn execute(&self, args: &[&str], ods: &ods::Ods) -> anyhow::Result<()>;
+    fn execute(&self, args: &[&str], ctx: &OperationContext) -> anyhow::Result<()>;
     fn hint(&self);
     fn name(&self) -> &str;
 }
@@ -135,7 +141,7 @@ struct CmdEcho {}
 
 /* echo arguments */
 impl ConsoleCommand for CmdEcho {
-    fn execute(&self, args: &[&str], mut _ods: &ods::Ods) -> anyhow::Result<()> {
+    fn execute(&self, args: &[&str], mut _ctx: &OperationContext) -> anyhow::Result<()> {
         if args.len() != 0 {
             for arg in args {
                 uprintln!("{}", arg);
@@ -165,10 +171,15 @@ impl ConsoleCommand for CmdEcho {
 struct CmdSen {}
 
 impl ConsoleCommand for CmdSen {
-    fn execute(&self, args: &[&str], mut ods: &ods::Ods) -> anyhow::Result<()> {
+    fn execute(&self, args: &[&str], ctx: &OperationContext) -> anyhow::Result<()> {
         if args.len() != 0 {
             return Err(anyhow::anyhow!("Invalid argument"));
         }
+
+        // Activate wall sensors
+        ctx.command_tx
+            .send(control_thread::Command::ActivateWallSensor)
+            .unwrap();
 
         uprintln!("Press any key to exit.");
         FreeRtos::delay_ms(500);
@@ -186,9 +197,9 @@ impl ConsoleCommand for CmdSen {
         let mut r_raw;
         loop {
             {
-                let imu = ods.imu.lock().unwrap();
-                let encoder = ods.encoder.lock().unwrap();
-                let wall_sensor = ods.wall_sensor.lock().unwrap();
+                let imu = ctx.ods.imu.lock().unwrap();
+                let encoder = ctx.ods.encoder.lock().unwrap();
+                let wall_sensor = ctx.ods.wall_sensor.lock().unwrap();
                 batt_raw = wall_sensor.batt_raw;
                 ls_raw = wall_sensor.ls_raw;
                 lf_raw = wall_sensor.lf_raw;
@@ -201,10 +212,10 @@ impl ConsoleCommand for CmdSen {
             uprintln!(
                 "batt: {}, ls: {}, lf: {}, rf: {}, rs: {}, gyro: {}, enc_l: {}, enc_r: {}",
                 batt_raw,
-                ls_raw,
-                lf_raw,
-                rf_raw,
-                rs_raw,
+                ls_raw.unwrap(),
+                lf_raw.unwrap(),
+                rf_raw.unwrap(),
+                rs_raw.unwrap(),
                 gyro_x_raw,
                 l_raw,
                 r_raw
@@ -221,6 +232,14 @@ impl ConsoleCommand for CmdSen {
                 }
             }
         }
+
+        // Inactivate wall sensors
+        ctx.command_tx
+            .send(control_thread::Command::InactivateWallSensor)
+            .unwrap();
+
+        FreeRtos::delay_ms(500);
+
         println!("");
 
         Ok(())
@@ -241,11 +260,26 @@ struct CmdGoffset {}
 
 /* Update gyro offset */
 impl ConsoleCommand for CmdGoffset {
-    fn execute(&self, _args: &[&str], mut _ods: &ods::Ods) -> anyhow::Result<()> {
+    fn execute(&self, _args: &[&str], mut ctx: &OperationContext) -> anyhow::Result<()> {
         FreeRtos::delay_ms(500);
         uprintln!("Calibration...");
-        //        uprintln!("offset is {}", imu::measure_offset(1000));
-        uprintln!("NOT IMPLEMENTED YET!");
+        uprintln!("Start gyro calibration");
+        ctx.command_tx
+            .send(control_thread::Command::GyroCalibration)?;
+        let resp = ctx.response_rx.recv().unwrap();
+        match resp {
+            control_thread::Response::Done => {
+                let offset = {
+                    let imu = ctx.ods.imu.lock().unwrap();
+                    imu.gyro_x_offset
+                };
+                uprintln!("Gyro offset: {}", offset);
+            }
+            _ => {
+                uprintln!("Invalid response {:?}", resp);
+                panic!("Invalid response {:?}", resp);
+            }
+        }
         Ok(())
     }
 
@@ -262,7 +296,7 @@ impl ConsoleCommand for CmdGoffset {
 struct CmdReset {}
 
 impl ConsoleCommand for CmdReset {
-    fn execute(&self, args: &[&str], mut _ods: &ods::Ods) -> anyhow::Result<()> {
+    fn execute(&self, args: &[&str], mut _ctx: &OperationContext) -> anyhow::Result<()> {
         if args.len() != 0 {
             return Err(anyhow::anyhow!("Invalid argument"));
         }
@@ -284,15 +318,15 @@ impl ConsoleCommand for CmdReset {
 struct CmdConfig {}
 
 impl ConsoleCommand for CmdConfig {
-    fn execute(&self, args: &[&str], mut _ods: &ods::Ods) -> anyhow::Result<()> {
+    fn execute(&self, args: &[&str], mut _ctx: &OperationContext) -> anyhow::Result<()> {
         if args.len() == 0 {
-            let yaml_config = crate::config::YamlConfig::new()?;
+            let yaml_config = crate::config::YamlConfig::new("/sf/config.yaml".to_string())?;
             yaml_config.ushow();
             return Ok(());
         }
 
         if args.len() == 1 {
-            let yaml_config = crate::config::YamlConfig::new()?;
+            let yaml_config = crate::config::YamlConfig::new("/sf/config.yaml".to_string())?;
             let value = yaml_config.load(args[0])?;
             uprintln!("{}: {:?}", args[0], value);
             return Ok(());

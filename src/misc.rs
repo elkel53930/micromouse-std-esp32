@@ -1,11 +1,8 @@
 /********** Correction by table **********/
-pub fn correct_value<T: PartialOrd + Copy + Into<f32>>(
-    table: &[(T, f32)],
-    raw_value: T,
-    below_limit_value: f32,
-    above_limit_value: f32,
-) -> f32 {
+pub fn correct_value<T: PartialOrd + Copy + Into<f32>>(table: &[(T, f32)], raw_value: T) -> f32 {
     let raw_value_f32: f32 = raw_value.into();
+    let below_limit_value = table[0].1;
+    let above_limit_value = table[table.len() - 1].1;
 
     if raw_value_f32 < table[0].0.into() {
         return below_limit_value;
