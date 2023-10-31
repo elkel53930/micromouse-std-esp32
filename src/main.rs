@@ -17,6 +17,7 @@ mod led;
 pub mod misc;
 mod motor;
 pub mod ods;
+pub mod pid;
 mod spiflash;
 pub mod timer_interrupt;
 mod wall_sensor;
@@ -70,6 +71,22 @@ fn main() -> anyhow::Result<()> {
     uart::init(&mut peripherals)?;
     // After uart:init, you can use uprintln.
 
+    ctx.led_tx.send((Blue, Some("10")))?;
+
+    // Wait for the user to interrupt the rf sensor
+    ctx.command_tx
+        .send(control_thread::Command::ActivateWallSensor)?;
+    loop {
+        let rf = {
+            let wall_sensor = ctx.ods.wall_sensor.lock().unwrap();
+            wall_sensor.rf_raw.unwrap_or(0)
+        };
+        if rf > 300 {
+            break;
+        }
+    }
+
+    // Calibrate the gyro
     ctx.led_tx.send((Red, Some("10")))?;
     uprintln!("Start gyro calibration");
     ctx.command_tx
@@ -82,6 +99,35 @@ fn main() -> anyhow::Result<()> {
                 imu.gyro_x_offset
             };
             uprintln!("Gyro offset: {}", offset);
+        }
+        _ => {
+            uprintln!("Invalid response {:?}", resp);
+            panic!("Invalid response {:?}", resp);
+        }
+    }
+    ctx.led_tx.send((Red, Some("0")))?;
+
+    // Countdown
+    ctx.led_tx.send((Green, Some("1")))?;
+    FreeRtos::delay_ms(1000);
+    ctx.led_tx.send((Green, Some("0")))?;
+    ctx.led_tx.send((Blue, Some("1")))?;
+    FreeRtos::delay_ms(1000);
+    ctx.led_tx.send((Blue, Some("0")))?;
+    ctx.led_tx.send((Red, Some("1")))?;
+    FreeRtos::delay_ms(1000);
+    ctx.led_tx.send((Red, Some("10")))?;
+
+    ctx.command_tx.send(control_thread::Command::Forward(0.1))?;
+    let resp = ctx.response_rx.recv().unwrap();
+    match resp {
+        control_thread::Response::Done => {
+            let x = {
+                let micromouse = ctx.ods.micromouse.lock().unwrap();
+                micromouse.x
+            };
+            uprintln!("x: {}", x);
+            uprintln!("Done");
         }
         _ => {
             uprintln!("Invalid response {:?}", resp);

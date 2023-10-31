@@ -4,6 +4,7 @@ use esp_idf_hal::delay::FreeRtos;
 
 use crate::control_thread;
 use crate::led::LedColor::*;
+use crate::ods;
 use crate::uart::{self, read, read_line};
 use crate::OperationContext;
 
@@ -44,6 +45,7 @@ impl Console {
         let commands: Vec<Box<dyn ConsoleCommand>> = vec![
             Box::new(CmdEcho {}),
             Box::new(CmdSen {}),
+            Box::new(CmdOdo {}),
             Box::new(CmdGoffset {}),
             Box::new(CmdReset {}),
             // Box::new(CmdConfig {}),
@@ -206,8 +208,8 @@ impl ConsoleCommand for CmdSen {
                 rf_raw = wall_sensor.rf_raw;
                 rs_raw = wall_sensor.rs_raw;
                 gyro_x_raw = imu.gyro_x_raw;
-                l_raw = encoder.l_raw;
-                r_raw = encoder.r_raw;
+                l_raw = encoder.l;
+                r_raw = encoder.r;
             }
             uprintln!(
                 "batt: {}, ls: {}, lf: {}, rf: {}, rs: {}, gyro: {}, enc_l: {}, enc_r: {}",
@@ -252,6 +254,80 @@ impl ConsoleCommand for CmdSen {
 
     fn name(&self) -> &str {
         "sen"
+    }
+}
+
+struct CmdOdo {}
+
+impl ConsoleCommand for CmdOdo {
+    fn execute(&self, args: &[&str], ctx: &OperationContext) -> anyhow::Result<()> {
+        if args.len() != 0 {
+            return Err(anyhow::anyhow!("Invalid argument"));
+        }
+
+        // Activate wall sensors
+        ctx.command_tx
+            .send(control_thread::Command::ActivateWallSensor)
+            .unwrap();
+
+        {
+            let mut micromouse = ctx.ods.micromouse.lock().unwrap();
+            (*micromouse) = ods::MicromouseState::default();
+        }
+        uprintln!("Press any key to exit.");
+        FreeRtos::delay_ms(500);
+
+        // Print all sensor data until something is received from UART.
+        let mut buffer: [u8; 1] = [0];
+
+        loop {
+            let micromouse = {
+                let micromouse = ctx.ods.micromouse.lock().unwrap();
+                *micromouse
+            };
+            let gyro = {
+                let imu = ctx.ods.imu.lock().unwrap();
+                imu.gyro_x_phy
+            };
+            uprintln!(
+                "x: {}[m], y: {}[m], theta: {}[rad], gyro: {}[rad/s]",
+                micromouse.x,
+                micromouse.y,
+                micromouse.theta,
+                gyro
+            );
+            FreeRtos::delay_ms(100);
+            match read(&mut buffer) {
+                Ok(size) => {
+                    if size != 0 {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    uprintln!("Error: {}", e);
+                }
+            }
+        }
+
+        // Inactivate wall sensors
+        ctx.command_tx
+            .send(control_thread::Command::InactivateWallSensor)
+            .unwrap();
+
+        FreeRtos::delay_ms(500);
+
+        println!("");
+
+        Ok(())
+    }
+
+    fn hint(&self) {
+        uprintln!("Show the micromouse X, Y, Theta.");
+        uprintln!("Usage: odo");
+    }
+
+    fn name(&self) -> &str {
+        "odo"
     }
 }
 
@@ -303,6 +379,8 @@ impl ConsoleCommand for CmdReset {
         unsafe {
             esp_idf_sys::abort();
         }
+        #[allow(unreachable_code)]
+        Ok(())
     }
 
     fn hint(&self) {
