@@ -48,7 +48,8 @@ impl Console {
             Box::new(CmdOdo {}),
             Box::new(CmdGoffset {}),
             Box::new(CmdReset {}),
-            // Box::new(CmdConfig {}),
+            Box::new(CmdConfig {}),
+            Box::new(CmdBatt {}),
             Box::new(file::CmdFt {}),
             Box::new(file::CmdDl {}),
             Box::new(file::CmdShow {}),
@@ -68,7 +69,12 @@ impl Console {
             let mut arg_num = 0;
             let mut len = 0;
 
-            uprint!("> ");
+            let batt_phy = {
+                let wall_sensor = ctx.ods.wall_sensor.lock().unwrap();
+                wall_sensor.batt_phy
+            };
+
+            uprint!("{:1.2}[V] > ", batt_phy);
 
             match read_line(&mut buf, true) {
                 Ok(result) => {
@@ -421,5 +427,51 @@ impl ConsoleCommand for CmdConfig {
 
     fn name(&self) -> &str {
         "config"
+    }
+}
+
+struct CmdBatt {}
+
+impl ConsoleCommand for CmdBatt {
+    fn execute(&self, args: &[&str], mut _ctx: &OperationContext) -> anyhow::Result<()> {
+        if args.len() != 0 {
+            return Err(anyhow::anyhow!("Invalid argument"));
+        }
+
+        uprintln!("Press any key to exit.");
+        FreeRtos::delay_ms(500);
+
+        let mut buffer: [u8; 1] = [0];
+
+        loop {
+            let batt_phy = {
+                let wall_sensor = _ctx.ods.wall_sensor.lock().unwrap();
+                wall_sensor.batt_phy
+            };
+
+            uprintln!("{}[V]", batt_phy);
+            FreeRtos::delay_ms(100);
+            match read(&mut buffer) {
+                Ok(size) => {
+                    if size != 0 {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    uprintln!("Error: {}", e);
+                }
+            }
+        }
+
+        return Ok(());
+    }
+
+    fn hint(&self) {
+        uprintln!("Show the battery voltage.");
+        uprintln!("Usage: batt");
+    }
+
+    fn name(&self) -> &str {
+        "batt"
     }
 }

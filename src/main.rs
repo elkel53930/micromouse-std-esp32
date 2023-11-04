@@ -20,6 +20,7 @@ pub mod ods;
 pub mod pid;
 mod spiflash;
 pub mod timer_interrupt;
+mod trajectory;
 mod wall_sensor;
 
 #[allow(unused_imports)]
@@ -76,14 +77,30 @@ fn main() -> anyhow::Result<()> {
     // Wait for the user to interrupt the rf sensor
     ctx.command_tx
         .send(control_thread::Command::ActivateWallSensor)?;
+
+    let mut goto_console = false;
     loop {
-        let rf = {
+        let (rs, ls) = {
             let wall_sensor = ctx.ods.wall_sensor.lock().unwrap();
-            wall_sensor.rf_raw.unwrap_or(0)
+            (
+                wall_sensor.rs_raw.unwrap_or(0),
+                wall_sensor.ls_raw.unwrap_or(0),
+            )
         };
-        if rf > 300 {
+        if ls > 300 {
+            goto_console = true;
             break;
         }
+        if rs > 300 {
+            break;
+        }
+    }
+
+    ctx.led_tx.send((Blue, Some("0")))?;
+
+    let mut console = console::Console::new();
+    if goto_console {
+        return console.run(&ctx);
     }
 
     // Calibrate the gyro
@@ -118,7 +135,8 @@ fn main() -> anyhow::Result<()> {
     FreeRtos::delay_ms(1000);
     ctx.led_tx.send((Red, Some("10")))?;
 
-    ctx.command_tx.send(control_thread::Command::Forward(0.1))?;
+    ctx.command_tx
+        .send(control_thread::Command::Forward(0.15))?;
     let resp = ctx.response_rx.recv().unwrap();
     match resp {
         control_thread::Response::Done => {
@@ -136,6 +154,5 @@ fn main() -> anyhow::Result<()> {
     }
     ctx.led_tx.send((Red, Some("0")))?;
 
-    let mut console = console::Console::new();
     console.run(&ctx)
 }

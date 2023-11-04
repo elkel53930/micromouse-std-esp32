@@ -27,7 +27,7 @@ with serial.Serial(serial_port, 115200, timeout=1) as ser:
 	# Wait until the string 'Start' is received.
 	while True:
 		line = ser.readline().decode('utf-8').rstrip()
-		if line == 'Start':
+		if 'Start' in line:
 			break
 
 	with open(sys.argv[1], 'rb') as f:

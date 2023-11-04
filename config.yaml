@@ -1,6 +1,11 @@
 # Wall sensor configuration
 led_rise_time: 40 # [us]
 
+# Battery
+battery_correction_table:
+ - [355, 5.0]
+ - [688, 9.0]
+
 # Gyro configuration
 gyro_fir_coefficients:
  - -2.494829972812401e-18
@@ -23,8 +28,27 @@ gyro_correction_table: # binary raw value to rad/s
 wheel_diameter: 13.0 # [mm]
 gear_ratio: 1.5
 
-# PID parameters for search run
-sr_theta_p: 0.5
+
+# Configuration for search run
+# PID parameters
+sr_theta_p: 5.0
 sr_theta_i: 0.0
 sr_theta_d: 0.5
 sr_theta_i_limit: 0.0
+
+sr_position_x_p: 2.0
+sr_position_x_i: 0.0
+sr_position_x_d: 1.5
+sr_position_x_i_limit: 0.0
+
+sr_position_y_p: 3.0
+sr_position_y_i: 0.0
+sr_position_y_d: 0.5
+sr_position_y_i_limit: 0.0
+
+sr_ff_rate: 10.0
+
+# Speed parameters
+sr_velocity: 1.0
+sr_acceleration: 1.0
+sr_deceleration: 1.0

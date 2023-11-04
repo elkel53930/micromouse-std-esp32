@@ -24,6 +24,7 @@ pub struct OdsWallSensor {
     pub rf_raw: Option<u16>,
     pub rs_raw: Option<u16>,
     pub batt_raw: u16,
+    pub batt_phy: f32,
 }
 
 #[derive(Debug, Default, Clone, Copy)]

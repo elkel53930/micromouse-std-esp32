@@ -11,8 +11,23 @@ pub struct YamlConfig {
 
 impl YamlConfig {
     pub fn new(filename: String) -> anyhow::Result<YamlConfig> {
-        let y_str = std::fs::read_to_string(&filename)?.to_string();
-        let docs = YamlLoader::load_from_str(&y_str)?;
+        fn read_yaml(filename: &String) -> anyhow::Result<Vec<Yaml>> {
+            let y_str = std::fs::read_to_string(&filename)?.to_string();
+            let docs = YamlLoader::load_from_str(&y_str)?;
+            Ok(docs)
+        }
+
+        let docs = match read_yaml(&filename) {
+            Ok(docs) => docs,
+            Err(e) => {
+                println!("Error reading {}: {}", filename, e);
+                return Ok(YamlConfig {
+                    filename: filename,
+                    yaml: None,
+                });
+            }
+        };
+
         Ok(YamlConfig {
             filename: filename,
             yaml: Some(docs[0].clone()),
@@ -193,6 +208,10 @@ impl YamlConfig {
     #[allow(dead_code)]
     pub fn show(&self) {
         println!("Configuration:");
+        if self.yaml.is_none() {
+            println!("  {} is not opened.", self.filename);
+            return;
+        }
         for item in self.yaml.as_ref().unwrap().as_hash().unwrap() {
             println!("  {}: {:?}", item.0.as_str().unwrap(), item.1);
         }
@@ -201,6 +220,10 @@ impl YamlConfig {
     #[allow(dead_code)]
     pub fn ushow(&self) {
         uprintln!("Configuration:");
+        if self.yaml.is_none() {
+            uprintln!("  {} is not opened.", self.filename);
+            return;
+        }
         for item in self.yaml.as_ref().unwrap().as_hash().unwrap() {
             uprintln!("  {}: {:?}", item.0.as_str().unwrap(), item.1);
         }

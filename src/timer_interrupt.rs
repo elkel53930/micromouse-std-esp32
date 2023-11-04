@@ -65,3 +65,7 @@ fn timer_isr() {
         COUNTER_MS += 1;
     }
 }
+
+pub fn get_ms() -> u32 {
+    unsafe { COUNTER_MS }
+}

@@ -8,34 +8,51 @@ use crate::ods;
 use crate::ods::MicromouseState;
 use crate::pid;
 use crate::timer_interrupt::{sync_ms, wait_us};
+use crate::trajectory::{self, GenerateTrajectory};
 use crate::wall_sensor;
+use std::io::Write;
 use std::sync::mpsc::{self, Receiver, Sender};
-
 use std::sync::Arc;
 
-struct WsContext {
+struct WsConfig {
     led_rise_time: u32,
 }
 
-struct GyroContext {
+struct GyroConfig {
     fir: FIR<f32>,
     correction_table: Vec<(i16, f32)>,
 }
 
-struct EncoderContext {
+struct EncoderConfig {
     wheel_diameter: f32,
     gear_ratio: f32,
+}
+
+struct BatteryConfig {
+    correction_table: Vec<(i16, f32)>,
+}
+
+struct SpeedConfig {
+    velocity: f32,
+    acceleration: f32,
+    deceleration: f32,
 }
 
 struct ControlContext {
     ods: Arc<ods::Ods>,
     response_tx: Sender<Response>,
     command_rx: Receiver<Command>,
-    ws_ctx: WsContext,
-    gyro_ctx: GyroContext,
-    enc_ctx: EncoderContext,
+    ws_cfg: WsConfig,
+    gyro_cfg: GyroConfig,
+    enc_cfg: EncoderConfig,
+    battery_cfg: BatteryConfig,
 
     sr_theta_pid: pid::Pid,
+    sr_position_x_pid: pid::Pid,
+    sr_position_y_pid: pid::Pid,
+    sr_ff_rate: f32,
+
+    speed: SpeedConfig,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -61,22 +78,23 @@ pub enum Response {
 
 fn measure(ctx: &mut ControlContext, wall_sensor_active: bool) -> anyhow::Result<()> {
     let batt = wall_sensor::read_batt()?;
+    let batt_phy = correct_value(&ctx.battery_cfg.correction_table.as_slice(), batt as i16);
 
     if wall_sensor_active {
         wall_sensor::on_ls()?;
-        wait_us(ctx.ws_ctx.led_rise_time);
+        wait_us(ctx.ws_cfg.led_rise_time);
         let ls = wall_sensor::read_ls()?;
 
         wall_sensor::on_lf()?;
-        wait_us(ctx.ws_ctx.led_rise_time);
+        wait_us(ctx.ws_cfg.led_rise_time);
         let lf = wall_sensor::read_lf()?;
 
         wall_sensor::on_rf()?;
-        wait_us(ctx.ws_ctx.led_rise_time);
+        wait_us(ctx.ws_cfg.led_rise_time);
         let rf = wall_sensor::read_rf()?;
 
         wall_sensor::on_rs()?;
-        wait_us(ctx.ws_ctx.led_rise_time);
+        wait_us(ctx.ws_cfg.led_rise_time);
         let rs = wall_sensor::read_rs()?;
 
         let mut ws = ctx.ods.wall_sensor.lock().unwrap();
@@ -85,6 +103,7 @@ fn measure(ctx: &mut ControlContext, wall_sensor_active: bool) -> anyhow::Result
         (*ws).rf_raw = Some(rf);
         (*ws).rs_raw = Some(rs);
         (*ws).batt_raw = batt;
+        (*ws).batt_phy = batt_phy;
     } else {
         let mut ws = ctx.ods.wall_sensor.lock().unwrap();
         (*ws).ls_raw = None;
@@ -92,6 +111,7 @@ fn measure(ctx: &mut ControlContext, wall_sensor_active: bool) -> anyhow::Result
         (*ws).rf_raw = None;
         (*ws).rs_raw = None;
         (*ws).batt_raw = batt;
+        (*ws).batt_phy = batt_phy;
     }
 
     wall_sensor::off()?;
@@ -101,14 +121,15 @@ fn measure(ctx: &mut ControlContext, wall_sensor_active: bool) -> anyhow::Result
     let encoder_l = encoder::read_l()?;
     let encoder_r = encoder::read_r()?;
 
-    let gyro_x_phy = correct_value(&ctx.gyro_ctx.correction_table.as_slice(), gyro_x);
-    let gyro_x_phy = ctx.gyro_ctx.fir.filter(gyro_x_phy);
+    let gyro_x_phy = correct_value(&ctx.gyro_cfg.correction_table.as_slice(), gyro_x);
+    let gyro_x_phy = ctx.gyro_cfg.fir.filter(gyro_x_phy);
 
     {
         let mut imu = ctx.ods.imu.lock().unwrap();
         imu.gyro_x_raw = gyro_x;
         imu.gyro_x_phy = gyro_x_phy - imu.gyro_x_offset;
     }
+
     {
         let mut enc = ctx.ods.encoder.lock().unwrap();
         enc.l_prev = enc.l;
@@ -140,7 +161,7 @@ fn measure(ctx: &mut ControlContext, wall_sensor_active: bool) -> anyhow::Result
     Ok(())
 }
 
-fn reset_micromoue_state(ctx: &mut ControlContext) {
+fn reset_micromouse_state(ctx: &mut ControlContext) {
     let mut micromouse = ctx.ods.micromouse.lock().unwrap();
     *micromouse = MicromouseState::default();
 }
@@ -151,7 +172,7 @@ fn update(ctx: &mut ControlContext) {
         (enc.l_diff as f32 + enc.r_diff as f32) / 2.0
     };
     let velocity =
-        enc_diff / ctx.enc_ctx.gear_ratio * ctx.enc_ctx.wheel_diameter * std::f32::consts::PI
+        enc_diff / ctx.enc_cfg.gear_ratio * ctx.enc_cfg.wheel_diameter * std::f32::consts::PI
             / 16384.0;
 
     let gyro = {
@@ -194,37 +215,79 @@ fn gyro_calibration(ctx: &mut ControlContext) -> anyhow::Result<State> {
     Ok(State::Idle)
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+struct Log {
+    target_x: f32,
+    current_x: f32,
+    target_v: f32,
+    current_v: f32,
+    current_y: f32,
+    current_theta: f32,
+}
+
 fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
-    let motor_l = 10.0;
-    let motor_r = 10.0;
     let theta_target = 0.0;
+
+    let x_t = distance;
+    let v_i = 0.0;
+    let v_l = ctx.speed.velocity;
+    let v_f = 0.0;
+    let a_a = ctx.speed.acceleration;
+    let a_d = ctx.speed.deceleration;
+    let mut trajectory = trajectory::ForwardTrajectory::new(x_t, v_i, v_l, v_f, a_a, a_d);
+
     ctx.sr_theta_pid.reset();
+    ctx.sr_position_x_pid.reset();
+    ctx.sr_position_y_pid.reset();
 
     led::on(Blue)?;
-    reset_micromoue_state(ctx);
+    reset_micromouse_state(ctx);
     motor::enable(true);
+
+    let mut ms_counter = crate::timer_interrupt::get_ms() - 1;
+
     loop {
         measure(ctx, true)?;
         update(ctx);
+
+        let is_end = trajectory.step();
+        let target_x = trajectory.x_current;
+        let target_v = trajectory.v_current;
 
         let micromouse = {
             let micromouse = ctx.ods.micromouse.lock().unwrap();
             micromouse.clone()
         };
 
-        let x = micromouse.x;
-        if x > distance {
+        let theta_error = theta_target - micromouse.theta;
+        let theta_ctrl = ctx.sr_theta_pid.update(theta_error);
+
+        let position_x_error = target_x - micromouse.x;
+        let position_x_ctrl = ctx.sr_position_x_pid.update(position_x_error);
+
+        let position_y_error = 0.0 - micromouse.y;
+        let position_y_ctrl = ctx.sr_position_y_pid.update(position_y_error);
+
+        let ff_ctrl = ctx.sr_ff_rate * target_v;
+
+        motor::set_l(ff_ctrl + position_x_ctrl - position_y_ctrl - theta_ctrl);
+        motor::set_r(ff_ctrl + position_x_ctrl + position_y_ctrl + theta_ctrl);
+
+        let current_ms = crate::timer_interrupt::get_ms();
+        if current_ms - ms_counter > 1 {
+            let _ = crate::led::on(crate::led::LedColor::Red);
+        } else {
+            let _ = crate::led::off(crate::led::LedColor::Red);
+        }
+
+        ms_counter = current_ms;
+
+        if is_end {
             motor::set_l(0.0);
             motor::set_r(0.0);
             motor::enable(false);
             break;
         }
-
-        let theta_error = theta_target - micromouse.theta;
-        let theta_ctrl = ctx.sr_theta_pid.update(theta_error);
-
-        motor::set_l(motor_l - theta_ctrl);
-        motor::set_r(motor_r + theta_ctrl);
 
         sync_ms();
     }
@@ -281,14 +344,34 @@ pub fn init(
     let i_limit = config.load_f64("sr_theta_i_limit", 0.5) as f32;
     let sr_theta_pid = pid::Pid::new(p, i, d, i_limit);
 
+    let p = config.load_f64("sr_position_x_p", 0.5) as f32;
+    let i = config.load_f64("sr_position_x_i", 0.0) as f32;
+    let d = config.load_f64("sr_position_x_d", 0.5) as f32;
+    let i_limit = config.load_f64("sr_position_x_i_limit", 0.5) as f32;
+    let sr_position_x_pid = pid::Pid::new(p, i, d, i_limit);
+
+    let p = config.load_f64("sr_position_y_p", 0.5) as f32;
+    let i = config.load_f64("sr_position_y_i", 0.0) as f32;
+    let d = config.load_f64("sr_position_y_d", 0.5) as f32;
+    let i_limit = config.load_f64("sr_position_y_i_limit", 0.5) as f32;
+    let sr_position_y_pid = pid::Pid::new(p, i, d, i_limit);
+
+    let spd_cfg: SpeedConfig = SpeedConfig {
+        velocity: config.load_f64("sr_velocity", 0.1) as f32,
+        acceleration: config.load_f64("sr_acceleration", 0.1) as f32,
+        deceleration: config.load_f64("sr_deceleration", 0.1) as f32,
+    };
+
+    let sr_ff_rate = config.load_f64("sr_ff_rate", 0.1) as f32;
+
     let mut ctx = ControlContext {
         ods: ods.clone(),
         response_tx: tx,
         command_rx: rx,
-        ws_ctx: WsContext {
+        ws_cfg: WsConfig {
             led_rise_time: config.load_i64("led_rise_time", 30) as u32,
         },
-        gyro_ctx: GyroContext {
+        gyro_cfg: GyroConfig {
             fir: FIR::new(config.load_vec_f32(
                 "gyro_fir_coefficients",
                 vec![
@@ -310,11 +393,20 @@ pub fn init(
                 vec![(-32768, -2293.76), (32767, 2293.69)],
             ),
         },
-        enc_ctx: EncoderContext {
+        enc_cfg: EncoderConfig {
             wheel_diameter: config.load_f64("wheel_diameter", 13.0) as f32,
             gear_ratio: config.load_f64("gear_ratio", 1.5) as f32,
         },
+        battery_cfg: BatteryConfig {
+            correction_table: config
+                .load_vec_i16_f32("battery_correction_table", vec![(355, 5.0), (688, 9.0)]),
+        },
         sr_theta_pid: sr_theta_pid,
+        sr_position_x_pid: sr_position_x_pid,
+        sr_position_y_pid: sr_position_y_pid,
+        sr_ff_rate: sr_ff_rate,
+
+        speed: spd_cfg,
     };
 
     // Spawn the control thread
