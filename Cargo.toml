@@ -10,7 +10,7 @@ rust-version = "1.66"
 opt-level = "s"
 
 [profile.dev]
-debug = true    # Symbols are nice and they don't increase the size on Flash
+debug = false
 opt-level = "z"
 
 [features]
