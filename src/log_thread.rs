@@ -47,7 +47,7 @@ pub fn init(ods: &Arc<ods::Ods>) -> anyhow::Result<Sender<LogCommand>> {
 
     /*
        The counter file contains the number of log files used so far.
-       The new log file is named logxx.bin, where xx is the number stored in the counter file + 1.
+       The new log file is named logxx.csv, where xx is the number stored in the counter file + 1.
        When the counter reaches LOG_FILE_MAX, it is reset to 0.
        The new value is stored in the counter file.
     */
@@ -63,7 +63,7 @@ pub fn init(ods: &Arc<ods::Ods>) -> anyhow::Result<Sender<LogCommand>> {
         uprintln!("Error reading counter file, using 0.");
         counter = 0;
     }
-    let filename = format!("/sf/log{:02}.bin", counter);
+    let filename = format!("/sf/log{:02}.csv", counter);
     counter = (counter + 1) % LOG_FILE_MAX;
     uprintln!("New log file: {}", filename);
 
@@ -118,7 +118,7 @@ pub fn init(ods: &Arc<ods::Ods>) -> anyhow::Result<Sender<LogCommand>> {
 
 pub fn remove_all_logs() -> anyhow::Result<()> {
     for i in 0..LOG_FILE_MAX {
-        let filename = format!("/sf/log{:02}.bin", i);
+        let filename = format!("/sf/log{:02}.csv", i);
         match fs::remove_file(&filename) {
             Ok(_) => {
                 println!("Old log file {} has been deleted.", filename);
