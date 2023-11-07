@@ -36,6 +36,7 @@ def receive_file(filename):
 
 if __name__ == "__main__":
 	if len(sys.argv) != 2:
+		print("Download a file from the micromouse")
 		print("Usage: python dl {filename}")
 		sys.exit(1)
 

@@ -1,3 +1,4 @@
+use crate::log_thread;
 use std::sync::Mutex;
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -39,6 +40,7 @@ pub struct Ods {
     pub encoder: Mutex<OdsEncoder>,
     pub wall_sensor: Mutex<OdsWallSensor>,
     pub micromouse: Mutex<MicromouseState>,
+    pub log: Mutex<Vec<log_thread::Log>>,
 }
 
 impl Ods {
@@ -48,6 +50,7 @@ impl Ods {
             encoder: Mutex::new(OdsEncoder::default()),
             wall_sensor: Mutex::new(OdsWallSensor::default()),
             micromouse: Mutex::new(MicromouseState::default()),
+            log: Mutex::new(Vec::with_capacity(log_thread::LOG_SIZE)),
         }
     }
 }

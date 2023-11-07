@@ -7,7 +7,7 @@ resolver = "2"
 rust-version = "1.66"
 
 [profile.release]
-opt-level = "s"
+opt-level = "z"
 
 [profile.dev]
 debug = false

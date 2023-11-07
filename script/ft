@@ -9,6 +9,7 @@ import time
 serial_port = '/dev/ttyUSB0'
 
 if len(sys.argv) != 3:
+	print("Send a file to the micromouse via the serial port.")
 	print('usage: ft [file] [destination]')
 	sys.exit(1)
 

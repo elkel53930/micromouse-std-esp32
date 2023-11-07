@@ -14,6 +14,7 @@ mod encoder;
 mod fram_logger;
 pub mod imu;
 mod led;
+mod log_thread;
 pub mod misc;
 mod motor;
 pub mod ods;
@@ -53,6 +54,9 @@ fn main() -> anyhow::Result<()> {
     // File system initialization
     spiflash::mount();
 
+    // Start log thread
+    let log_tx = log_thread::init(&mut ctx.ods)?;
+
     {
         let yaml_config = config::YamlConfig::new("/sf/config.yaml".to_string())?;
         yaml_config.show();
@@ -64,7 +68,8 @@ fn main() -> anyhow::Result<()> {
         encoder::init(&mut peripherals)?;
 
         timer_interrupt::init(&mut peripherals)?;
-        (ctx.command_tx, ctx.response_rx) = control_thread::init(&yaml_config, &ctx.ods)?;
+        (ctx.command_tx, ctx.response_rx) =
+            control_thread::init(&yaml_config, &ctx.ods, log_tx.clone())?;
     } // yaml_config is dropped here
 
     // You can use println up to before uart:init.
@@ -117,6 +122,7 @@ fn main() -> anyhow::Result<()> {
             };
             uprintln!("Gyro offset: {}", offset);
         }
+        #[allow(unreachable_patterns)]
         _ => {
             uprintln!("Invalid response {:?}", resp);
             panic!("Invalid response {:?}", resp);
@@ -147,6 +153,7 @@ fn main() -> anyhow::Result<()> {
             uprintln!("x: {}", x);
             uprintln!("Done");
         }
+        #[allow(unreachable_patterns)]
         _ => {
             uprintln!("Invalid response {:?}", resp);
             panic!("Invalid response {:?}", resp);

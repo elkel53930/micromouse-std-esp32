@@ -2,6 +2,7 @@ use crate::config;
 use crate::encoder;
 use crate::imu;
 use crate::led::{self, LedColor::*};
+use crate::log_thread;
 use crate::misc::{correct_value, FIR};
 use crate::motor;
 use crate::ods;
@@ -10,7 +11,6 @@ use crate::pid;
 use crate::timer_interrupt::{sync_ms, wait_us};
 use crate::trajectory::{self, GenerateTrajectory};
 use crate::wall_sensor;
-use std::io::Write;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Arc;
 
@@ -40,6 +40,8 @@ struct SpeedConfig {
 
 struct ControlContext {
     ods: Arc<ods::Ods>,
+    log_tx: Sender<log_thread::LogCommand>,
+
     response_tx: Sender<Response>,
     command_rx: Receiver<Command>,
     ws_cfg: WsConfig,
@@ -215,16 +217,6 @@ fn gyro_calibration(ctx: &mut ControlContext) -> anyhow::Result<State> {
     Ok(State::Idle)
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-struct Log {
-    target_x: f32,
-    current_x: f32,
-    target_v: f32,
-    current_v: f32,
-    current_y: f32,
-    current_theta: f32,
-}
-
 fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
     let theta_target = 0.0;
 
@@ -282,6 +274,20 @@ fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
 
         ms_counter = current_ms;
 
+        {
+            let mut log = ctx.ods.log.lock().unwrap();
+            if ms_counter % 5 == 0 && log.len() < log_thread::LOG_SIZE {
+                log.push(log_thread::Log {
+                    target_x,
+                    current_x: micromouse.x,
+                    target_v,
+                    current_v: micromouse.v,
+                    current_y: micromouse.y,
+                    current_theta: micromouse.theta,
+                });
+            }
+        }
+
         if is_end {
             motor::set_l(0.0);
             motor::set_r(0.0);
@@ -291,6 +297,7 @@ fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
 
         sync_ms();
     }
+    ctx.log_tx.send(log_thread::LogCommand::Save)?;
     ctx.response_tx.send(Response::Done)?;
     led::off(Blue)?;
     Ok(State::Idle)
@@ -330,13 +337,14 @@ fn idle(ctx: &mut ControlContext, wall_sensor_active: bool) -> anyhow::Result<St
 pub fn init(
     config: &config::YamlConfig,
     ods: &Arc<ods::Ods>,
+    log_tx: Sender<log_thread::LogCommand>,
 ) -> anyhow::Result<(Sender<Command>, Receiver<Response>)> {
-    // Todo: Load configurations
-
+    // Message queues
     let (tx_for_ope, rx): (Sender<Command>, Receiver<Command>) = mpsc::channel();
     let (tx, rx_for_ope): (Sender<Response>, Receiver<Response>) = mpsc::channel();
     let mut state = State::Idle;
 
+    // Load configurations
     // PID controller for search run
     let p = config.load_f64("sr_theta_p", 0.5) as f32;
     let i = config.load_f64("sr_theta_i", 0.0) as f32;
@@ -367,6 +375,7 @@ pub fn init(
     let mut ctx = ControlContext {
         ods: ods.clone(),
         response_tx: tx,
+        log_tx: log_tx,
         command_rx: rx,
         ws_cfg: WsConfig {
             led_rise_time: config.load_i64("led_rise_time", 30) as u32,

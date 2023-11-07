@@ -1,5 +1,3 @@
-use std::any;
-
 use esp_idf_hal::delay::FreeRtos;
 
 use crate::control_thread;
@@ -342,7 +340,7 @@ struct CmdGoffset {}
 
 /* Update gyro offset */
 impl ConsoleCommand for CmdGoffset {
-    fn execute(&self, _args: &[&str], mut ctx: &OperationContext) -> anyhow::Result<()> {
+    fn execute(&self, _args: &[&str], ctx: &OperationContext) -> anyhow::Result<()> {
         FreeRtos::delay_ms(500);
         uprintln!("Calibration...");
         uprintln!("Start gyro calibration");
@@ -357,6 +355,7 @@ impl ConsoleCommand for CmdGoffset {
                 };
                 uprintln!("Gyro offset: {}", offset);
             }
+            #[allow(unreachable_patterns)]
             _ => {
                 uprintln!("Invalid response {:?}", resp);
                 panic!("Invalid response {:?}", resp);
@@ -473,5 +472,25 @@ impl ConsoleCommand for CmdBatt {
 
     fn name(&self) -> &str {
         "batt"
+    }
+}
+
+struct CmdRmLog {}
+
+impl ConsoleCommand for CmdRmLog {
+    fn execute(&self, args: &[&str], mut _ctx: &OperationContext) -> anyhow::Result<()> {
+        if args.len() != 0 {
+            return Err(anyhow::anyhow!("Invalid argument"));
+        }
+        crate::log_thread::remove_all_logs()
+    }
+
+    fn hint(&self) {
+        uprintln!("Remove all log files.");
+        uprintln!("Usage: rmlog");
+    }
+
+    fn name(&self) -> &str {
+        "rmlog"
     }
 }
