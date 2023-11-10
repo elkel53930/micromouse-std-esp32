@@ -49,7 +49,7 @@ struct ControlContext {
     enc_cfg: EncoderConfig,
     battery_cfg: BatteryConfig,
 
-    sr_theta_pid: pid::Pid,
+    sr_omega_pid: pid::Pid,
     sr_position_x_pid: pid::Pid,
     sr_position_y_pid: pid::Pid,
     sr_ff_rate: f32,
@@ -187,6 +187,7 @@ fn update(ctx: &mut ControlContext) {
         micromouse.v = velocity;
         micromouse.x += velocity * micromouse.theta.cos() * 0.001;
         micromouse.y += velocity * micromouse.theta.sin() * 0.001;
+        micromouse.omega = gyro;
     }
 }
 
@@ -218,7 +219,7 @@ fn gyro_calibration(ctx: &mut ControlContext) -> anyhow::Result<State> {
 }
 
 fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
-    let theta_target = 0.0;
+    let omega_target = 0.0;
 
     let x_t = distance;
     let v_i = 0.0;
@@ -228,7 +229,7 @@ fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
     let a_d = ctx.speed.deceleration;
     let mut trajectory = trajectory::ForwardTrajectory::new(x_t, v_i, v_l, v_f, a_a, a_d);
 
-    ctx.sr_theta_pid.reset();
+    ctx.sr_omega_pid.reset();
     ctx.sr_position_x_pid.reset();
     ctx.sr_position_y_pid.reset();
 
@@ -251,8 +252,8 @@ fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
             micromouse.clone()
         };
 
-        let theta_error = theta_target - micromouse.theta;
-        let theta_ctrl = ctx.sr_theta_pid.update(theta_error);
+        let omega_error = omega_target - micromouse.omega;
+        let omega_ctrl = ctx.sr_omega_pid.update(omega_error);
 
         let position_x_error = target_x - micromouse.x;
         let position_x_ctrl = ctx.sr_position_x_pid.update(position_x_error);
@@ -262,8 +263,8 @@ fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
 
         let ff_ctrl = ctx.sr_ff_rate * target_v;
 
-        let motor_l = ff_ctrl + position_x_ctrl - position_y_ctrl - theta_ctrl;
-        let motor_r = ff_ctrl + position_x_ctrl + position_y_ctrl + theta_ctrl;
+        let motor_l = ff_ctrl + position_x_ctrl - position_y_ctrl - omega_ctrl;
+        let motor_r = ff_ctrl + position_x_ctrl + position_y_ctrl + omega_ctrl;
 
         motor::set_l(motor_l * 1.3);
         motor::set_r(motor_r);
@@ -293,7 +294,7 @@ fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
                     ff_ctrl,
                     position_x_ctrl,
                     position_y_ctrl,
-                    theta_ctrl,
+                    omega_ctrl,
                 });
             }
         }
@@ -356,11 +357,11 @@ pub fn init(
 
     // Load configurations
     // PID controller for search run
-    let p = config.load_f64("sr_theta_p", 0.5) as f32;
-    let i = config.load_f64("sr_theta_i", 0.0) as f32;
-    let d = config.load_f64("sr_theta_d", 0.5) as f32;
-    let i_limit = config.load_f64("sr_theta_i_limit", 0.5) as f32;
-    let sr_theta_pid = pid::Pid::new(p, i, d, i_limit);
+    let p = config.load_f64("sr_omega_p", 0.5) as f32;
+    let i = config.load_f64("sr_omega_i", 0.0) as f32;
+    let d = config.load_f64("sr_omega_d", 0.5) as f32;
+    let i_limit = config.load_f64("sr_omega_i_limit", 0.5) as f32;
+    let sr_omega_pid = pid::Pid::new(p, i, d, i_limit);
 
     let p = config.load_f64("sr_position_x_p", 0.5) as f32;
     let i = config.load_f64("sr_position_x_i", 0.0) as f32;
@@ -420,7 +421,7 @@ pub fn init(
             correction_table: config
                 .load_vec_i16_f32("battery_correction_table", vec![(355, 5.0), (688, 9.0)]),
         },
-        sr_theta_pid: sr_theta_pid,
+        sr_omega_pid,
         sr_position_x_pid: sr_position_x_pid,
         sr_position_y_pid: sr_position_y_pid,
         sr_ff_rate: sr_ff_rate,

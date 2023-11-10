@@ -31,10 +31,10 @@ gear_ratio: 1.5
 
 # Configuration for search run
 # PID parameters
-sr_theta_p: 30.0
-sr_theta_i: 0.0
-sr_theta_d: 15.0
-sr_theta_i_limit: 0.0
+sr_omega_p: 3.0
+sr_omega_i: 0.0
+sr_omega_d: 1.50
+sr_omega_i_limit: 0.0
 
 sr_position_x_p: 500.0
 sr_position_x_i: 0.0

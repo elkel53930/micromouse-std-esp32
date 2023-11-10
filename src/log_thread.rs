@@ -21,7 +21,7 @@ pub struct Log {
     pub ff_ctrl: f32,
     pub position_x_ctrl: f32,
     pub position_y_ctrl: f32,
-    pub theta_ctrl: f32,
+    pub omega_ctrl: f32,
 }
 
 impl Log {
@@ -40,12 +40,12 @@ impl Log {
             self.ff_ctrl,
             self.position_x_ctrl,
             self.position_y_ctrl,
-            self.theta_ctrl,
+            self.omega_ctrl,
         )
     }
 
     pub fn header() -> String {
-        format!("counter,target_x,current_x,target_v,current_v,current_y,current_theta,motor_l,motor_r,ff_ctrl,pos_x_ctrl,pos_y_ctrl,theta_ctrl\n")
+        format!("counter,target_x,current_x,target_v,current_v,current_y,current_theta,motor_l,motor_r,ff_ctrl,pos_x_ctrl,pos_y_ctrl,omega_ctrl\n")
     }
 }
 

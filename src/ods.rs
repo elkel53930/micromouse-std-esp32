@@ -33,6 +33,7 @@ pub struct MicromouseState {
     pub x: f32,     // X coordinate [m]
     pub y: f32,     // Y coordinate [m]
     pub theta: f32, // Heading [rad]
+    pub omega: f32, // Angular velocity [rad/s]
     pub v: f32,     // Velocity [m/s]
 }
 pub struct Ods {
