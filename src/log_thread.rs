@@ -1,11 +1,10 @@
-use crate::ods::{self, OdsImu};
+use crate::ods;
 use std::fs;
 use std::io::Write;
 use std::sync::mpsc::{self, Sender};
 use std::sync::Arc;
 
-const COUNTER_FILE: &str = "/sf/cnt.txt";
-const LOG_FILE_MAX: u32 = 20;
+const LOG_FILE_NAME: &str = "/sf/log.csv";
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Log {
@@ -53,42 +52,12 @@ pub const LOG_SIZE: usize = 500;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LogCommand {
+    Start,
     Save,
 }
 
 pub fn init(ods: &Arc<ods::Ods>) -> anyhow::Result<Sender<LogCommand>> {
     let ods = ods.clone();
-
-    /*
-       The counter file contains the number of log files used so far.
-       The new log file is named logxx.csv, where xx is the number stored in the counter file + 1.
-       When the counter reaches LOG_FILE_MAX, it is reset to 0.
-       The new value is stored in the counter file.
-    */
-    let mut counter = 0;
-    if let Ok(content) = fs::read_to_string(COUNTER_FILE) {
-        if let Ok(value) = content.parse::<u32>() {
-            counter = value;
-        } else {
-            uprintln!("Error parsing counter file, using 0.");
-            counter = 0;
-        }
-    } else {
-        uprintln!("Error reading counter file, using 0.");
-        counter = 0;
-    }
-    let filename = format!("/sf/log{:02}.csv", counter);
-    counter = (counter + 1) % LOG_FILE_MAX;
-    uprintln!("New log file: {}", filename);
-
-    fs::write(COUNTER_FILE, counter.to_string())?;
-
-    match fs::remove_file(&filename) {
-        Ok(_) => {
-            println!("Old log file {} has been deleted.", filename);
-        }
-        Err(_) => {}
-    }
 
     // Spawn the log thread
     esp_idf_hal::task::thread::ThreadSpawnConfiguration {
@@ -105,45 +74,38 @@ pub fn init(ods: &Arc<ods::Ods>) -> anyhow::Result<Sender<LogCommand>> {
 
     std::thread::Builder::new().spawn(move || -> anyhow::Result<()> {
         loop {
-            let command = rx.recv().unwrap();
-            if command == LogCommand::Save {
-                let mut file = fs::OpenOptions::new()
-                    .write(true)
-                    .append(true)
-                    .open(&filename)?;
-
-                let mut log = ods.log.lock().unwrap();
-
-                uprintln!("[Log] Saving log");
-
-                file.write_all(Log::header().as_bytes())?;
-
-                for log_data in log.iter() {
-                    file.write_all(log_data.to_string().as_bytes())?;
+            loop {
+                let command = rx.recv().unwrap();
+                if command == LogCommand::Start {
+                    uprintln!("[Log] Started");
+                    let _ = fs::remove_file(LOG_FILE_NAME);
+                    break;
                 }
-                log.clear(); // clear() does not release heap memory.
-                uprintln!("[Log] Done");
+            }
+            loop {
+                let command = rx.recv().unwrap();
+                if command == LogCommand::Save {
+                    let mut file = fs::OpenOptions::new()
+                        .write(true)
+                        .append(true)
+                        .open(LOG_FILE_NAME)?;
+
+                    let mut log = ods.log.lock().unwrap();
+
+                    uprintln!("[Log] Saving log");
+
+                    file.write_all(Log::header().as_bytes())?;
+
+                    for log_data in log.iter() {
+                        file.write_all(log_data.to_string().as_bytes())?;
+                    }
+                    log.clear(); // clear() does not release heap memory.
+                    uprintln!("[Log] Done");
+                    break;
+                }
             }
         }
     })?;
 
     Ok(tx)
-}
-
-pub fn remove_all_logs() -> anyhow::Result<()> {
-    for i in 0..LOG_FILE_MAX {
-        let filename = format!("/sf/log{:02}.csv", i);
-        match fs::remove_file(&filename) {
-            Ok(_) => {
-                println!("Old log file {} has been deleted.", filename);
-            }
-            Err(_) => {}
-        }
-    }
-    Ok(())
-}
-
-pub fn reset_count() -> anyhow::Result<()> {
-    fs::write(COUNTER_FILE, "0")?;
-    Ok(())
 }

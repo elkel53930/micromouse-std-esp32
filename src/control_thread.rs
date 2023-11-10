@@ -239,6 +239,8 @@ fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
 
     let mut ms_counter = crate::timer_interrupt::get_ms() - 1;
 
+    ctx.log_tx.send(log_thread::LogCommand::Start)?;
+
     loop {
         measure(ctx, true)?;
         update(ctx);

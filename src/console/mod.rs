@@ -48,7 +48,6 @@ impl Console {
             Box::new(CmdReset {}),
             Box::new(CmdConfig {}),
             Box::new(CmdBatt {}),
-            Box::new(CmdRmLog {}),
             Box::new(file::CmdFt {}),
             Box::new(file::CmdDl {}),
             Box::new(file::CmdShow {}),
@@ -473,27 +472,5 @@ impl ConsoleCommand for CmdBatt {
 
     fn name(&self) -> &str {
         "batt"
-    }
-}
-
-struct CmdRmLog {}
-
-impl ConsoleCommand for CmdRmLog {
-    fn execute(&self, args: &[&str], mut _ctx: &OperationContext) -> anyhow::Result<()> {
-        if args.len() != 0 {
-            return Err(anyhow::anyhow!("Invalid argument"));
-        }
-        crate::log_thread::remove_all_logs()?;
-        crate::log_thread::reset_count()?;
-        Ok(())
-    }
-
-    fn hint(&self) {
-        uprintln!("Remove all log files.");
-        uprintln!("Usage: rmlog");
-    }
-
-    fn name(&self) -> &str {
-        "rmlog"
     }
 }
