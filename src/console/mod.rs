@@ -48,6 +48,7 @@ impl Console {
             Box::new(CmdReset {}),
             Box::new(CmdConfig {}),
             Box::new(CmdBatt {}),
+            Box::new(CmdRmLog {}),
             Box::new(file::CmdFt {}),
             Box::new(file::CmdDl {}),
             Box::new(file::CmdShow {}),
@@ -482,7 +483,9 @@ impl ConsoleCommand for CmdRmLog {
         if args.len() != 0 {
             return Err(anyhow::anyhow!("Invalid argument"));
         }
-        crate::log_thread::remove_all_logs()
+        crate::log_thread::remove_all_logs()?;
+        crate::log_thread::reset_count()?;
+        Ok(())
     }
 
     fn hint(&self) {

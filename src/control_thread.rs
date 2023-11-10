@@ -262,8 +262,11 @@ fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
 
         let ff_ctrl = ctx.sr_ff_rate * target_v;
 
-        motor::set_l(ff_ctrl + position_x_ctrl - position_y_ctrl - theta_ctrl);
-        motor::set_r(ff_ctrl + position_x_ctrl + position_y_ctrl + theta_ctrl);
+        let motor_l = ff_ctrl + position_x_ctrl - position_y_ctrl - theta_ctrl;
+        let motor_r = ff_ctrl + position_x_ctrl + position_y_ctrl + theta_ctrl;
+
+        motor::set_l(motor_l * 1.3);
+        motor::set_r(motor_r);
 
         let current_ms = crate::timer_interrupt::get_ms();
         if current_ms - ms_counter > 1 {
@@ -278,12 +281,19 @@ fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
             let mut log = ctx.ods.log.lock().unwrap();
             if ms_counter % 5 == 0 && log.len() < log_thread::LOG_SIZE {
                 log.push(log_thread::Log {
+                    current_ms,
                     target_x,
                     current_x: micromouse.x,
                     target_v,
                     current_v: micromouse.v,
                     current_y: micromouse.y,
                     current_theta: micromouse.theta,
+                    motor_l,
+                    motor_r,
+                    ff_ctrl,
+                    position_x_ctrl,
+                    position_y_ctrl,
+                    theta_ctrl,
                 });
             }
         }

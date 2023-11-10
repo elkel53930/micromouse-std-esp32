@@ -3,8 +3,11 @@
 import serial
 import sys
 import time
+import os
 
 serial_port = '/dev/ttyUSB0'
+
+dir_name = 'downloads/'
 
 def receive_file(filename):
 	ser = serial.Serial(serial_port, 115200, timeout=1)
@@ -29,7 +32,10 @@ def receive_file(filename):
 	ser.write("\n".encode('ascii'))
 	data = ser.read(file_size)
 
-	with open(filename, 'wb') as f:
+	if not os.path.exists(dir_name):
+		os.makedirs(dir_name)
+
+	with open(dir_name + filename, 'wb') as f:
 		f.write(data)
 
 	ser.close()
@@ -37,6 +43,7 @@ def receive_file(filename):
 if __name__ == "__main__":
 	if len(sys.argv) != 2:
 		print("Download a file from the micromouse")
+		print("The file will be saved in the ./" + dir_name + " directory.")
 		print("Usage: python dl {filename}")
 		sys.exit(1)
 

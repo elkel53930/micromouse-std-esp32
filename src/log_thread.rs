@@ -9,33 +9,47 @@ const LOG_FILE_MAX: u32 = 20;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Log {
+    pub current_ms: u32,
     pub target_x: f32,
     pub current_x: f32,
     pub target_v: f32,
     pub current_v: f32,
     pub current_y: f32,
     pub current_theta: f32,
+    pub motor_l: f32,
+    pub motor_r: f32,
+    pub ff_ctrl: f32,
+    pub position_x_ctrl: f32,
+    pub position_y_ctrl: f32,
+    pub theta_ctrl: f32,
 }
 
 impl Log {
     pub fn to_string(&self) -> String {
         format!(
-            "{},{},{},{},{},{}\n",
+            "{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
+            self.current_ms,
             self.target_x,
             self.current_x,
             self.target_v,
             self.current_v,
             self.current_y,
             self.current_theta,
+            self.motor_l,
+            self.motor_r,
+            self.ff_ctrl,
+            self.position_x_ctrl,
+            self.position_y_ctrl,
+            self.theta_ctrl,
         )
     }
 
     pub fn header() -> String {
-        format!("target_x,current_x,target_v,current_v,current_y,current_theta\n")
+        format!("counter,target_x,current_x,target_v,current_v,current_y,current_theta,motor_l,motor_r,ff_ctrl,pos_x_ctrl,pos_y_ctrl,theta_ctrl\n")
     }
 }
 
-pub const LOG_SIZE: usize = 1000;
+pub const LOG_SIZE: usize = 500;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LogCommand {
@@ -126,5 +140,10 @@ pub fn remove_all_logs() -> anyhow::Result<()> {
             Err(_) => {}
         }
     }
+    Ok(())
+}
+
+pub fn reset_count() -> anyhow::Result<()> {
+    fs::write(COUNTER_FILE, "0")?;
     Ok(())
 }
