@@ -142,7 +142,7 @@ fn main() -> anyhow::Result<()> {
     ctx.led_tx.send((Red, Some("10")))?;
 
     ctx.command_tx
-        .send(control_thread::Command::Forward(0.35))?;
+        .send(control_thread::Command::Forward(0.27))?;
     let resp = ctx.response_rx.recv().unwrap();
     match resp {
         control_thread::Response::Done => {

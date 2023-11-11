@@ -52,6 +52,7 @@ struct ControlContext {
     sr_omega_pid: pid::Pid,
     sr_position_x_pid: pid::Pid,
     sr_position_y_pid: pid::Pid,
+    sr_velocity_pid: pid::Pid,
     sr_ff_rate: f32,
 
     speed: SpeedConfig,
@@ -232,9 +233,12 @@ fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
     ctx.sr_omega_pid.reset();
     ctx.sr_position_x_pid.reset();
     ctx.sr_position_y_pid.reset();
+    ctx.sr_velocity_pid.reset();
 
     led::on(Blue)?;
     reset_micromouse_state(ctx);
+    motor::set_l(0.0);
+    motor::set_r(0.0);
     motor::enable(true);
 
     let mut ms_counter = crate::timer_interrupt::get_ms() - 1;
@@ -263,10 +267,13 @@ fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
         let position_y_error = 0.0 - micromouse.y;
         let position_y_ctrl = ctx.sr_position_y_pid.update(position_y_error);
 
+        let velocity_error = target_v - micromouse.v;
+        let velocity_ctrl = ctx.sr_velocity_pid.update(velocity_error);
+
         let ff_ctrl = ctx.sr_ff_rate * target_v;
 
-        let motor_l = ff_ctrl + position_x_ctrl - position_y_ctrl - omega_ctrl;
-        let motor_r = ff_ctrl + position_x_ctrl + position_y_ctrl + omega_ctrl;
+        let motor_l = ff_ctrl + position_x_ctrl - position_y_ctrl + velocity_ctrl - omega_ctrl;
+        let motor_r = ff_ctrl + position_x_ctrl + position_y_ctrl + velocity_ctrl + omega_ctrl;
 
         motor::set_l(motor_l * 1.3);
         motor::set_r(motor_r);
@@ -377,6 +384,13 @@ pub fn init(
     let i_limit = config.load_f64("sr_position_y_i_limit", 0.5) as f32;
     let sr_position_y_pid = pid::Pid::new(p, i, d, i_limit);
 
+    // velocity PID
+    let p = config.load_f64("sr_velocity_p", 0.5) as f32;
+    let i = config.load_f64("sr_velocity_i", 0.0) as f32;
+    let d = config.load_f64("sr_velocity_d", 0.5) as f32;
+    let i_limit = config.load_f64("sr_velocity_i_limit", 0.5) as f32;
+    let sr_velocity_pid = pid::Pid::new(p, i, d, i_limit);
+
     let spd_cfg: SpeedConfig = SpeedConfig {
         velocity: config.load_f64("sr_velocity", 0.1) as f32,
         acceleration: config.load_f64("sr_acceleration", 0.1) as f32,
@@ -426,6 +440,7 @@ pub fn init(
         sr_omega_pid,
         sr_position_x_pid: sr_position_x_pid,
         sr_position_y_pid: sr_position_y_pid,
+        sr_velocity_pid: sr_velocity_pid,
         sr_ff_rate: sr_ff_rate,
 
         speed: spd_cfg,

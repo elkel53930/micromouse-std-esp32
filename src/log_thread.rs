@@ -26,25 +26,13 @@ pub struct Log {
 impl Log {
     pub fn to_string(&self) -> String {
         format!(
-            "{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
-            self.current_ms,
-            self.target_x,
-            self.current_x,
-            self.target_v,
-            self.current_v,
-            self.current_y,
-            self.current_theta,
-            self.motor_l,
-            self.motor_r,
-            self.ff_ctrl,
-            self.position_x_ctrl,
-            self.position_y_ctrl,
-            self.omega_ctrl,
+            "{},{},{},{}\n",
+            self.target_x, self.current_x, self.target_v, self.current_v,
         )
     }
 
     pub fn header() -> String {
-        format!("counter,target_x,current_x,target_v,current_v,current_y,current_theta,motor_l,motor_r,ff_ctrl,pos_x_ctrl,pos_y_ctrl,omega_ctrl\n")
+        format!("target_x,current_x,target_v,current_v\n")
     }
 }
 
@@ -96,9 +84,16 @@ pub fn init(ods: &Arc<ods::Ods>) -> anyhow::Result<Sender<LogCommand>> {
 
                     file.write_all(Log::header().as_bytes())?;
 
+                    let mut counter = 0;
+
                     for log_data in log.iter() {
                         file.write_all(log_data.to_string().as_bytes())?;
+                        file.flush()?;
+                        counter += 1;
                     }
+
+                    uprintln!("counter: {}", counter);
+
                     log.clear(); // clear() does not release heap memory.
                     uprintln!("[Log] Done");
                     break;
