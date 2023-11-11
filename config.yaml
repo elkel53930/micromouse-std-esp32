@@ -58,7 +58,7 @@ sr_theta_i: 1.0
 sr_theta_d: 6.0
 sr_theta_i_limit: 3.0
 
-sr_ff_rate: 20.0
+sr_ff_rate: 0.0
 
 # Speed parameters
 sr_velocity: 0.25

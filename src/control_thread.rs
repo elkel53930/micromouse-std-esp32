@@ -223,33 +223,10 @@ fn gyro_calibration(ctx: &mut ControlContext) -> anyhow::Result<State> {
     Ok(State::Idle)
 }
 
-fn start(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
-    let omega_target = 0.0;
-
-    let x_t = distance;
-    let v_i = 0.0;
-    let v_l = ctx.speed.velocity;
-    let v_f = ctx.speed.velocity;
-    let a_a = ctx.speed.acceleration;
-    let a_d = ctx.speed.deceleration;
-    ctx.trajectory = Some(trajectory::ForwardTrajectory::new(
-        x_t, v_i, v_l, v_f, a_a, a_d,
-    ));
-
-    ctx.log_tx.send(log_thread::LogCommand::Start)?;
-
-    ctx.sr_omega_pid.reset();
-    ctx.sr_position_x_pid.reset();
-    ctx.sr_velocity_pid.reset();
-    ctx.sr_theta_pid.reset();
-
-    led::on(Blue)?;
-    reset_micromouse_state(ctx);
-    motor::set_l(0.0);
-    motor::set_r(0.0);
-    motor::enable(true);
-
+fn go(ctx: &mut ControlContext) -> anyhow::Result<()> {
     let mut ms_counter = crate::timer_interrupt::get_ms() - 1;
+
+    let omega_target = 0.0;
 
     loop {
         measure(ctx, true)?;
@@ -320,6 +297,40 @@ fn start(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
 
         sync_ms();
     }
+    Ok(())
+}
+
+fn start(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
+    let x_t = distance;
+    let v_i = 0.0;
+    let v_l = ctx.speed.velocity;
+    let v_f = ctx.speed.velocity;
+    let a_a = ctx.speed.acceleration;
+    let a_d = ctx.speed.deceleration;
+    ctx.trajectory = Some(trajectory::ForwardTrajectory::new(
+        x_t, v_i, v_l, v_f, a_a, a_d,
+    ));
+
+    ctx.log_tx.send(log_thread::LogCommand::Start)?;
+
+    ctx.sr_omega_pid.reset();
+    ctx.sr_position_x_pid.reset();
+    ctx.sr_velocity_pid.reset();
+    ctx.sr_theta_pid.reset();
+
+    led::on(Blue)?;
+    reset_micromouse_state(ctx);
+    motor::set_l(0.0);
+    motor::set_r(0.0);
+    motor::enable(true);
+
+    // Encoders, etc., use one previous value.
+    // Measure the value once to avoid value jumps.
+    measure(ctx, true)?;
+    sync_ms();
+
+    go(ctx)?;
+
     ctx.log_tx.send(log_thread::LogCommand::Save)?;
     ctx.response_tx.send(Response::Done)?;
     led::off(Blue)?;
