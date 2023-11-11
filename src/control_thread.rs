@@ -57,6 +57,8 @@ struct ControlContext {
     sr_ff_rate: f32,
 
     speed: SpeedConfig,
+
+    trajectory: Option<trajectory::ForwardTrajectory>,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -230,7 +232,9 @@ fn start(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
     let v_f = ctx.speed.velocity;
     let a_a = ctx.speed.acceleration;
     let a_d = ctx.speed.deceleration;
-    let mut trajectory = trajectory::ForwardTrajectory::new(x_t, v_i, v_l, v_f, a_a, a_d);
+    ctx.trajectory = Some(trajectory::ForwardTrajectory::new(
+        x_t, v_i, v_l, v_f, a_a, a_d,
+    ));
 
     ctx.log_tx.send(log_thread::LogCommand::Start)?;
 
@@ -251,9 +255,9 @@ fn start(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
         measure(ctx, true)?;
         update(ctx);
 
-        let is_end = trajectory.step();
-        let target_x = trajectory.x_current;
-        let target_v = trajectory.v_current;
+        let is_end = ctx.trajectory.as_mut().unwrap().step();
+        let target_x = ctx.trajectory.as_mut().unwrap().x_current;
+        let target_v = ctx.trajectory.as_mut().unwrap().v_current;
 
         let micromouse = {
             let micromouse = ctx.ods.micromouse.lock().unwrap();
@@ -447,6 +451,8 @@ pub fn init(
         sr_ff_rate: sr_ff_rate,
 
         speed: spd_cfg,
+
+        trajectory: None,
     };
 
     // Spawn the control thread
