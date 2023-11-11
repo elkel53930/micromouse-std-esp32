@@ -24,16 +24,23 @@ gyro_correction_table: # binary raw value to rad/s
  - [-32768, -40.03366425054514]
  - [32767, 40.032442520068734]
 
+# Encoder configuration
+enc_fir_coefficients:
+ - 0.25
+ - 0.25
+ - 0.25
+ - 0.25
+
 # Hardware constants
-wheel_diameter: 13.0 # [mm]
-gear_ratio: 1.5
+wheel_diameter: 13.5 # [mm]
+gear_ratio: 2.0
 
 
 # Configuration for search run
 # PID parameters
-sr_omega_p: 3.0
+sr_omega_p: 1.0
 sr_omega_i: 0.0
-sr_omega_d: 1.50
+sr_omega_d: 0.50
 sr_omega_i_limit: 0.0
 
 sr_position_x_p: 500.0
@@ -41,14 +48,19 @@ sr_position_x_i: 1.0
 sr_position_x_d: 100.0
 sr_position_x_i_limit: 5.0
 
-sr_velocity_p: 30.0
+sr_velocity_p: 25.0
 sr_velocity_i: 0.0
-sr_velocity_d: 5.0
+sr_velocity_d: 10.0
 sr_velocity_i_limit: 0.0
 
-sr_ff_rate: 10.0
+sr_theta_p: 15.0
+sr_theta_i: 1.0
+sr_theta_d: 6.0
+sr_theta_i_limit: 3.0
+
+sr_ff_rate: 20.0
 
 # Speed parameters
-sr_velocity: 0.5
-sr_acceleration: 3.0
-sr_deceleration: 3.0
+sr_velocity: 0.25
+sr_acceleration: 1.5
+sr_deceleration: 1.5

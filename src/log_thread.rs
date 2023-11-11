@@ -8,29 +8,39 @@ const LOG_FILE_NAME: &str = "/sf/log.csv";
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Log {
-    pub target_x: f32,
-    pub current_x: f32,
-    pub target_v: f32,
-    pub current_v: f32,
-    pub current_theta: f32,
     pub current_omega: f32,
+    pub omega_ctrl: f32,
+    pub current_theta: f32,
+    pub theta_ctrl: f32,
+    pub current_x: f32,
+    pub target_x: f32,
+    pub x_ctrl: f32,
+    pub current_v: f32,
+    pub target_v: f32,
+    pub v_ctrl: f32,
 }
 
 impl Log {
     pub fn to_string(&self) -> String {
         format!(
-            "{},{},{},{},{},{}\n",
-            self.target_x,
-            self.current_x,
-            self.target_v,
-            self.current_v,
+            "{},{},{},{},{},{},{},{},{},{}\n",
             self.current_omega,
+            self.omega_ctrl,
             self.current_theta,
+            self.theta_ctrl,
+            self.current_x,
+            self.target_x,
+            self.x_ctrl,
+            self.current_v,
+            self.target_v,
+            self.v_ctrl
         )
     }
 
     pub fn header() -> String {
-        format!("target_x,current_x,target_v,current_v,current_omega,current_theta\n")
+        format!(
+            "current_omega,omega_ctrl,current_theta,theta_ctrl,current_x,target_x,x_ctrl,current_v,target_v,v_ctrl\n"
+        )
     }
 }
 

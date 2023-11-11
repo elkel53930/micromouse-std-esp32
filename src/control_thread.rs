@@ -26,6 +26,7 @@ struct GyroConfig {
 struct EncoderConfig {
     wheel_diameter: f32,
     gear_ratio: f32,
+    fir: FIR<f32>,
 }
 
 struct BatteryConfig {
@@ -51,6 +52,7 @@ struct ControlContext {
 
     sr_omega_pid: pid::Pid,
     sr_position_x_pid: pid::Pid,
+    sr_theta_pid: pid::Pid,
     sr_velocity_pid: pid::Pid,
     sr_ff_rate: f32,
 
@@ -62,7 +64,7 @@ enum State {
     Idle,
     GyroCalibration,
     WallSensorActive,
-    Forward(f32),
+    Start(f32),
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -70,7 +72,7 @@ pub enum Command {
     GyroCalibration,
     ActivateWallSensor,
     InactivateWallSensor,
-    Forward(f32),
+    Start(f32),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -176,6 +178,7 @@ fn update(ctx: &mut ControlContext) {
     let velocity =
         enc_diff / ctx.enc_cfg.gear_ratio * ctx.enc_cfg.wheel_diameter * std::f32::consts::PI
             / 16384.0;
+    let velocity_filtered = ctx.enc_cfg.fir.filter(velocity);
 
     let gyro = {
         let imu = ctx.ods.imu.lock().unwrap();
@@ -184,7 +187,7 @@ fn update(ctx: &mut ControlContext) {
     {
         let mut micromouse = ctx.ods.micromouse.lock().unwrap();
         micromouse.theta += gyro * 0.001;
-        micromouse.v = velocity;
+        micromouse.v = velocity_filtered;
         micromouse.x += velocity * micromouse.theta.cos() * 0.001;
         micromouse.y += velocity * micromouse.theta.sin() * 0.001;
         micromouse.omega = gyro;
@@ -218,20 +221,23 @@ fn gyro_calibration(ctx: &mut ControlContext) -> anyhow::Result<State> {
     Ok(State::Idle)
 }
 
-fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
+fn start(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
     let omega_target = 0.0;
 
     let x_t = distance;
     let v_i = 0.0;
     let v_l = ctx.speed.velocity;
-    let v_f = 0.0;
+    let v_f = ctx.speed.velocity;
     let a_a = ctx.speed.acceleration;
     let a_d = ctx.speed.deceleration;
     let mut trajectory = trajectory::ForwardTrajectory::new(x_t, v_i, v_l, v_f, a_a, a_d);
 
+    ctx.log_tx.send(log_thread::LogCommand::Start)?;
+
     ctx.sr_omega_pid.reset();
     ctx.sr_position_x_pid.reset();
     ctx.sr_velocity_pid.reset();
+    ctx.sr_theta_pid.reset();
 
     led::on(Blue)?;
     reset_micromouse_state(ctx);
@@ -240,8 +246,6 @@ fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
     motor::enable(true);
 
     let mut ms_counter = crate::timer_interrupt::get_ms() - 1;
-
-    ctx.log_tx.send(log_thread::LogCommand::Start)?;
 
     loop {
         measure(ctx, true)?;
@@ -265,10 +269,13 @@ fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
         let velocity_error = target_v - micromouse.v;
         let velocity_ctrl = ctx.sr_velocity_pid.update(velocity_error);
 
+        let theta_error = 0.0 - micromouse.theta;
+        let theta_ctrl = ctx.sr_theta_pid.update(theta_error);
+
         let ff_ctrl = ctx.sr_ff_rate * target_v;
 
-        let motor_l = ff_ctrl + position_x_ctrl + velocity_ctrl - omega_ctrl;
-        let motor_r = ff_ctrl + position_x_ctrl + velocity_ctrl + omega_ctrl;
+        let motor_l = ff_ctrl + position_x_ctrl + velocity_ctrl - theta_ctrl - omega_ctrl;
+        let motor_r = ff_ctrl + position_x_ctrl + velocity_ctrl + theta_ctrl + omega_ctrl;
 
         motor::set_l(motor_l * 1.3);
         motor::set_r(motor_r);
@@ -284,14 +291,18 @@ fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
 
         {
             let mut log = ctx.ods.log.lock().unwrap();
-            if ms_counter % 10 == 0 && log.len() < log_thread::LOG_SIZE {
+            if ms_counter % 1 == 0 && log.len() < log_thread::LOG_SIZE {
                 log.push(log_thread::Log {
-                    target_x,
-                    current_x: micromouse.x,
-                    target_v,
-                    current_v: micromouse.v,
-                    current_theta: micromouse.theta,
                     current_omega: micromouse.omega,
+                    omega_ctrl,
+                    current_theta: micromouse.theta,
+                    theta_ctrl,
+                    current_x: micromouse.x,
+                    target_x,
+                    x_ctrl: position_x_ctrl,
+                    current_v: micromouse.v,
+                    target_v,
+                    v_ctrl: velocity_ctrl,
                 });
             }
         }
@@ -322,8 +333,8 @@ fn idle(ctx: &mut ControlContext, wall_sensor_active: bool) -> anyhow::Result<St
                 Command::ActivateWallSensor => {
                     return Ok(State::WallSensorActive);
                 }
-                Command::Forward(distance) => {
-                    return Ok(State::Forward(distance));
+                Command::Start(distance) => {
+                    return Ok(State::Start(distance));
                 }
                 Command::InactivateWallSensor => {
                     return Ok(State::Idle);
@@ -373,6 +384,13 @@ pub fn init(
     let i_limit = config.load_f64("sr_velocity_i_limit", 0.5) as f32;
     let sr_velocity_pid = pid::Pid::new(p, i, d, i_limit);
 
+    // Theta PID
+    let p = config.load_f64("sr_theta_p", 0.5) as f32;
+    let i = config.load_f64("sr_theta_i", 0.0) as f32;
+    let d = config.load_f64("sr_theta_d", 0.5) as f32;
+    let i_limit = config.load_f64("sr_theta_i_limit", 0.5) as f32;
+    let sr_theta_pid = pid::Pid::new(p, i, d, i_limit);
+
     let spd_cfg: SpeedConfig = SpeedConfig {
         velocity: config.load_f64("sr_velocity", 0.1) as f32,
         acceleration: config.load_f64("sr_acceleration", 0.1) as f32,
@@ -414,6 +432,9 @@ pub fn init(
         enc_cfg: EncoderConfig {
             wheel_diameter: config.load_f64("wheel_diameter", 13.0) as f32,
             gear_ratio: config.load_f64("gear_ratio", 1.5) as f32,
+            fir: FIR::new(
+                config.load_vec_f32("enc_fir_coefficients", vec![0.25, 0.25, 0.25, 0.25]),
+            ),
         },
         battery_cfg: BatteryConfig {
             correction_table: config
@@ -422,6 +443,7 @@ pub fn init(
         sr_omega_pid,
         sr_position_x_pid: sr_position_x_pid,
         sr_velocity_pid: sr_velocity_pid,
+        sr_theta_pid: sr_theta_pid,
         sr_ff_rate: sr_ff_rate,
 
         speed: spd_cfg,
@@ -450,8 +472,8 @@ pub fn init(
                 State::WallSensorActive => {
                     state = idle(&mut ctx, true)?;
                 }
-                State::Forward(distance) => {
-                    state = forward(&mut ctx, distance)?;
+                State::Start(distance) => {
+                    state = start(&mut ctx, distance)?;
                 }
             }
         }
