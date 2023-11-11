@@ -113,21 +113,12 @@ fn main() -> anyhow::Result<()> {
     uprintln!("Start gyro calibration");
     ctx.command_tx
         .send(control_thread::Command::GyroCalibration)?;
-    let resp = ctx.response_rx.recv().unwrap();
-    match resp {
-        control_thread::Response::Done => {
-            let offset = {
-                let imu = ctx.ods.imu.lock().unwrap();
-                imu.gyro_x_offset
-            };
-            uprintln!("Gyro offset: {}", offset);
-        }
-        #[allow(unreachable_patterns)]
-        _ => {
-            uprintln!("Invalid response {:?}", resp);
-            panic!("Invalid response {:?}", resp);
-        }
-    }
+    let _response = ctx.response_rx.recv().unwrap(); // Wait for Done
+    let offset = {
+        let imu = ctx.ods.imu.lock().unwrap();
+        imu.gyro_x_offset
+    };
+    uprintln!("Gyro offset: {}", offset);
     ctx.led_tx.send((Red, Some("0")))?;
 
     // Countdown
@@ -139,25 +130,20 @@ fn main() -> anyhow::Result<()> {
     ctx.led_tx.send((Blue, Some("0")))?;
     ctx.led_tx.send((Red, Some("1")))?;
     FreeRtos::delay_ms(1000);
-    ctx.led_tx.send((Red, Some("10")))?;
+    ctx.led_tx.send((Red, None))?;
 
-    ctx.command_tx.send(control_thread::Command::Start(0.27))?;
-    let resp = ctx.response_rx.recv().unwrap();
-    match resp {
-        control_thread::Response::Done => {
-            let x = {
-                let micromouse = ctx.ods.micromouse.lock().unwrap();
-                micromouse.x
-            };
-            uprintln!("x: {}", x);
-            uprintln!("Done");
-        }
-        #[allow(unreachable_patterns)]
-        _ => {
-            uprintln!("Invalid response {:?}", resp);
-            panic!("Invalid response {:?}", resp);
-        }
-    }
+    ctx.command_tx
+        .send(control_thread::Command::Start(0.017 + 0.045))?;
+    uprintln!("Start");
+    let response = ctx.response_rx.recv().unwrap(); // Wait for CommandRequest
+    uprintln!("{:?}\nStop", response);
+    ctx.led_tx.send((Red, Some("0")))?;
+    ctx.led_tx.send((Blue, Some("1")))?;
+    ctx.command_tx.send(control_thread::Command::Stop)?;
+    let response = ctx.response_rx.recv().unwrap(); // Wait for CommandRequest
+    uprintln!("{:?}\nStart", response);
+    ctx.led_tx.send((Green, Some("1")))?;
+
     ctx.led_tx.send((Red, Some("0")))?;
 
     console.run(&ctx)

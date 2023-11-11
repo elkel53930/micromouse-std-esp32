@@ -67,6 +67,7 @@ enum State {
     GyroCalibration,
     WallSensorActive,
     Start(f32),
+    Stop,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -75,11 +76,13 @@ pub enum Command {
     ActivateWallSensor,
     InactivateWallSensor,
     Start(f32),
+    Stop,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Response {
     Done,
+    CommandRequest,
 }
 
 fn measure(ctx: &mut ControlContext, wall_sensor_active: bool) -> anyhow::Result<()> {
@@ -262,10 +265,14 @@ fn go(ctx: &mut ControlContext) -> anyhow::Result<()> {
         motor::set_r(motor_r);
 
         let current_ms = crate::timer_interrupt::get_ms();
-        if current_ms - ms_counter > 1 {
-            let _ = crate::led::on(crate::led::LedColor::Red);
-        } else {
-            let _ = crate::led::off(crate::led::LedColor::Red);
+        //        if current_ms - ms_counter > 1 {
+        //            let _ = crate::led::on(crate::led::LedColor::Red);
+        //        } else {
+        //            let _ = crate::led::off(crate::led::LedColor::Red);
+        //        }
+
+        if current_ms % 100 == 0 {
+            let _ = crate::led::toggle(crate::led::LedColor::Red);
         }
 
         ms_counter = current_ms;
@@ -288,14 +295,11 @@ fn go(ctx: &mut ControlContext) -> anyhow::Result<()> {
             }
         }
 
+        sync_ms();
+
         if is_end {
-            motor::set_l(0.0);
-            motor::set_r(0.0);
-            motor::enable(false);
             break;
         }
-
-        sync_ms();
     }
     Ok(())
 }
@@ -308,10 +312,10 @@ fn start(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
     let a_a = ctx.speed.acceleration;
     let a_d = ctx.speed.deceleration;
     ctx.trajectory = Some(trajectory::ForwardTrajectory::new(
-        x_t, v_i, v_l, v_f, a_a, a_d,
+        0.0, x_t, v_i, v_l, v_f, a_a, a_d,
     ));
 
-    ctx.log_tx.send(log_thread::LogCommand::Start)?;
+    //    ctx.log_tx.send(log_thread::LogCommand::Start)?;
 
     ctx.sr_omega_pid.reset();
     ctx.sr_position_x_pid.reset();
@@ -331,8 +335,34 @@ fn start(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
 
     go(ctx)?;
 
-    ctx.log_tx.send(log_thread::LogCommand::Save)?;
-    ctx.response_tx.send(Response::Done)?;
+    ctx.response_tx.send(Response::CommandRequest)?;
+    Ok(State::Idle)
+}
+
+fn stop(ctx: &mut ControlContext) -> anyhow::Result<State> {
+    let x_d = 0.045; // distance
+    let v_i = ctx.trajectory.as_mut().unwrap().v_current; // initial velocity
+    let v_l = ctx.speed.velocity; // velocity limit
+    let v_f = 0.0; // final velocity
+    let a_a = ctx.speed.acceleration;
+    let a_d = ctx.speed.deceleration;
+    ctx.trajectory = Some(trajectory::ForwardTrajectory::new(
+        ctx.trajectory.as_mut().unwrap().x_target,
+        x_d,
+        v_i,
+        v_l,
+        v_f,
+        a_a,
+        a_d,
+    ));
+
+    go(ctx)?;
+
+    motor::set_l(0.0);
+    motor::set_r(0.0);
+    motor::enable(false);
+
+    ctx.response_tx.send(Response::CommandRequest)?;
     led::off(Blue)?;
     Ok(State::Idle)
 }
@@ -354,17 +384,15 @@ fn idle(ctx: &mut ControlContext, wall_sensor_active: bool) -> anyhow::Result<St
                 Command::InactivateWallSensor => {
                     return Ok(State::Idle);
                 }
-
-                #[allow(unreachable_patterns)]
-                _ => {
-                    uprintln!("Invalid command {:?}", cmd.unwrap());
-                    panic!("Invalid command {:?}", cmd.unwrap());
+                Command::Stop => {
+                    return Ok(State::Stop);
                 }
             }
+        } else {
+            measure(ctx, wall_sensor_active)?;
+            update(ctx);
+            sync_ms();
         }
-        measure(ctx, wall_sensor_active)?;
-        update(ctx);
-        sync_ms();
     }
 }
 
@@ -491,6 +519,9 @@ pub fn init(
                 }
                 State::Start(distance) => {
                     state = start(&mut ctx, distance)?;
+                }
+                State::Stop => {
+                    state = stop(&mut ctx)?;
                 }
             }
         }

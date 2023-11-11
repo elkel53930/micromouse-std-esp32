@@ -12,7 +12,9 @@ pub enum ForwardPhase {
     Stop,
 }
 
+#[derive(Debug)]
 pub struct ForwardTrajectory {
+    pub x_initial: f32, // initial position
     pub x_target: f32,  // target position
     pub x_current: f32, // current position
     pub x_a: f32,       // acceleration distance
@@ -30,37 +32,50 @@ pub struct ForwardTrajectory {
 }
 
 impl ForwardTrajectory {
-    pub fn new(x_t: f32, v_i: f32, v_l: f32, v_f: f32, a_a: f32, a_d: f32) -> Self {
-        if (a_a <= 0.0) || (a_d <= 0.0) {
+    pub fn new(
+        x_initial: f32,
+        x_distance: f32,
+        v_initial: f32,
+        v_limit: f32,
+        v_final: f32,
+        a_acc: f32,
+        a_dec: f32,
+    ) -> Self {
+        if (a_acc <= 0.0) || (a_dec <= 0.0) {
             panic!("a_a and a_d must be positive");
         }
 
-        let mut v_l = v_l;
-        let mut x_a = (v_l * v_l - v_i * v_i) / (2.0 * a_a);
-        let mut x_d = (v_l * v_l - v_f * v_f) / (2.0 * a_d);
-        if x_a + x_d > x_t {
+        let mut v_limit = v_limit;
+        let mut x_acc = (v_limit * v_limit - v_initial * v_initial) / (2.0 * a_acc);
+        let mut x_dec = (v_limit * v_limit - v_final * v_final) / (2.0 * a_dec);
+        if x_acc + x_dec > x_distance {
             // Strict speed limits.
-            v_l =
-                ((2.0 * a_a * a_d * x_t + v_i * v_i * a_d - v_f * v_f * a_a) / (a_a + a_d)).sqrt();
-            x_a = (v_l * v_l - v_i * v_i) / (2.0 * a_a);
-            x_d = (v_l * v_l - v_f * v_f) / (2.0 * a_d);
+            v_limit = ((2.0 * a_acc * a_dec * x_distance + v_initial * v_initial * a_dec
+                - v_final * v_final * a_acc)
+                / (a_acc + a_dec))
+                .sqrt();
+            x_acc = (v_limit * v_limit - v_initial * v_initial) / (2.0 * a_acc);
+            x_dec = (v_limit * v_limit - v_final * v_final) / (2.0 * a_dec);
         }
 
-        if x_a + x_d > x_t {
+        if x_acc + x_dec > x_distance {
             panic!("Cannot reach x_t")
         }
 
+        let x_target = x_distance + x_initial;
+
         ForwardTrajectory {
-            x_target: x_t,
-            x_current: 0.0,
-            x_a,
-            x_d,
-            v_current: v_i,
-            v_limit: v_l,
-            v_initial: v_i,
-            v_final: v_f,
-            a_accel: a_a,
-            a_decel: a_d,
+            x_initial,
+            x_target: x_target,
+            x_current: x_initial,
+            x_a: x_acc + x_initial,
+            x_d: x_target - x_dec,
+            v_current: v_initial,
+            v_limit,
+            v_initial,
+            v_final,
+            a_accel: a_acc,
+            a_decel: a_dec,
             phase: ForwardPhase::Acceleration,
             stop_count: 0,
         }
@@ -85,12 +100,15 @@ impl GenerateTrajectory for ForwardTrajectory {
                 }
             }
             ForwardPhase::ConstantVelocity => {
-                if self.x_target - self.x_d <= self.x_current {
+                if self.x_d <= self.x_current {
                     self.phase = ForwardPhase::Deceleration;
                 }
             }
             ForwardPhase::Deceleration => {
                 self.v_current -= self.a_decel * 0.001;
+                if self.v_current < 0.0 {
+                    self.v_current = 0.05;
+                }
                 if self.x_target <= self.x_current {
                     self.v_current = self.v_final;
                     if self.v_final < 0.001 {
