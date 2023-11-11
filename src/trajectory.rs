@@ -122,7 +122,7 @@ impl GenerateTrajectory for ForwardTrajectory {
             ForwardPhase::Stop => {
                 self.v_current = self.v_final;
                 self.x_current = self.x_target;
-                if self.stop_count > 300 {
+                if self.stop_count > 50 {
                     is_end = true
                 } else {
                     self.stop_count += 1;

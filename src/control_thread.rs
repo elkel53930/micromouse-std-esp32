@@ -261,7 +261,7 @@ fn go(ctx: &mut ControlContext) -> anyhow::Result<()> {
         let motor_l = ff_ctrl + position_x_ctrl + velocity_ctrl - theta_ctrl - omega_ctrl;
         let motor_r = ff_ctrl + position_x_ctrl + velocity_ctrl + theta_ctrl + omega_ctrl;
 
-        motor::set_l(motor_l * 1.3);
+        motor::set_l(motor_l);
         motor::set_r(motor_r);
 
         let current_ms = crate::timer_interrupt::get_ms();
@@ -412,27 +412,31 @@ pub fn init(
     let i = config.load_f64("sr_omega_i", 0.0) as f32;
     let d = config.load_f64("sr_omega_d", 0.5) as f32;
     let i_limit = config.load_f64("sr_omega_i_limit", 0.5) as f32;
-    let sr_omega_pid = pid::Pid::new(p, i, d, i_limit);
+    let dead_zone = config.load_f64("sr_omega_dead_zone", 0.0) as f32;
+    let sr_omega_pid = pid::Pid::new(p, i, d, i_limit, dead_zone);
 
     let p = config.load_f64("sr_position_x_p", 0.5) as f32;
     let i = config.load_f64("sr_position_x_i", 0.0) as f32;
     let d = config.load_f64("sr_position_x_d", 0.5) as f32;
     let i_limit = config.load_f64("sr_position_x_i_limit", 0.5) as f32;
-    let sr_position_x_pid = pid::Pid::new(p, i, d, i_limit);
+    let dead_zone = config.load_f64("sr_position_x_dead_zone", 0.001) as f32;
+    let sr_position_x_pid = pid::Pid::new(p, i, d, i_limit, dead_zone);
 
     // velocity PID
     let p = config.load_f64("sr_velocity_p", 0.5) as f32;
     let i = config.load_f64("sr_velocity_i", 0.0) as f32;
     let d = config.load_f64("sr_velocity_d", 0.5) as f32;
     let i_limit = config.load_f64("sr_velocity_i_limit", 0.5) as f32;
-    let sr_velocity_pid = pid::Pid::new(p, i, d, i_limit);
+    let dead_zone = config.load_f64("sr_velocity_dead_zone", 0.0) as f32;
+    let sr_velocity_pid = pid::Pid::new(p, i, d, i_limit, dead_zone);
 
     // Theta PID
     let p = config.load_f64("sr_theta_p", 0.5) as f32;
     let i = config.load_f64("sr_theta_i", 0.0) as f32;
     let d = config.load_f64("sr_theta_d", 0.5) as f32;
     let i_limit = config.load_f64("sr_theta_i_limit", 0.5) as f32;
-    let sr_theta_pid = pid::Pid::new(p, i, d, i_limit);
+    let dead_zone = config.load_f64("sr_theta_dead_zone", 0.0) as f32;
+    let sr_theta_pid = pid::Pid::new(p, i, d, i_limit, dead_zone);
 
     let spd_cfg: SpeedConfig = SpeedConfig {
         velocity: config.load_f64("sr_velocity", 0.1) as f32,
