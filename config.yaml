@@ -41,11 +41,6 @@ sr_position_x_i: 1.0
 sr_position_x_d: 100.0
 sr_position_x_i_limit: 5.0
 
-sr_position_y_p: 20.0
-sr_position_y_i: 5.0
-sr_position_y_d: 0.0
-sr_position_y_i_limit: 3.0
-
 sr_velocity_p: 30.0
 sr_velocity_i: 0.0
 sr_velocity_d: 5.0

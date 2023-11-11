@@ -9,6 +9,7 @@ pub enum ForwardPhase {
     Acceleration,
     ConstantVelocity,
     Deceleration,
+    Stop,
 }
 
 pub struct ForwardTrajectory {
@@ -22,6 +23,8 @@ pub struct ForwardTrajectory {
     pub v_final: f32,   // final velocity
     pub a_accel: f32,   // acceleration
     pub a_decel: f32,   // deceleration
+
+    pub stop_count: u16,
 
     pub phase: ForwardPhase,
 }
@@ -59,6 +62,7 @@ impl ForwardTrajectory {
             a_accel: a_a,
             a_decel: a_d,
             phase: ForwardPhase::Acceleration,
+            stop_count: 0,
         }
     }
 }
@@ -89,7 +93,21 @@ impl GenerateTrajectory for ForwardTrajectory {
                 self.v_current -= self.a_decel * 0.001;
                 if self.x_target <= self.x_current {
                     self.v_current = self.v_final;
-                    is_end = true;
+                    if self.v_final < 0.001 {
+                        self.phase = ForwardPhase::Stop;
+                        self.stop_count = 0;
+                    } else {
+                        is_end = true;
+                    }
+                }
+            }
+            ForwardPhase::Stop => {
+                self.v_current = self.v_final;
+                self.x_current = self.x_target;
+                if self.stop_count > 300 {
+                    is_end = true
+                } else {
+                    self.stop_count += 1;
                 }
             }
         }
