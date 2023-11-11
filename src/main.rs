@@ -92,11 +92,11 @@ fn main() -> anyhow::Result<()> {
                 wall_sensor.ls_raw.unwrap_or(0),
             )
         };
-        if ls > 300 {
+        if ls > 1200 {
             goto_console = true;
             break;
         }
-        if rs > 300 {
+        if rs > 1200 {
             break;
         }
     }
@@ -134,14 +134,17 @@ fn main() -> anyhow::Result<()> {
 
     ctx.command_tx
         .send(control_thread::Command::Start(0.017 + 0.045))?;
-    uprintln!("Start");
-    let response = ctx.response_rx.recv().unwrap(); // Wait for CommandRequest
-    uprintln!("{:?}\nStop", response);
-    ctx.led_tx.send((Red, Some("0")))?;
-    ctx.led_tx.send((Blue, Some("1")))?;
+    let _response = ctx.response_rx.recv().unwrap(); // Wait for CommandRequest
+
     ctx.command_tx.send(control_thread::Command::Stop)?;
-    let response = ctx.response_rx.recv().unwrap(); // Wait for CommandRequest
-    uprintln!("{:?}\nStart", response);
+    let _response = ctx.response_rx.recv().unwrap(); // Wait for CommandRequest
+
+    ctx.command_tx.send(control_thread::Command::TurnR)?;
+    let _response = ctx.response_rx.recv().unwrap(); // Wait for CommandRequest
+
+    ctx.command_tx.send(control_thread::Command::Stop)?;
+    let _response = ctx.response_rx.recv().unwrap(); // Wait for CommandRequest
+
     ctx.led_tx.send((Green, Some("1")))?;
 
     ctx.led_tx.send((Red, Some("0")))?;

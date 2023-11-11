@@ -68,6 +68,7 @@ enum State {
     WallSensorActive,
     Start(f32),
     Stop,
+    TurnR,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -77,6 +78,7 @@ pub enum Command {
     InactivateWallSensor,
     Start(f32),
     Stop,
+    TurnR,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -265,14 +267,10 @@ fn go(ctx: &mut ControlContext) -> anyhow::Result<()> {
         motor::set_r(motor_r);
 
         let current_ms = crate::timer_interrupt::get_ms();
-        //        if current_ms - ms_counter > 1 {
-        //            let _ = crate::led::on(crate::led::LedColor::Red);
-        //        } else {
-        //            let _ = crate::led::off(crate::led::LedColor::Red);
-        //        }
-
-        if current_ms % 100 == 0 {
-            let _ = crate::led::toggle(crate::led::LedColor::Red);
+        if current_ms - ms_counter > 1 {
+            let _ = crate::led::on(crate::led::LedColor::Red);
+        } else {
+            let _ = crate::led::off(crate::led::LedColor::Red);
         }
 
         ms_counter = current_ms;
@@ -367,6 +365,69 @@ fn stop(ctx: &mut ControlContext) -> anyhow::Result<State> {
     Ok(State::Idle)
 }
 
+fn turn_r(ctx: &mut ControlContext) -> anyhow::Result<State> {
+    stop(ctx)?;
+
+    reset_micromouse_state(ctx);
+
+    ctx.sr_position_x_pid.reset();
+    ctx.sr_velocity_pid.reset();
+    ctx.sr_theta_pid.reset();
+    ctx.sr_omega_pid.reset();
+
+    let target_x = 0.0;
+    let target_v = 0.0;
+
+    motor::enable(true);
+
+    for step in 0..1000 {
+        measure(ctx, true)?;
+        update(ctx);
+
+        let omega_target;
+        let mut theta_target = std::f32::consts::PI * (step as f32 / 1000.0);
+        if theta_target > std::f32::consts::PI / 2.0 {
+            theta_target = std::f32::consts::PI / 2.0;
+            omega_target = 0.0;
+        } else {
+            omega_target = std::f32::consts::PI; // rad/s
+        }
+
+        theta_target = -theta_target;
+
+        let micromouse = {
+            let micromouse = ctx.ods.micromouse.lock().unwrap();
+            micromouse.clone()
+        };
+
+        let position_x_error = target_x - micromouse.x;
+        let position_x_ctrl = ctx.sr_position_x_pid.update(position_x_error);
+
+        let velocity_error = target_v - micromouse.v;
+        let velocity_ctrl = ctx.sr_velocity_pid.update(velocity_error);
+
+        let theta_error = theta_target - micromouse.theta;
+        let theta_ctrl = ctx.sr_theta_pid.update(theta_error);
+
+        let omega_error = omega_target - micromouse.omega;
+        let omega_ctrl = ctx.sr_omega_pid.update(omega_error);
+
+        let ff_ctrl = ctx.sr_ff_rate * target_v;
+
+        let motor_l = ff_ctrl + position_x_ctrl + velocity_ctrl - theta_ctrl - omega_ctrl;
+        let motor_r = ff_ctrl + position_x_ctrl + velocity_ctrl + theta_ctrl + omega_ctrl;
+
+        motor::set_l(motor_l);
+        motor::set_r(motor_r);
+
+        sync_ms();
+    }
+
+    motor::enable(false);
+
+    start(ctx, 0.045)
+}
+
 fn idle(ctx: &mut ControlContext, wall_sensor_active: bool) -> anyhow::Result<State> {
     loop {
         let cmd = ctx.command_rx.try_recv();
@@ -386,6 +447,9 @@ fn idle(ctx: &mut ControlContext, wall_sensor_active: bool) -> anyhow::Result<St
                 }
                 Command::Stop => {
                     return Ok(State::Stop);
+                }
+                Command::TurnR => {
+                    return Ok(State::TurnR);
                 }
             }
         } else {
@@ -526,6 +590,9 @@ pub fn init(
                 }
                 State::Stop => {
                     state = stop(&mut ctx)?;
+                }
+                State::TurnR => {
+                    state = turn_r(&mut ctx)?;
                 }
             }
         }

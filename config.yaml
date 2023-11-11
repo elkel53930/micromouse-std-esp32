@@ -8,17 +8,18 @@ battery_correction_table:
 
 # Gyro configuration
 gyro_fir_coefficients:
- - -2.494829972812401e-18
- - -7.851195903558143e-03
- - 4.014735544403485e-02
- - -1.032535402203297e-01
- - 1.706609016841135e-01
- - 8.000000000000000e-01
- - 1.706609016841135e-01
- - -1.032535402203297e-01
- - 4.014735544403485e-02
- - -7.851195903558143e-03
- - -2.494829972812401e-18
+- 1.0
+# - -2.494829972812401e-18
+# - -7.851195903558143e-03
+# - 4.014735544403485e-02
+# - -1.032535402203297e-01
+# - 1.706609016841135e-01
+# - 8.000000000000000e-01
+# - 1.706609016841135e-01
+# - -1.032535402203297e-01
+# - 4.014735544403485e-02
+# - -7.851195903558143e-03
+# - -2.494829972812401e-18
 
 gyro_correction_table: # binary raw value to rad/s
  - [-32768, -40.03366425054514]
@@ -40,7 +41,7 @@ gear_ratio: 2.0
 # PID parameters
 sr_omega_p: 2.5
 sr_omega_i: 0.0
-sr_omega_d: 1
+sr_omega_d: 1.0
 sr_omega_i_limit: 0.0
 sr_omega_dead_zone: 0.1
 
@@ -56,9 +57,9 @@ sr_velocity_d: 10.0
 sr_velocity_i_limit: 0.0
 sr_velocity_dead_zone: 0.0
 
-sr_theta_p: 15.0
+sr_theta_p: 10.0
 sr_theta_i: 1.0
-sr_theta_d: 6.0
+sr_theta_d: 2.0
 sr_theta_i_limit: 3.0
 sr_theta_dead_zone: 0.0
 
