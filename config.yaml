@@ -4,8 +4,8 @@ rs_reference: 415
 ls_reference: 332
 
 rs_threshold: 200
-rf_threshold: 50
-lf_threshold: 400
+rf_threshold: 30
+lf_threshold: 330
 ls_threshold: 130
 
 # Battery

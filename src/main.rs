@@ -208,6 +208,18 @@ fn search_run(ctx: &mut OperationContext) -> anyhow::Result<()> {
             wall_sensor.clone()
         };
 
+        flog!(
+            "ls {}({}), lf {}({}), rf {}({}), rs {}({}), ",
+            wall_sensor.ls_raw.unwrap(),
+            wall_sensor.ls.unwrap(),
+            wall_sensor.lf_raw.unwrap(),
+            wall_sensor.lf.unwrap(),
+            wall_sensor.rf_raw.unwrap(),
+            wall_sensor.rf.unwrap(),
+            wall_sensor.rs_raw.unwrap(),
+            wall_sensor.rs.unwrap()
+        );
+
         if wall_sensor.ls.unwrap() {
             local_maze.set_wall2(y, x, d, maze::Facing::Left, maze::Wall::Present);
         } else {
@@ -218,20 +230,21 @@ fn search_run(ctx: &mut OperationContext) -> anyhow::Result<()> {
         } else {
             local_maze.set_wall2(y, x, d, maze::Facing::Right, maze::Wall::Absent);
         }
-        if wall_sensor.rf.unwrap() {
+        if wall_sensor.rf.unwrap() || wall_sensor.lf.unwrap() {
             local_maze.set_wall2(y, x, d, maze::Facing::Forward, maze::Wall::Present);
         } else {
             local_maze.set_wall2(y, x, d, maze::Facing::Forward, maze::Wall::Absent);
         }
 
+        let new_dir;
         let dir_to_go =
             match solver::decide_direction(&local_maze, goal_x, goal_y, y, x, &mut stepmap) {
                 Some(dir_to_go) => {
                     let (update_x, update_y) = maze::nsew_to_index(dir_to_go);
                     x = ((x as isize) + update_x) as usize;
                     y = ((y as isize) + update_y) as usize;
-                    d = dir_to_go;
                     flog!("x:{}, y:{}, d:{:?}, go:{:?}, ", x, y, d, dir_to_go);
+                    new_dir = dir_to_go;
                     maze::nsew_to_fblr(d, dir_to_go)
                 }
                 None => {
@@ -240,6 +253,7 @@ fn search_run(ctx: &mut OperationContext) -> anyhow::Result<()> {
                     break;
                 }
             };
+        d = new_dir;
 
         cmd = match dir_to_go {
             maze::DirectionOfTravel::Forward => Command::Forward,
@@ -253,5 +267,10 @@ fn search_run(ctx: &mut OperationContext) -> anyhow::Result<()> {
     ctx.command_tx.send(Command::Stop)?;
 
     FreeRtos::delay_ms(2000);
+
+    for line in local_maze.lines_iter(goal_x, goal_y) {
+        flogln!("{}", line);
+    }
+
     Ok(())
 }
