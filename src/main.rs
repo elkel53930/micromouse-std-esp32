@@ -7,11 +7,14 @@ use std::sync::Arc;
 #[macro_use]
 pub mod uart;
 
+#[macro_use]
+pub mod fram_logger;
+use crate::fram_logger::fram_print;
+
 mod config;
 mod console;
 mod control_thread;
 mod encoder;
-mod fram_logger;
 pub mod imu;
 mod led;
 mod log_thread;
@@ -39,6 +42,7 @@ pub struct OperationContext {
     pub led_tx: Sender<led::Command>,
     pub command_tx: Sender<control_thread::Command>,
     pub response_rx: Receiver<control_thread::Response>,
+    pub log_tx: Sender<log_thread::LogCommand>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -49,6 +53,7 @@ fn main() -> anyhow::Result<()> {
         led_tx: mpsc::channel().0,
         command_tx: mpsc::channel().0,
         response_rx: mpsc::channel().1,
+        log_tx: mpsc::channel().0,
     };
 
     let mut peripherals = Peripherals::take().unwrap();
@@ -61,6 +66,7 @@ fn main() -> anyhow::Result<()> {
 
     // Start log thread
     let log_tx = log_thread::init(&mut ctx.ods)?;
+    ctx.log_tx = log_tx.clone();
 
     {
         let yaml_config = config::YamlConfig::new("/sf/config.yaml".to_string())?;
@@ -199,11 +205,11 @@ fn main() -> anyhow::Result<()> {
                     let (update_x, update_y) = maze::nsew_to_index(dir_to_go);
                     x = ((x as isize) + update_x) as usize;
                     y = ((y as isize) + update_y) as usize;
+                    d = dir_to_go;
                     maze::nsew_to_fblr(d, dir_to_go)
                 }
                 None => {
                     ctx.led_tx.send((Red, Some("0001")))?;
-                    println!("Cannot reach the goal!");
                     break;
                 }
             };

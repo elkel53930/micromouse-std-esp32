@@ -48,6 +48,8 @@ impl Console {
             Box::new(CmdReset {}),
             Box::new(CmdConfig {}),
             Box::new(CmdBatt {}),
+            Box::new(CmdFlog {}),
+            Box::new(CmdFread {}),
             Box::new(file::CmdFt {}),
             Box::new(file::CmdDl {}),
             Box::new(file::CmdShow {}),
@@ -472,5 +474,67 @@ impl ConsoleCommand for CmdBatt {
 
     fn name(&self) -> &str {
         "batt"
+    }
+}
+
+// Write strings to FRAM using flogln! macro.
+struct CmdFlog {}
+
+impl ConsoleCommand for CmdFlog {
+    fn execute(&self, args: &[&str], mut _ctx: &OperationContext) -> anyhow::Result<()> {
+        if args.len() != 1 {
+            return Err(anyhow::anyhow!("Invalid argument"));
+        }
+
+        flogln!("{}", args[0]);
+
+        return Ok(());
+    }
+
+    fn hint(&self) {
+        uprintln!("Write strings to FRAM using flogln! macro.");
+        uprintln!("Usage: flog [string]");
+    }
+
+    fn name(&self) -> &str {
+        "flog"
+    }
+}
+
+// Read strings from FRAM, until the read data is null.
+struct CmdFread {}
+
+impl ConsoleCommand for CmdFread {
+    fn execute(&self, args: &[&str], mut _ctx: &OperationContext) -> anyhow::Result<()> {
+        if args.len() != 0 {
+            return Err(anyhow::anyhow!("Invalid argument"));
+        }
+
+        let mut buffer: [u8; 32] = [0; 32];
+        let mut adrs = 0;
+        let mut flag = true;
+
+        while flag {
+            crate::fram_logger::read_fram(adrs, &mut buffer)?;
+            adrs += buffer.len() as u16;
+            for b in buffer {
+                if b == 0 {
+                    flag = false;
+                    break;
+                }
+                uprint!("{}", b as char);
+            }
+        }
+
+        return Ok(());
+    }
+
+    fn hint(&self) {
+        uprintln!("Read strings from FRAM");
+        uprintln!("Usage: fread");
+    }
+
+    fn name(&self) -> &str {
+        "fread"
     }
 }
