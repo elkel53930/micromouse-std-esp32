@@ -20,7 +20,7 @@ def receive_file(filename):
 	# Send dl command
 	fullpath = "/sf/" + filename
 	command = f"dl {fullpath}\n"
-	print(command)
+	print(command, end='')
 	ser.write(command.encode('ascii'))
 
 	# Receive file size
@@ -30,13 +30,24 @@ def receive_file(filename):
 
 	# Download
 	ser.write("\n".encode('ascii'))
-	data = ser.read(file_size)
+
+	loop_count = file_size // 1024 + 1
 
 	if not os.path.exists(dir_name):
 		os.makedirs(dir_name)
 
 	with open(dir_name + filename, 'wb') as f:
-		f.write(data)
+		total_read = 0
+		print(f"Downloading {filename}...")
+		for i in range(0, loop_count):
+			read_size = min(1024, file_size - i * 1024)
+			data = ser.read(read_size)
+			f.write(data)
+			total_read += len(data)
+
+			# Print progress without newline
+			print(f"\r{total_read}/{file_size}", end='')
+	print("")
 
 	ser.close()
 
