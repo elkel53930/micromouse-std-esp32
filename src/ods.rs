@@ -24,6 +24,10 @@ pub struct OdsWallSensor {
     pub lf_raw: Option<u16>,
     pub rf_raw: Option<u16>,
     pub rs_raw: Option<u16>,
+    pub ls: Option<bool>,
+    pub lf: Option<bool>,
+    pub rf: Option<bool>,
+    pub rs: Option<bool>,
     pub batt_raw: u16,
     pub batt_phy: f32,
 }

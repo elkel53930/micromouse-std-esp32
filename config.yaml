@@ -1,5 +1,12 @@
 # Wall sensor configuration
 led_rise_time: 40 # [us]
+rs_reference: 415
+ls_reference: 332
+
+rs_threshold: 200
+rf_threshold: 50
+lf_threshold: 400
+ls_threshold: 130
 
 # Battery
 battery_correction_table:
@@ -24,6 +31,7 @@ gyro_fir_coefficients:
 gyro_correction_table: # binary raw value to rad/s
  - [-32768, -40.03366425054514]
  - [32767, 40.032442520068734]
+gyro_correction_coefficient: 0.97
 
 # Encoder configuration
 enc_fir_coefficients:
@@ -33,13 +41,13 @@ enc_fir_coefficients:
  - 0.25
 
 # Hardware constants
-wheel_diameter: 13.5 # [mm]
+wheel_diameter: 14.0 # [mm]
 gear_ratio: 2.0
 
 
 # Configuration for search run
 # PID parameters
-sr_omega_p: 2.5
+sr_omega_p: 4.0
 sr_omega_i: 0.0
 sr_omega_d: 1.0
 sr_omega_i_limit: 0.0
@@ -57,11 +65,17 @@ sr_velocity_d: 10.0
 sr_velocity_i_limit: 0.0
 sr_velocity_dead_zone: 0.0
 
-sr_theta_p: 10.0
-sr_theta_i: 1.0
-sr_theta_d: 2.0
-sr_theta_i_limit: 3.0
+sr_theta_p: 35.0
+sr_theta_i: 4.0
+sr_theta_d: 10.0
+sr_theta_i_limit: 5.0
 sr_theta_dead_zone: 0.0
+
+sr_wall_p: 0.5
+sr_wall_i: 0.0
+sr_wall_d: 0.1
+sr_wall_i_limit: 0.0
+sr_wall_dead_zone: 0.0
 
 sr_ff_rate: 0.0
 
