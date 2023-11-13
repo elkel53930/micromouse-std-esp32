@@ -56,6 +56,8 @@ struct SpeedConfig {
 
 struct ControlContext {
     ods: Arc<ods::Ods>,
+
+    #[allow(unused)]
     log_tx: Sender<log_thread::LogCommand>,
 
     response_tx: Sender<Response>,
@@ -275,7 +277,7 @@ fn gyro_calibration(ctx: &mut ControlContext) -> anyhow::Result<State> {
 }
 
 fn go(ctx: &mut ControlContext, command_request: bool) -> anyhow::Result<()> {
-    let mut ms_counter = crate::timer_interrupt::get_ms() - 1;
+    let mut ms_counter;
 
     let mut has_request_issued = false;
 

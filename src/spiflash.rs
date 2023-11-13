@@ -41,13 +41,6 @@ pub fn mount() {
     }
 }
 
-pub fn path(path: &str) -> String {
-    if path.starts_with("/") {
-        return format!("{}{}", BASE_PATH_RAW, path);
-    }
-    format!("{}/{}", BASE_PATH_RAW, path)
-}
-
 /*
 usage
 
