@@ -6,6 +6,8 @@ use esp_idf_hal::peripheral::Peripheral;
 use esp_idf_hal::prelude::*;
 use esp_idf_hal::units::Hertz;
 
+use std::io::Write as _;
+
 const I2C_ADDRESS: u8 = 0x50;
 static mut I2C: Option<I2cDriver<'static>> = None;
 static mut CURSOR: u16 = 0;
@@ -54,6 +56,8 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
     Ok(())
 }
 
+// flogln! and flog! are macros that write to FRAM.
+
 use core::fmt::{self, Write};
 
 pub fn fram_print(args: fmt::Arguments) {
@@ -89,7 +93,6 @@ fn write(s: &str) -> fmt::Result {
 impl Write for FramWriter {
     fn write_str(&mut self, s: &str) -> Result<(), std::fmt::Error> {
         // Write 30 bytes each
-        uprintln!("Writing to FRAM {} {}", unsafe { CURSOR }, s);
         let mut i = 0;
         while i < s.len() {
             let mut j = i + 30;
@@ -101,4 +104,82 @@ impl Write for FramWriter {
         }
         core::result::Result::Ok(())
     }
+}
+
+pub fn move_fram_to_flash() {
+    let mut buffer: [u8; 32] = [0; 32];
+    let mut adrs = 0;
+    let mut flag = true;
+
+    let _ = std::fs::remove_file("/sf/log10.txt");
+    for n in (0..10).rev() {
+        let name_from = format!("log{:02}.txt", n);
+        let name_to = format!("log{:02}.txt", n + 1);
+        let result = std::fs::rename(format!("/sf/{}", name_from), format!("/sf/{}", name_to));
+        println!("{:?}", result);
+    }
+
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open("/sf/log00.txt")
+        .unwrap();
+
+    while flag {
+        let mut size = 0;
+        read_fram(adrs, &mut buffer).unwrap();
+        adrs += buffer.len() as u16;
+        for b in buffer {
+            size += 1;
+            if b == 0 {
+                flag = false;
+                break;
+            }
+        }
+        file.write_all(&buffer[..size]).unwrap();
+    }
+
+    uprintln!("Data in FRAM has been copied to log00.txt.");
+}
+
+// panic hander with FRAM
+
+use log::{Level, Metadata, Record};
+pub struct FramLogger;
+
+impl log::Log for FramLogger {
+    fn enabled(&self, metadata: &Metadata) -> bool {
+        metadata.level() <= Level::Info
+    }
+
+    fn log(&self, record: &Record) {
+        if self.enabled(record.metadata()) {
+            flogln!("{} - {}", record.level(), record.args());
+            uprintln!("{} - {}", record.level(), record.args());
+        }
+    }
+
+    fn flush(&self) {}
+}
+
+use std::panic::{self, PanicInfo};
+
+fn fram_panic_handler(info: &PanicInfo) {
+    if let Some(location) = info.location() {
+        flogln!(
+            "Panic occurred in file '{}' at line {}",
+            location.file(),
+            location.line()
+        );
+    } else {
+        flogln!("Panic occurred but can't get location information...");
+    }
+    flogln!("{}", info);
+}
+
+pub fn fram_logger_init() {
+    panic::set_hook(Box::new(fram_panic_handler));
+    log::set_boxed_logger(Box::new(FramLogger))
+        .map(|()| log::set_max_level(log::LevelFilter::Info))
+        .unwrap();
 }

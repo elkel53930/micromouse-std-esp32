@@ -263,3 +263,36 @@ impl ConsoleCommand for CmdMv {
         "mv"
     }
 }
+
+// Show the latest log file
+// This command is the same as "show /sf/log00.txt"
+pub struct CmdLog {}
+
+impl ConsoleCommand for CmdLog {
+    fn execute(&self, args: &[&str], mut _ctx: &OperationContext) -> anyhow::Result<()> {
+        let log_number;
+        if args.len() > 2 {
+            return Err(anyhow::anyhow!("Invalid argument"));
+        } else if args.len() == 0 {
+            log_number = 0;
+        } else {
+            log_number = match args[0].parse::<u8>() {
+                Ok(v) => v,
+                Err(e) => return Err(anyhow::anyhow!("Invalid log number: {}", e)),
+            };
+        }
+
+        let show = CmdShow {};
+        let filename = format!("/sf/log{:02}.txt", log_number);
+        show.execute(&[&filename], &mut _ctx)
+    }
+
+    fn hint(&self) {
+        uprintln!("Show log file");
+        uprintln!("Usage: log [log number]");
+    }
+
+    fn name(&self) -> &str {
+        "log"
+    }
+}

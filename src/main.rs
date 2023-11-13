@@ -45,6 +45,32 @@ pub struct OperationContext {
     pub log_tx: Sender<log_thread::LogCommand>,
 }
 
+fn boot_count() -> u32 {
+    use std::fs::{File, OpenOptions};
+    use std::io::{Read, Write};
+    use std::path::Path;
+    let path = Path::new("/sf/boot_count");
+
+    let count = if path.exists() {
+        let mut file = File::open(path).unwrap();
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).unwrap();
+        contents.trim().parse::<u32>().unwrap_or(0)
+    } else {
+        0
+    };
+
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(path)
+        .unwrap();
+    write!(file, "{}", count + 1).unwrap();
+
+    count
+}
+
 fn main() -> anyhow::Result<()> {
     esp_idf_sys::link_patches();
 
@@ -64,6 +90,8 @@ fn main() -> anyhow::Result<()> {
     // File system initialization
     spiflash::mount();
 
+    let boot_count = boot_count();
+
     // Start log thread
     let log_tx = log_thread::init(&mut ctx.ods)?;
     ctx.log_tx = log_tx.clone();
@@ -75,6 +103,7 @@ fn main() -> anyhow::Result<()> {
         motor::init(&mut peripherals)?;
         wall_sensor::init(&mut peripherals)?;
         fram_logger::init(&mut peripherals)?;
+        fram_logger::move_fram_to_flash();
         imu::init(&mut peripherals)?;
         encoder::init(&mut peripherals)?;
 
@@ -87,6 +116,11 @@ fn main() -> anyhow::Result<()> {
     FreeRtos::delay_ms(100);
     uart::init(&mut peripherals)?;
     // After uart:init, you can use uprintln.
+
+    fram_logger::fram_logger_init();
+
+    uprintln!("Boot count: {}", boot_count);
+    flogln!("Boot count: {}", boot_count);
 
     ctx.led_tx.send((Blue, Some("10")))?;
 
@@ -145,25 +179,16 @@ fn main() -> anyhow::Result<()> {
     ctx.led_tx.send((Blue, None))?;
     ctx.led_tx.send((Green, None))?;
 
-    let mut cmd = Command::Start(0.017 + 0.045);
-    for _ in 0..10 {
-        ctx.command_tx.send(cmd)?;
-        let _response = ctx.response_rx.recv().unwrap(); // Wait for CommandRequest
-        let wall_sensor = {
-            let wall_sensor = ctx.ods.wall_sensor.lock().unwrap();
-            wall_sensor.clone()
-        };
-        if !wall_sensor.rs.unwrap() {
-            cmd = Command::TurnR;
-        } else if !wall_sensor.ls.unwrap() {
-            cmd = Command::TurnL;
-        } else if !wall_sensor.rf.unwrap() {
-            cmd = Command::Forward;
-        } else {
-            cmd = Command::TurnBack;
-        }
-    }
+    search_run(&mut ctx)?;
 
+    ctx.led_tx.send((Green, Some("1")))?;
+
+    ctx.led_tx.send((Red, Some("0")))?;
+
+    console.run(&ctx)
+}
+
+fn search_run(ctx: &mut OperationContext) -> anyhow::Result<()> {
     let mut stepmap = solver::StepMap::new();
     let mut local_maze = maze::Maze::new();
 
@@ -206,9 +231,11 @@ fn main() -> anyhow::Result<()> {
                     x = ((x as isize) + update_x) as usize;
                     y = ((y as isize) + update_y) as usize;
                     d = dir_to_go;
+                    flog!("x:{}, y:{}, d:{:?}, go:{:?}, ", x, y, d, dir_to_go);
                     maze::nsew_to_fblr(d, dir_to_go)
                 }
                 None => {
+                    flogln!("Can not reach the goal.");
                     ctx.led_tx.send((Red, Some("0001")))?;
                     break;
                 }
@@ -220,15 +247,11 @@ fn main() -> anyhow::Result<()> {
             maze::DirectionOfTravel::Right => Command::TurnR,
             maze::DirectionOfTravel::Backward => Command::TurnBack,
         };
+        flogln!("cmd:{:?}", cmd);
     }
 
     ctx.command_tx.send(Command::Stop)?;
 
     FreeRtos::delay_ms(2000);
-
-    ctx.led_tx.send((Green, Some("1")))?;
-
-    ctx.led_tx.send((Red, Some("0")))?;
-
-    console.run(&ctx)
+    Ok(())
 }

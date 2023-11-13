@@ -4,7 +4,7 @@ use std::io::Write;
 use std::sync::mpsc::{self, Sender};
 use std::sync::Arc;
 
-const LOG_FILE_NAME: &str = "/sf/log.csv";
+const LOG_FILE_NAME: &str = "/sf/log{:02}.csv";
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Log {
@@ -74,7 +74,15 @@ pub fn init(ods: &Arc<ods::Ods>) -> anyhow::Result<Sender<LogCommand>> {
                 let command = rx.recv().unwrap();
                 if command == LogCommand::Start {
                     uprintln!("[Log] Started");
-                    let _ = fs::remove_file(LOG_FILE_NAME);
+                    let _ = std::fs::remove_file("/sf/log10.csv");
+                    for n in (0..10).rev() {
+                        let name_from = format!("log{:02}.csv", n);
+                        let name_to = format!("log{:02}.csv", n + 1);
+                        let _ = std::fs::rename(
+                            format!("/sf/{}", name_from),
+                            format!("/sf/{}", name_to),
+                        );
+                    }
                     break;
                 }
             }

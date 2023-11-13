@@ -50,12 +50,14 @@ impl Console {
             Box::new(CmdBatt {}),
             Box::new(CmdFlog {}),
             Box::new(CmdFread {}),
+            Box::new(CmdPanic {}),
             Box::new(file::CmdFt {}),
             Box::new(file::CmdDl {}),
             Box::new(file::CmdShow {}),
             Box::new(file::CmdLs {}),
             Box::new(file::CmdRm {}),
             Box::new(file::CmdMv {}),
+            Box::new(file::CmdLog {}),
         ];
         Console { commands }
     }
@@ -536,5 +538,27 @@ impl ConsoleCommand for CmdFread {
 
     fn name(&self) -> &str {
         "fread"
+    }
+}
+
+// Intentionally panic.
+struct CmdPanic {}
+
+impl ConsoleCommand for CmdPanic {
+    fn execute(&self, args: &[&str], mut _ctx: &OperationContext) -> anyhow::Result<()> {
+        if args.len() != 0 {
+            return Err(anyhow::anyhow!("Invalid argument"));
+        }
+
+        panic!("Intentionally panic");
+    }
+
+    fn hint(&self) {
+        uprintln!("Intentionally panic.");
+        uprintln!("Usage: panic");
+    }
+
+    fn name(&self) -> &str {
+        "panic"
     }
 }
