@@ -139,26 +139,10 @@ fn measure(ctx: &mut ControlContext, wall_sensor_active: bool) -> anyhow::Result
         (*ws).rf_raw = Some(rf);
         (*ws).rs_raw = Some(rs);
 
-        if ls > ctx.ws_cfg.ls_threshold {
-            (*ws).ls = Some(true);
-        } else {
-            (*ws).ls = Some(false);
-        }
-        if lf > ctx.ws_cfg.lf_threshold {
-            (*ws).lf = Some(true);
-        } else {
-            (*ws).lf = Some(false);
-        }
-        if rf > ctx.ws_cfg.rf_threshold {
-            (*ws).rf = Some(true);
-        } else {
-            (*ws).rf = Some(false);
-        }
-        if rs > ctx.ws_cfg.rs_threshold {
-            (*ws).rs = Some(true);
-        } else {
-            (*ws).rs = Some(false);
-        }
+        (*ws).ls = Some(ls > ctx.ws_cfg.ls_threshold);
+        (*ws).lf = Some(lf > ctx.ws_cfg.lf_threshold);
+        (*ws).rf = Some(rf > ctx.ws_cfg.rf_threshold);
+        (*ws).rs = Some(rs > ctx.ws_cfg.rs_threshold);
 
         (*ws).batt_raw = batt;
         (*ws).batt_phy = batt_phy;
