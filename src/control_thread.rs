@@ -112,48 +112,68 @@ pub enum Response {
     CommandRequest,
 }
 
-fn measure(ctx: &mut ControlContext, wall_sensor_active: bool) -> anyhow::Result<()> {
+fn measure(
+    ctx: &mut ControlContext,
+    ls_enable: bool,
+    lf_enable: bool,
+    rf_enable: bool,
+    rs_enable: bool,
+) -> anyhow::Result<()> {
     let batt = wall_sensor::read_batt()?;
     let batt_phy = correct_value(&ctx.battery_cfg.correction_table.as_slice(), batt as i16);
 
-    if wall_sensor_active {
+    let (ls_raw, ls) = if ls_enable {
         wall_sensor::on_ls()?;
         wait_us(ctx.ws_cfg.led_rise_time);
         let ls = wall_sensor::read_ls()?;
+        wall_sensor::off()?;
+        (Some(ls), Some(ls > ctx.ws_cfg.ls_threshold))
+    } else {
+        (None, None)
+    };
 
+    let (lf_raw, lf) = if lf_enable {
         wall_sensor::on_lf()?;
         wait_us(ctx.ws_cfg.led_rise_time);
         let lf = wall_sensor::read_lf()?;
+        wall_sensor::off()?;
+        (Some(lf), Some(lf > ctx.ws_cfg.lf_threshold))
+    } else {
+        (None, None)
+    };
 
+    let (rf_raw, rf) = if rf_enable {
         wall_sensor::on_rf()?;
         wait_us(ctx.ws_cfg.led_rise_time);
         let rf = wall_sensor::read_rf()?;
+        wall_sensor::off()?;
+        (Some(rf), Some(rf > ctx.ws_cfg.rf_threshold))
+    } else {
+        (None, None)
+    };
 
+    let (rs_raw, rs) = if rs_enable {
         wall_sensor::on_rs()?;
         wait_us(ctx.ws_cfg.led_rise_time);
         let rs = wall_sensor::read_rs()?;
-
-        let mut ws = ctx.ods.wall_sensor.lock().unwrap();
-        (*ws).ls_raw = Some(ls);
-        (*ws).lf_raw = Some(lf);
-        (*ws).rf_raw = Some(rf);
-        (*ws).rs_raw = Some(rs);
-
-        (*ws).ls = Some(ls > ctx.ws_cfg.ls_threshold);
-        (*ws).lf = Some(lf > ctx.ws_cfg.lf_threshold);
-        (*ws).rf = Some(rf > ctx.ws_cfg.rf_threshold);
-        (*ws).rs = Some(rs > ctx.ws_cfg.rs_threshold);
-
-        (*ws).batt_raw = batt;
-        (*ws).batt_phy = batt_phy;
+        wall_sensor::off()?;
+        (Some(rs), Some(rs > ctx.ws_cfg.rs_threshold))
     } else {
+        (None, None)
+    };
+
+    {
         let mut ws = ctx.ods.wall_sensor.lock().unwrap();
-        (*ws).ls_raw = None;
-        (*ws).lf_raw = None;
-        (*ws).rf_raw = None;
-        (*ws).rs_raw = None;
-        (*ws).batt_raw = batt;
-        (*ws).batt_phy = batt_phy;
+        ws.ls_raw = ls_raw;
+        ws.lf_raw = lf_raw;
+        ws.rf_raw = rf_raw;
+        ws.rs_raw = rs_raw;
+        ws.ls = ls;
+        ws.lf = lf;
+        ws.rf = rf;
+        ws.rs = rs;
+        ws.batt_raw = batt;
+        ws.batt_phy = batt_phy;
     }
 
     wall_sensor::off()?;
@@ -243,7 +263,7 @@ fn gyro_calibration(ctx: &mut ControlContext) -> anyhow::Result<State> {
     }
 
     for _ in 0..1000 {
-        measure(ctx, false)?;
+        measure(ctx, false, false, false, false)?;
         {
             let imu = ctx.ods.imu.lock().unwrap();
             gyro_offset += imu.gyro_x_phy as f32;
@@ -268,7 +288,7 @@ fn go(ctx: &mut ControlContext, command_request: bool) -> anyhow::Result<()> {
     let omega_target = 0.0;
 
     loop {
-        measure(ctx, true)?;
+        measure(ctx, true, true, true, true)?;
         update(ctx);
 
         let is_end = ctx.trajectory.as_mut().unwrap().step();
@@ -400,7 +420,7 @@ fn start(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
 
     // Encoders, etc., use one previous value.
     // Measure the value once to avoid value jumps.
-    measure(ctx, true)?;
+    measure(ctx, true, true, true, true)?;
     sync_ms();
 
     led::on(Red)?;
@@ -476,7 +496,7 @@ fn turn(ctx: &mut ControlContext, direction: TurnDirection) -> anyhow::Result<()
     motor::enable(true);
 
     for step in 0..600 {
-        measure(ctx, true)?;
+        measure(ctx, true, true, true, true)?;
         update(ctx);
 
         let omega_target;
@@ -575,7 +595,13 @@ fn idle(ctx: &mut ControlContext, wall_sensor_active: bool) -> anyhow::Result<St
                 }
             }
         } else {
-            measure(ctx, wall_sensor_active)?;
+            measure(
+                ctx,
+                wall_sensor_active,
+                wall_sensor_active,
+                wall_sensor_active,
+                wall_sensor_active,
+            )?;
             update(ctx);
             sync_ms();
         }
