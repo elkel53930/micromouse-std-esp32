@@ -82,9 +82,8 @@ struct ControlContext {
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 enum State {
-    Idle,
+    Idle(bool, bool, bool, bool),
     GyroCalibration,
-    WallSensorActive,
     Start(f32),
     Forward,
     Stop,
@@ -96,8 +95,7 @@ enum State {
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Command {
     GyroCalibration,
-    ActivateWallSensor,
-    InactivateWallSensor,
+    SetActivateWallSensor(bool, bool, bool, bool),
     Start(f32),
     Forward,
     Stop,
@@ -277,7 +275,7 @@ fn gyro_calibration(ctx: &mut ControlContext) -> anyhow::Result<State> {
     }
     ctx.response_tx.send(Response::Done)?;
     led::off(Blue)?;
-    Ok(State::Idle)
+    Ok(State::Idle(false, false, false, false))
 }
 
 fn go(ctx: &mut ControlContext, command_request: bool) -> anyhow::Result<()> {
@@ -427,7 +425,7 @@ fn start(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<State> {
     go(ctx, true)?;
     led::off(Red)?;
 
-    Ok(State::Idle)
+    Ok(State::Idle(false, false, false, false))
 }
 
 fn forward(ctx: &mut ControlContext) -> anyhow::Result<State> {
@@ -451,7 +449,7 @@ fn forward(ctx: &mut ControlContext) -> anyhow::Result<State> {
     go(ctx, true)?;
     led::off(Blue)?;
 
-    Ok(State::Idle)
+    Ok(State::Idle(false, false, false, false))
 }
 
 fn stop(ctx: &mut ControlContext, command_request: bool) -> anyhow::Result<State> {
@@ -479,7 +477,7 @@ fn stop(ctx: &mut ControlContext, command_request: bool) -> anyhow::Result<State
     motor::set_r(0.0);
     motor::enable(false);
 
-    Ok(State::Idle)
+    Ok(State::Idle(false, false, false, false))
 }
 
 fn turn(ctx: &mut ControlContext, direction: TurnDirection) -> anyhow::Result<()> {
@@ -561,7 +559,13 @@ fn turn_back(ctx: &mut ControlContext, direction: TurnDirection) -> anyhow::Resu
     start(ctx, 0.045)
 }
 
-fn idle(ctx: &mut ControlContext, wall_sensor_active: bool) -> anyhow::Result<State> {
+fn idle(
+    ctx: &mut ControlContext,
+    ls_enable: bool,
+    lf_enable: bool,
+    rf_enable: bool,
+    rs_enable: bool,
+) -> anyhow::Result<State> {
     loop {
         let cmd = ctx.command_rx.try_recv();
         if cmd.is_ok() {
@@ -569,14 +573,11 @@ fn idle(ctx: &mut ControlContext, wall_sensor_active: bool) -> anyhow::Result<St
                 Command::GyroCalibration => {
                     return Ok(State::GyroCalibration);
                 }
-                Command::ActivateWallSensor => {
-                    return Ok(State::WallSensorActive);
+                Command::SetActivateWallSensor(ls, lf, rf, rs) => {
+                    return Ok(State::Idle(ls, lf, rf, rs));
                 }
                 Command::Start(distance) => {
                     return Ok(State::Start(distance));
-                }
-                Command::InactivateWallSensor => {
-                    return Ok(State::Idle);
                 }
                 Command::Forward => {
                     return Ok(State::Forward);
@@ -595,13 +596,7 @@ fn idle(ctx: &mut ControlContext, wall_sensor_active: bool) -> anyhow::Result<St
                 }
             }
         } else {
-            measure(
-                ctx,
-                wall_sensor_active,
-                wall_sensor_active,
-                wall_sensor_active,
-                wall_sensor_active,
-            )?;
+            measure(ctx, ls_enable, lf_enable, rf_enable, rs_enable)?;
             update(ctx);
             sync_ms();
         }
@@ -616,7 +611,7 @@ pub fn init(
     // Message queues
     let (tx_for_ope, rx): (Sender<Command>, Receiver<Command>) = mpsc::channel();
     let (tx, rx_for_ope): (Sender<Response>, Receiver<Response>) = mpsc::channel();
-    let mut state = State::Idle;
+    let mut state = State::Idle(false, false, false, false);
 
     // Load configurations
     // PID controller for search run
@@ -740,14 +735,11 @@ pub fn init(
         wall_sensor::off()?;
         loop {
             match state {
-                State::Idle => {
-                    state = idle(&mut ctx, false)?;
+                State::Idle(ls, lf, rf, rs) => {
+                    state = idle(&mut ctx, ls, lf, rf, rs)?;
                 }
                 State::GyroCalibration => {
                     state = gyro_calibration(&mut ctx)?;
-                }
-                State::WallSensorActive => {
-                    state = idle(&mut ctx, true)?;
                 }
                 State::Start(distance) => {
                     state = start(&mut ctx, distance)?;

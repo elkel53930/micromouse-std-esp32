@@ -126,7 +126,9 @@ fn main() -> anyhow::Result<()> {
 
     // Wait for the user to interrupt the rf sensor
     ctx.command_tx
-        .send(control_thread::Command::ActivateWallSensor)?;
+        .send(control_thread::Command::SetActivateWallSensor(
+            true, false, false, true,
+        ))?;
 
     let mut goto_console = false;
     loop {

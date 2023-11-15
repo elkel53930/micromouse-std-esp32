@@ -188,7 +188,9 @@ impl ConsoleCommand for CmdSen {
 
         // Activate wall sensors
         ctx.command_tx
-            .send(control_thread::Command::ActivateWallSensor)
+            .send(control_thread::Command::SetActivateWallSensor(
+                true, true, true, true,
+            ))
             .unwrap();
 
         uprintln!("Press any key to exit.");
@@ -245,7 +247,9 @@ impl ConsoleCommand for CmdSen {
 
         // Inactivate wall sensors
         ctx.command_tx
-            .send(control_thread::Command::InactivateWallSensor)
+            .send(control_thread::Command::SetActivateWallSensor(
+                false, false, false, false,
+            ))
             .unwrap();
 
         FreeRtos::delay_ms(500);
@@ -272,11 +276,6 @@ impl ConsoleCommand for CmdOdo {
         if args.len() != 0 {
             return Err(anyhow::anyhow!("Invalid argument"));
         }
-
-        // Activate wall sensors
-        ctx.command_tx
-            .send(control_thread::Command::ActivateWallSensor)
-            .unwrap();
 
         {
             let mut micromouse = ctx.ods.micromouse.lock().unwrap();
@@ -319,7 +318,9 @@ impl ConsoleCommand for CmdOdo {
 
         // Inactivate wall sensors
         ctx.command_tx
-            .send(control_thread::Command::InactivateWallSensor)
+            .send(control_thread::Command::SetActivateWallSensor(
+                false, false, false, false,
+            ))
             .unwrap();
 
         FreeRtos::delay_ms(500);
