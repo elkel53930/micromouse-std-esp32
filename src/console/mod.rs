@@ -51,6 +51,7 @@ impl Console {
             Box::new(CmdFlog {}),
             Box::new(CmdFread {}),
             Box::new(CmdPanic {}),
+            Box::new(CmdMot {}),
             Box::new(file::CmdFt {}),
             Box::new(file::CmdDl {}),
             Box::new(file::CmdShow {}),
@@ -60,6 +61,17 @@ impl Console {
             Box::new(file::CmdLog {}),
         ];
         Console { commands }
+    }
+
+    fn list(&self, args: &[&str]) {
+        if args.len() != 0 {
+            uprintln!("Invalid argument");
+            return;
+        }
+
+        for cmd in self.commands.iter() {
+            uprintln!("{}", cmd.name());
+        }
     }
 
     pub fn run(&mut self, mut ctx: &OperationContext) -> anyhow::Result<()> {
@@ -133,8 +145,16 @@ impl Console {
                     break;
                 }
             }
+
             if !found {
-                uprintln!("Command not found: '{}'", args[0]);
+                match args[0] {
+                    "list" => {
+                        self.list(&args[1..arg_num]);
+                    }
+                    _ => {
+                        uprintln!("Command not found: '{}'", args[0]);
+                    }
+                }
             }
         }
     }
@@ -561,5 +581,42 @@ impl ConsoleCommand for CmdPanic {
 
     fn name(&self) -> &str {
         "panic"
+    }
+}
+
+// Motor test (set percentage of duty)
+struct CmdMot {}
+
+impl ConsoleCommand for CmdMot {
+    fn execute(&self, args: &[&str], _ctx: &OperationContext) -> anyhow::Result<()> {
+        if args.len() != 2 && args.len() != 0 {
+            return Err(anyhow::anyhow!("Invalid argument"));
+        }
+
+        let (l, r) = if args.len() == 0 {
+            (0, 0)
+        } else {
+            (args[0].parse::<i32>()?, args[1].parse::<i32>()?)
+        };
+
+        crate::motor::set_l(l as f32);
+        crate::motor::set_r(r as f32);
+
+        if l == 0 && r == 0 {
+            crate::motor::enable(false);
+        } else {
+            crate::motor::enable(true);
+        }
+
+        Ok(())
+    }
+
+    fn hint(&self) {
+        uprintln!("Set motor duty.");
+        uprintln!("Usage: mot [left] [right]");
+    }
+
+    fn name(&self) -> &str {
+        "mot"
     }
 }
