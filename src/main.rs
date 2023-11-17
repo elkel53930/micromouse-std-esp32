@@ -25,6 +25,7 @@ pub mod pid;
 mod spiflash;
 pub mod timer_interrupt;
 mod trajectory;
+mod vac_fun;
 mod wall_sensor;
 
 use control_thread::Command;
@@ -40,6 +41,7 @@ pub static CS: esp_idf_hal::task::CriticalSection = esp_idf_hal::task::CriticalS
 pub struct OperationContext {
     pub ods: Arc<ods::Ods>,
     pub led_tx: Sender<led::Command>,
+    pub vac_tx: Sender<vac_fun::Command>,
     pub command_tx: Sender<control_thread::Command>,
     pub response_rx: Receiver<control_thread::Response>,
     pub log_tx: Sender<log_thread::LogCommand>,
@@ -80,12 +82,16 @@ fn main() -> anyhow::Result<()> {
         command_tx: mpsc::channel().0,
         response_rx: mpsc::channel().1,
         log_tx: mpsc::channel().0,
+        vac_tx: mpsc::channel().0,
     };
 
     let mut peripherals = Peripherals::take().unwrap();
 
     // Initialize LEDs
     ctx.led_tx = led::init(&mut peripherals)?;
+
+    // Initialize vacuum motor
+    ctx.vac_tx = vac_fun::init(&mut peripherals)?;
 
     // File system initialization
     spiflash::mount();

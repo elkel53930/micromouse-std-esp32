@@ -52,6 +52,7 @@ impl Console {
             Box::new(CmdFread {}),
             Box::new(CmdPanic {}),
             Box::new(CmdMot {}),
+            Box::new(CmdVac {}),
             Box::new(file::CmdFt {}),
             Box::new(file::CmdDl {}),
             Box::new(file::CmdShow {}),
@@ -613,10 +614,50 @@ impl ConsoleCommand for CmdMot {
 
     fn hint(&self) {
         uprintln!("Set motor duty.");
+        uprintln!("If no argument is specified, stop the motor.");
         uprintln!("Usage: mot [left] [right]");
     }
 
     fn name(&self) -> &str {
         "mot"
+    }
+}
+
+// Set vacuum fan duty
+struct CmdVac {}
+
+impl ConsoleCommand for CmdVac {
+    fn execute(&self, args: &[&str], ctx: &OperationContext) -> anyhow::Result<()> {
+        let duty = if args.len() == 1 {
+            args[0].parse::<u8>()?
+        } else if args.len() == 0 {
+            0
+        } else {
+            return Err(anyhow::anyhow!("Invalid argument"));
+        };
+
+        if duty > 10 {
+            return Err(anyhow::anyhow!("The value must be less than 10"));
+        }
+
+        if duty == 0 {
+            crate::motor::enable(false);
+        } else {
+            crate::motor::enable(true);
+        }
+        ctx.vac_tx
+            .send(crate::vac_fun::Command::SetDutyCycle(duty))?;
+
+        Ok(())
+    }
+
+    fn hint(&self) {
+        uprintln!("Set vacuum fan duty.");
+        uprintln!("If no argument is specified, stop the fan.");
+        uprintln!("Usage: vac [duty 0 - 10]");
+    }
+
+    fn name(&self) -> &str {
+        "vac"
     }
 }
