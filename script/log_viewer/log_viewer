@@ -1,0 +1,121 @@
+#!/usr/bin/env python3
+
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+import readline
+import argparse
+
+
+def plot_multiple_series(data, indices, subplot_position):
+    plt.subplot(410 + subplot_position)
+    plt.cla()  # Clear the current axes
+    title = ','.join([data.dtype.names[i] for i in indices])
+    plt.title(title, y=0.8, fontsize=10, x=0.1)
+    plt.grid(True)
+    for index in indices:
+        plt.plot(data[data.dtype.names[index]])
+    plt.draw()
+
+
+def clear_subplot(subplot_position):
+    plt.subplot(410 + subplot_position)
+    plt.cla()
+    plt.draw()
+
+
+def list_data_fields(data):
+    """
+    Lists the data fields with their index.
+    :param data: numpy structured array containing data
+    """
+    for index, name in enumerate(data.dtype.names):
+        print(f"{index}: {name}")
+
+
+def generate_default_indices(data_length):
+    # Generates default indices based on the data length
+    return [i for i in range(min(4, data_length))]
+
+
+def cmd_plot(command, data):
+    if command.startswith("plot"):
+        try:
+            _, indices_str, subplot_pos_str = command.split()
+            indices = [int(x) for x in indices_str.split(',')]
+            subplot_pos = int(subplot_pos_str)
+            if max(indices) >= len(data.dtype.names) or subplot_pos > 4:
+                raise ValueError("Index out of range")
+            plot_multiple_series(data, indices, subplot_pos)
+        except ValueError as ve:
+            print(f"Invalid input: {ve}")
+        except Exception as e:
+            print(f"Error processing plot command: {e}")
+        return True
+    return False
+
+
+def cmd_clear(command, data):
+    if command.startswith("clear"):
+        try:
+            _, subplot_pos_str = command.split()
+            subplot_pos = int(subplot_pos_str)
+            if subplot_pos > 4:
+                raise ValueError("Subplot position out of range")
+            clear_subplot(subplot_pos)
+        except ValueError as ve:
+            print(f"Invalid input: {ve}")
+        except Exception as e:
+            print(f"Error processing clear command: {e}")
+        return True
+    return False
+
+
+def cmd_list(command, data):
+    if command == "list":
+        list_data_fields(data)
+        return True
+    return False
+
+
+command_functions = [cmd_plot, cmd_clear, cmd_list]
+
+
+def main(csv_file, initial_plot_indices):
+    try:
+        data = np.genfromtxt(csv_file, delimiter=',', names=True)
+
+        if initial_plot_indices is None or not initial_plot_indices:
+            print("No initial plot indices provided. Using default indices.")
+            initial_plot_indices = generate_default_indices(
+                len(data.dtype.names))
+
+        for i, index in enumerate(initial_plot_indices):
+            plot_multiple_series(data, [index], i + 1)
+
+        plt.show(block=False)
+
+        while True:
+            command = input(
+                "Enter command (plot, clear, list, exit): ").strip()
+            if command == "exit":
+                break
+
+            for cmd_func in command_functions:
+                if cmd_func(command, data):
+                    break
+            else:
+                print("Invalid command.")
+
+    except Exception as e:
+        print(f"Error: {e}")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Plot CSV data.")
+    parser.add_argument("csv_file", help="Path to the CSV file")
+    parser.add_argument("initial_plot_indices", nargs='*', type=int,
+                        default=None, help="Optional initial plot indices")
+    args = parser.parse_args()
+
+    main(args.csv_file, args.initial_plot_indices)
