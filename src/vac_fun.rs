@@ -36,7 +36,7 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<Sender<Command>> {
             if cmd.is_ok() {
                 match cmd.unwrap() {
                     Command::SetDutyCycle(duty) => {
-                        pwm_duty = std::cmp::max(duty, 10);
+                        pwm_duty = std::cmp::min(duty, 5);
                     }
                 }
             }

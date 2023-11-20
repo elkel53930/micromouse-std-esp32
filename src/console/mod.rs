@@ -636,7 +636,7 @@ impl ConsoleCommand for CmdVac {
             return Err(anyhow::anyhow!("Invalid argument"));
         };
 
-        if duty > 10 {
+        if duty > 5 {
             return Err(anyhow::anyhow!("The value must be less than 10"));
         }
 
@@ -654,7 +654,7 @@ impl ConsoleCommand for CmdVac {
     fn hint(&self) {
         uprintln!("Set vacuum fan duty.");
         uprintln!("If no argument is specified, stop the fan.");
-        uprintln!("Usage: vac [duty 0 - 10]");
+        uprintln!("Usage: vac [duty 0 - 5]");
     }
 
     fn name(&self) -> &str {
