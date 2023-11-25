@@ -91,7 +91,7 @@ fn main() -> anyhow::Result<()> {
     ctx.led_tx = led::init(&mut peripherals)?;
 
     // Initialize vacuum motor
-    ctx.vac_tx = vac_fun::init(&mut peripherals)?;
+    ctx.vac_tx = vac_fun::init(&mut peripherals, &mut ctx.ods)?;
 
     // File system initialization
     spiflash::mount();

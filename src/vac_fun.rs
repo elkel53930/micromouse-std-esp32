@@ -1,15 +1,20 @@
+use crate::ods;
+use esp_idf_hal::delay::FreeRtos;
 use esp_idf_hal::ledc::{config::TimerConfig, LedcDriver, LedcTimerDriver};
 use esp_idf_hal::peripheral::Peripheral;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_hal::prelude::*;
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::Arc;
 use std::thread;
 
 pub enum Command {
-    SetDutyCycle(u8),
+    SetVoltage(f32),
 }
 
-pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<Sender<Command>> {
+pub fn init(peripherals: &mut Peripherals, ods: &Arc<ods::Ods>) -> anyhow::Result<Sender<Command>> {
+    let ods = ods.clone();
+
     let timer_driver = unsafe {
         LedcTimerDriver::new(
             peripherals.ledc.timer0.clone_unchecked(),
@@ -34,26 +39,28 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<Sender<Command>> {
     }
     .set()?;
 
-    let max_duty = driver.get_max_duty();
-    let least_duty = max_duty as f32 / 100.0;
+    let max_duty = driver.get_max_duty() as f32;
 
     println!("vac fun, max duty: {}", max_duty);
 
     thread::spawn(move || {
-        let mut pwm_setting_value = 0;
         loop {
+            let mut set_v = 0.0;
+
             let cmd = rx.recv();
             if cmd.is_ok() {
                 match cmd.unwrap() {
-                    Command::SetDutyCycle(duty) => {
-                        pwm_setting_value = std::cmp::min(duty, 100);
+                    Command::SetVoltage(v) => {
+                        // clip 0.0V - 4.2V
+                        set_v = v.min(4.2).max(0.0);
                     }
                 }
             }
 
-            let duty = (least_duty * (pwm_setting_value as f32 / 2.0)) as u32;
-
-            driver.set_duty(duty).unwrap();
+            let batt_v = ods.wall_sensor.lock().unwrap().batt_phy;
+            let pwm_setting_value = (set_v / batt_v * max_duty) as u32;
+            driver.set_duty(pwm_setting_value).unwrap();
+            FreeRtos::delay_ms(10);
         }
     });
 

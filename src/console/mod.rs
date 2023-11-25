@@ -632,32 +632,31 @@ struct CmdVac {}
 impl ConsoleCommand for CmdVac {
     fn execute(&self, args: &[&str], ctx: &OperationContext) -> anyhow::Result<()> {
         let duty = if args.len() == 1 {
-            args[0].parse::<u8>()?
+            args[0].parse::<f32>()?
         } else if args.len() == 0 {
-            0
+            0.0
         } else {
             return Err(anyhow::anyhow!("Invalid argument"));
         };
 
-        if duty > 100 {
-            return Err(anyhow::anyhow!("The value must be less than 100"));
+        if duty > 4.2 {
+            return Err(anyhow::anyhow!("The value must be less than 4.2"));
         }
 
-        if duty == 0 {
+        if duty == 0.0 {
             crate::motor::enable(false);
         } else {
             crate::motor::enable(true);
         }
-        ctx.vac_tx
-            .send(crate::vac_fun::Command::SetDutyCycle(duty))?;
+        ctx.vac_tx.send(crate::vac_fun::Command::SetVoltage(duty))?;
 
         Ok(())
     }
 
     fn hint(&self) {
-        uprintln!("Set vacuum fan duty.");
+        uprintln!("Set vacuum fan voltage.");
         uprintln!("If no argument is specified, stop the fan.");
-        uprintln!("Usage: vac [duty 0 - 100]");
+        uprintln!("Usage: vac [duty 0 - 4.2]");
     }
 
     fn name(&self) -> &str {
