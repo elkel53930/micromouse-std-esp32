@@ -572,7 +572,10 @@ impl ConsoleCommand for CmdPanic {
             return Err(anyhow::anyhow!("Invalid argument"));
         }
 
-        panic!("Intentionally panic");
+        let buffer = [0u8; 32];
+        #[allow(unconditional_panic)]
+        let _x = buffer[50];
+        Ok(())
     }
 
     fn hint(&self) {
