@@ -10,11 +10,6 @@ use crate::config;
 static mut UART: Option<UartDriver> = None;
 
 #[macro_export]
-macro_rules! test_macro {
-    () => {};
-}
-
-#[macro_export]
 macro_rules! uprint {
     ($($arg:tt)*) => ($crate::uart::_print(format_args!($($arg)*)));
 }
