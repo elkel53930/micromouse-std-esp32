@@ -76,7 +76,7 @@ pub fn init(ods: &Arc<ods::Ods>) -> anyhow::Result<Sender<LogCommand>> {
                 if command == LogCommand::Start {
                     uprintln!("[Log] Started");
                     let _ = std::fs::remove_file("/sf/log10.csv");
-                    for n in (0..10).rev() {
+                    for n in (0..5).rev() {
                         let name_from = format!("log{:02}.csv", n);
                         let name_to = format!("log{:02}.csv", n + 1);
                         let _ = std::fs::rename(
