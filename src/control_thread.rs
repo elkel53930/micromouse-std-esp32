@@ -124,8 +124,11 @@ fn measure(
         wall_sensor::on_ls()?;
         wait_us(ctx.ws_cfg.led_rise_time);
         let ls_on = wall_sensor::read_ls()?;
+
         wall_sensor::off()?;
+        wait_us(ctx.ws_cfg.led_rise_time);
         let ls_off = wall_sensor::read_ls()?;
+
         let ls = ls_on - ls_off;
         (Some(ls), Some(ls > ctx.ws_cfg.ls_threshold))
     } else {
@@ -136,8 +139,11 @@ fn measure(
         wall_sensor::on_lf()?;
         wait_us(ctx.ws_cfg.led_rise_time);
         let lf_on = wall_sensor::read_lf()?;
+
         wall_sensor::off()?;
+        wait_us(ctx.ws_cfg.led_rise_time);
         let lf_off = wall_sensor::read_lf()?;
+
         let lf = lf_on - lf_off;
         (Some(lf), Some(lf > ctx.ws_cfg.lf_threshold))
     } else {
@@ -148,8 +154,11 @@ fn measure(
         wall_sensor::on_rf()?;
         wait_us(ctx.ws_cfg.led_rise_time);
         let rf_on = wall_sensor::read_rf()?;
+
         wall_sensor::off()?;
+        wait_us(ctx.ws_cfg.led_rise_time);
         let rf_off = wall_sensor::read_rf()?;
+
         let rf = rf_on - rf_off;
         (Some(rf), Some(rf > ctx.ws_cfg.rf_threshold))
     } else {
@@ -160,8 +169,11 @@ fn measure(
         wall_sensor::on_rs()?;
         wait_us(ctx.ws_cfg.led_rise_time);
         let rs_on = wall_sensor::read_rs()?;
+
         wall_sensor::off()?;
+        wait_us(ctx.ws_cfg.led_rise_time);
         let rs_off = wall_sensor::read_rs()?;
+
         let rs = rs_on - rs_off;
         (Some(rs), Some(rs > ctx.ws_cfg.rs_threshold))
     } else {

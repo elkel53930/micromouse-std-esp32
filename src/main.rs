@@ -126,7 +126,7 @@ fn main() -> anyhow::Result<()> {
     fram_logger::fram_logger_init();
 
     uprintln!("Boot count: {}", boot_count);
-    flogln!("Boot count: {}", boot_count);
+    fprintln!("Boot count: {}", boot_count);
 
     ctx.led_tx.send((Blue, Some("10")))?;
 
@@ -216,7 +216,7 @@ fn search_run(ctx: &mut OperationContext) -> anyhow::Result<()> {
             wall_sensor.clone()
         };
 
-        flog!(
+        fprint!(
             "ls {}({}), lf {}({}), rf {}({}), rs {}({}), ",
             wall_sensor.ls_raw.unwrap(),
             wall_sensor.ls.unwrap(),
@@ -251,12 +251,12 @@ fn search_run(ctx: &mut OperationContext) -> anyhow::Result<()> {
                     let (update_x, update_y) = maze::nsew_to_index(dir_to_go);
                     x = ((x as isize) + update_x) as usize;
                     y = ((y as isize) + update_y) as usize;
-                    flog!("x:{}, y:{}, d:{:?}, go:{:?}, ", x, y, d, dir_to_go);
+                    fprint!("x:{}, y:{}, d:{:?}, go:{:?}, ", x, y, d, dir_to_go);
                     new_dir = dir_to_go;
                     maze::nsew_to_fblr(d, dir_to_go)
                 }
                 None => {
-                    flogln!("Can not reach the goal.");
+                    fprintln!("Can not reach the goal.");
                     ctx.led_tx.send((Red, Some("0001")))?;
                     break;
                 }
@@ -269,7 +269,7 @@ fn search_run(ctx: &mut OperationContext) -> anyhow::Result<()> {
             maze::DirectionOfTravel::Right => Command::TurnR,
             maze::DirectionOfTravel::Backward => Command::TurnBack,
         };
-        flogln!("cmd:{:?}", cmd);
+        fprintln!("cmd:{:?}", cmd);
     }
 
     ctx.command_tx.send(Command::Stop)?;
@@ -277,7 +277,7 @@ fn search_run(ctx: &mut OperationContext) -> anyhow::Result<()> {
     FreeRtos::delay_ms(2000);
 
     for line in local_maze.lines_iter(goal_x, goal_y) {
-        flogln!("{}", line);
+        fprintln!("{}", line);
     }
 
     Ok(())

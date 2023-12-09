@@ -56,7 +56,7 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
     Ok(())
 }
 
-// flogln! and flog! are macros that write to FRAM.
+// fprintln! and fprint! are macros that write to FRAM.
 
 use core::fmt::{self, Write};
 
@@ -66,14 +66,14 @@ pub fn fram_print(args: fmt::Arguments) {
 }
 
 #[macro_export]
-macro_rules! flog {
+macro_rules! fprint {
     ($($arg:tt)*) => ($crate::fram_print(format_args!($($arg)*)));
 }
 
 #[macro_export]
-macro_rules! flogln {
-    ($fmt:expr) => (flog!(concat!($fmt, "\n")));
-    ($fmt:expr, $($arg:tt)*) => (flog!(concat!($fmt, "\n"), $($arg)*));
+macro_rules! fprintln {
+    ($fmt:expr) => (fprint!(concat!($fmt, "\n")));
+    ($fmt:expr, $($arg:tt)*) => (fprint!(concat!($fmt, "\n"), $($arg)*));
 }
 
 struct FramWriter;
@@ -154,7 +154,7 @@ impl log::Log for FramLogger {
 
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
-            flogln!("{} - {}", record.level(), record.args());
+            fprintln!("{} - {}", record.level(), record.args());
             uprintln!("{} - {}", record.level(), record.args());
         }
     }
@@ -166,15 +166,15 @@ use std::panic::{self, PanicInfo};
 
 fn fram_panic_handler(info: &PanicInfo) {
     if let Some(location) = info.location() {
-        flogln!(
+        fprintln!(
             "Panic occurred in file '{}' at line {}",
             location.file(),
             location.line()
         );
     } else {
-        flogln!("Panic occurred but can't get location information...");
+        fprintln!("Panic occurred but can't get location information...");
     }
-    flogln!("{}", info);
+    fprintln!("{}", info);
 }
 
 pub fn fram_logger_init() {

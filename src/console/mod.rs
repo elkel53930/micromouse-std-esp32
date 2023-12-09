@@ -48,7 +48,7 @@ impl Console {
             Box::new(CmdReset {}),
             Box::new(CmdConfig {}),
             Box::new(CmdBatt {}),
-            Box::new(CmdFlog {}),
+            Box::new(CmdFprint {}),
             Box::new(CmdFread {}),
             Box::new(CmdPanic {}),
             Box::new(CmdMot {}),
@@ -501,27 +501,27 @@ impl ConsoleCommand for CmdBatt {
     }
 }
 
-// Write strings to FRAM using flogln! macro.
-struct CmdFlog {}
+// Write strings to FRAM using fprintln! macro.
+struct CmdFprint {}
 
-impl ConsoleCommand for CmdFlog {
+impl ConsoleCommand for CmdFprint {
     fn execute(&self, args: &[&str], mut _ctx: &OperationContext) -> anyhow::Result<()> {
         if args.len() != 1 {
             return Err(anyhow::anyhow!("Invalid argument"));
         }
 
-        flogln!("{}", args[0]);
+        fprintln!("{}", args[0]);
 
         return Ok(());
     }
 
     fn hint(&self) {
-        uprintln!("Write strings to FRAM using flogln! macro.");
-        uprintln!("Usage: flog [string]");
+        uprintln!("Write strings to FRAM using fprintln! macro.");
+        uprintln!("Usage: fprint [string]");
     }
 
     fn name(&self) -> &str {
-        "flog"
+        "fprint"
     }
 }
 
