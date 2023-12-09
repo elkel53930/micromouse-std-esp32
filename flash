@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+cargo fmt
+cargo espflash --partition-table partitions.csv $1 --monitor
