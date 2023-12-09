@@ -111,12 +111,12 @@ pub fn move_fram_to_flash() {
     let mut adrs = 0;
     let mut flag = true;
 
-    let _ = std::fs::remove_file("/sf/log10.txt");
+    let _ = std::fs::remove_file("/sf/log05.txt");
     for n in (0..5).rev() {
         let name_from = format!("log{:02}.txt", n);
         let name_to = format!("log{:02}.txt", n + 1);
         let result = std::fs::rename(format!("/sf/{}", name_from), format!("/sf/{}", name_to));
-        println!("{:?}", result);
+        println!("Move {} to {}: {:?}", name_from, name_to, result);
     }
 
     let mut file = std::fs::OpenOptions::new()
