@@ -1,6 +1,7 @@
 use esp_idf_hal::delay::FreeRtos;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_sys as _;
+use log;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Arc;
 
@@ -109,6 +110,8 @@ fn main() -> anyhow::Result<()> {
         motor::init(&mut peripherals)?;
         wall_sensor::init(&mut peripherals)?;
         fram_logger::init(&mut peripherals)?;
+        fram_logger::set_log(log::LevelFilter::Info);
+        fram_logger::set_panic_handler();
         fram_logger::move_fram_to_flash();
         imu::init(&mut peripherals)?;
         encoder::init(&mut peripherals)?;
@@ -122,8 +125,6 @@ fn main() -> anyhow::Result<()> {
     FreeRtos::delay_ms(100);
     uart::init(&mut peripherals)?;
     // After uart:init, you can use uprintln.
-
-    fram_logger::fram_logger_init();
 
     uprintln!("Boot count: {}", boot_count);
     fprintln!("Boot count: {}", boot_count);

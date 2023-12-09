@@ -9,8 +9,9 @@ use esp_idf_hal::units::Hertz;
 use std::io::Write as _;
 
 const I2C_ADDRESS: u8 = 0x50;
+
 static mut I2C: Option<I2cDriver<'static>> = None;
-static mut CURSOR: u16 = 0;
+static mut CURSOR: u16 = 0; // Write position
 
 fn i2c_master_init<'d>(
     i2c: impl Peripheral<P = impl I2c> + 'd,
@@ -23,8 +24,11 @@ fn i2c_master_init<'d>(
     Ok(driver)
 }
 
-fn write_fram(adrs: u16, data: &[u8]) -> anyhow::Result<()> {
+fn write_30_byte(adrs: u16, data: &[u8]) -> anyhow::Result<()> {
     let mut buffer: [u8; 32] = [0; 32];
+
+    // The first 2 bytes are the address,
+    // so the data that can be written at one time is limited to 30 bytes.
     buffer[0] = (adrs >> 8) as u8;
     buffer[1] = adrs as u8;
     buffer[2..2 + data.len()].copy_from_slice(data);
@@ -34,9 +38,25 @@ fn write_fram(adrs: u16, data: &[u8]) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn write_fram(adrs: u16, data: &[u8]) -> anyhow::Result<()> {
+    let mut i = 0;
+
+    // Write 30byte each
+    while i < data.len() {
+        let mut j = i + 30;
+        if j > data.len() {
+            j = data.len();
+        }
+        write_30_byte(adrs + i as u16, &data[i..j])?;
+        i += 30;
+    }
+    Ok(())
+}
+
 pub fn read_fram(adrs: u16, data: &mut [u8]) -> anyhow::Result<()> {
     let buffer: [u8; 2] = [(adrs >> 8) as u8, adrs as u8];
     unsafe {
+        // Write the address and then read data.
         I2C.as_mut().unwrap().write(I2C_ADDRESS, &buffer, BLOCK)?;
         I2C.as_mut().unwrap().read(I2C_ADDRESS, data, BLOCK)?;
     }
@@ -56,7 +76,7 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
     Ok(())
 }
 
-// fprintln! and fprint! are macros that write to FRAM.
+// Macros, like println! and print!
 
 use core::fmt::{self, Write};
 
@@ -80,29 +100,24 @@ struct FramWriter;
 
 fn write(s: &str) -> fmt::Result {
     write_fram(unsafe { CURSOR }, s.as_bytes()).unwrap();
+
+    // Advance the cursor
     unsafe {
         CURSOR += s.len() as u16;
         while CURSOR > 0x2000 {
             CURSOR -= 0x2000;
         }
     }
+
+    // Write terminal character
     write_fram(unsafe { CURSOR }, b"\0").unwrap();
+
     core::result::Result::Ok(())
 }
 
 impl Write for FramWriter {
     fn write_str(&mut self, s: &str) -> Result<(), std::fmt::Error> {
-        // Write 30 bytes each
-        let mut i = 0;
-        while i < s.len() {
-            let mut j = i + 30;
-            if j > s.len() {
-                j = s.len();
-            }
-            write(&s[i..j]).unwrap();
-            i += 30;
-        }
-        core::result::Result::Ok(())
+        write(&s)
     }
 }
 
@@ -139,29 +154,10 @@ pub fn move_fram_to_flash() {
         file.write_all(&buffer[..size]).unwrap();
     }
 
-    uprintln!("Data in FRAM has been copied to log00.txt.");
+    println!("Data in FRAM has been copied to log00.txt.");
 }
 
-// panic hander with FRAM
-
-use log::{Level, Metadata, Record};
-pub struct FramLogger;
-
-impl log::Log for FramLogger {
-    fn enabled(&self, metadata: &Metadata) -> bool {
-        metadata.level() <= Level::Info
-    }
-
-    fn log(&self, record: &Record) {
-        if self.enabled(record.metadata()) {
-            fprintln!("{} - {}", record.level(), record.args());
-            uprintln!("{} - {}", record.level(), record.args());
-        }
-    }
-
-    fn flush(&self) {}
-}
-
+// panic handler with FRAM
 use std::panic::{self, PanicInfo};
 
 fn fram_panic_handler(info: &PanicInfo) {
@@ -177,9 +173,29 @@ fn fram_panic_handler(info: &PanicInfo) {
     fprintln!("{}", info);
 }
 
-pub fn fram_logger_init() {
+pub fn set_panic_handler() {
     panic::set_hook(Box::new(fram_panic_handler));
+}
+
+use log::{Level, Metadata, Record};
+pub struct FramLogger;
+
+impl log::Log for FramLogger {
+    fn enabled(&self, metadata: &Metadata) -> bool {
+        metadata.level() <= Level::Info
+    }
+
+    fn log(&self, record: &Record) {
+        if self.enabled(record.metadata()) {
+            fprintln!("{} - {}", record.level(), record.args());
+        }
+    }
+
+    fn flush(&self) {}
+}
+
+pub fn set_log(log_level: log::LevelFilter) {
     log::set_boxed_logger(Box::new(FramLogger))
-        .map(|()| log::set_max_level(log::LevelFilter::Info))
+        .map(|()| log::set_max_level(log_level))
         .unwrap();
 }
