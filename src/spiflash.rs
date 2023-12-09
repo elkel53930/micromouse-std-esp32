@@ -3,17 +3,10 @@ use esp_idf_sys::{esp_err_to_name, esp_vfs_fat_mount_config_t, esp_vfs_fat_spifl
 const MAX_FILES: i32 = 16;
 const ALLOCATION_UNIT_SIZE: usize = 512;
 
-use lazy_static::lazy_static;
 use std::ffi::CString;
 
-pub const BASE_PATH_RAW: &'static str = "/sf";
-pub const PARTITION_RAW: &'static str = "storage0";
-lazy_static! {
-    static ref PARTITION: CString =
-        CString::new(PARTITION_RAW).expect("Failed to convert to CString");
-    static ref BASE_PATH: CString =
-        CString::new(BASE_PATH_RAW).expect("Failed to convert to CString");
-}
+pub const BASE_PATH: &'static str = "/sf";
+pub const PARTITION: &'static str = "storage0";
 
 pub fn mount() {
     // Mount FAT filesystem
@@ -25,9 +18,13 @@ pub fn mount() {
             allocation_unit_size: ALLOCATION_UNIT_SIZE,
         };
         let mut handle: esp_idf_sys::wl_handle_t = esp_idf_sys::WL_INVALID_HANDLE;
+
+        let base_path = CString::new(BASE_PATH).unwrap();
+        let partition = CString::new(PARTITION).unwrap();
+
         let mount_result = esp_vfs_fat_spiflash_mount(
-            BASE_PATH.as_ptr(),
-            PARTITION.as_ptr(),
+            base_path.as_ptr(),
+            partition.as_ptr(),
             &mount_config,
             &mut handle,
         );

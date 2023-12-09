@@ -36,7 +36,6 @@ embedded-svc = { version = "0.25", optional = true, default-features = false }
 anyhow = "1"
 embedded-hal = "=1.0.0-alpha.10"
 crc16 = "0.4"
-lazy_static = "1.4"
 yaml-rust = "0.4"
 mm_maze_solver = { path = "../mm_maze_solver" }
 
