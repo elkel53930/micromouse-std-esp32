@@ -648,7 +648,7 @@ impl ConsoleCommand for CmdVac {
         } else {
             crate::motor::enable(true);
         }
-        ctx.vac_tx.send(crate::vac_fun::Command::SetVoltage(duty))?;
+        ctx.vac_tx.send(crate::vac_fan::Command::SetVoltage(duty))?;
 
         Ok(())
     }

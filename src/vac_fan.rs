@@ -41,7 +41,7 @@ pub fn init(peripherals: &mut Peripherals, ods: &Arc<ods::Ods>) -> anyhow::Resul
 
     let max_duty = driver.get_max_duty() as f32;
 
-    println!("vac fun, max duty: {}", max_duty);
+    println!("vac fan, max duty: {}", max_duty);
 
     thread::spawn(move || {
         loop {
