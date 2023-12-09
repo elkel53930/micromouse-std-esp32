@@ -10,7 +10,6 @@ pub const PARTITION: &'static str = "storage0";
 
 pub fn mount() {
     // Mount FAT filesystem
-    // file system trial
     unsafe {
         let mount_config = esp_vfs_fat_mount_config_t {
             max_files: MAX_FILES,
@@ -37,36 +36,3 @@ pub fn mount() {
         );
     }
 }
-
-/*
-usage
-
-fn test(){
-    uprintln!("write file ");
-    match std::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .append(true)
-        .open(fs::path("test.txt"))
-    {
-        Ok(mut file) => {
-            match file.write_all(b"Hello, world!\n") {
-                Ok(_) => uprintln!("write file done"),
-                Err(e) => uprintln!("write_all failed: {:?}", e),
-            }
-        }
-        Err(e) => uprintln!("OpenOptions::new failed: {:?}", e),
-    }
-
-    // Read & print file
-    uprintln!("read file");
-    match std::fs::File::open(fs::path("test.txt")) {
-        Ok(mut file) => {
-            let mut buf = String::new();
-            file.read_to_string(&mut buf)?;
-            uprintln!("file content: {}", buf);
-        }
-        Err(e) => uprintln!("read file failed: {:?}", e),
-    }
-}
-*/
