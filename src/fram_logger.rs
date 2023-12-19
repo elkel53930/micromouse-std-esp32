@@ -1,7 +1,7 @@
 use anyhow::Ok;
 use esp_idf_hal::delay::BLOCK;
 use esp_idf_hal::gpio::AnyIOPin;
-use esp_idf_hal::i2c::{I2c, I2cConfig, I2cDriver};
+use esp_idf_hal::i2c::{I2c, I2cConfig, I2cDriver, Operation};
 use esp_idf_hal::peripheral::Peripheral;
 use esp_idf_hal::prelude::*;
 use esp_idf_hal::units::Hertz;
@@ -9,6 +9,7 @@ use esp_idf_hal::units::Hertz;
 use std::io::Write as _;
 
 const I2C_ADDRESS: u8 = 0x50;
+
 
 static mut I2C: Option<I2cDriver<'static>> = None;
 static mut CURSOR: u16 = 0; // Write position
@@ -24,31 +25,15 @@ fn i2c_master_init<'d>(
     Ok(driver)
 }
 
-fn write_30_byte(adrs: u16, data: &[u8]) -> anyhow::Result<()> {
-    let mut buffer: [u8; 32] = [0; 32];
-
-    // The first 2 bytes are the address,
-    // so the data that can be written at one time is limited to 30 bytes.
-    buffer[0] = (adrs >> 8) as u8;
-    buffer[1] = adrs as u8;
-    buffer[2..2 + data.len()].copy_from_slice(data);
-    unsafe {
-        I2C.as_mut().unwrap().write(I2C_ADDRESS, &buffer, BLOCK)?;
-    }
-    Ok(())
-}
-
 fn write_fram(adrs: u16, data: &[u8]) -> anyhow::Result<()> {
-    let mut i = 0;
+    let adrs: [u8; 2] = [(adrs >> 8) as u8, adrs as u8];
 
-    // Write 30byte each
-    while i < data.len() {
-        let mut j = i + 30;
-        if j > data.len() {
-            j = data.len();
-        }
-        write_30_byte(adrs + i as u16, &data[i..j])?;
-        i += 30;
+    let mut operation = [Operation::Write(&adrs), Operation::Write(data)];
+
+    unsafe {
+        I2C.as_mut()
+            .unwrap()
+            .transaction(I2C_ADDRESS, &mut operation, BLOCK)?;
     }
     Ok(())
 }
@@ -57,8 +42,9 @@ pub fn read_fram(adrs: u16, data: &mut [u8]) -> anyhow::Result<()> {
     let buffer: [u8; 2] = [(adrs >> 8) as u8, adrs as u8];
     unsafe {
         // Write the address and then read data.
-        I2C.as_mut().unwrap().write(I2C_ADDRESS, &buffer, BLOCK)?;
-        I2C.as_mut().unwrap().read(I2C_ADDRESS, data, BLOCK)?;
+        I2C.as_mut()
+            .unwrap()
+            .write_read(I2C_ADDRESS, &buffer, data, BLOCK)?;
     }
     Ok(())
 }
@@ -77,7 +63,6 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
 }
 
 // Macros, like println! and print!
-
 use core::fmt::{self, Write};
 
 pub fn fram_print(args: fmt::Arguments) {
@@ -121,42 +106,6 @@ impl Write for FramWriter {
     }
 }
 
-pub fn move_fram_to_flash() {
-    let mut buffer: [u8; 32] = [0; 32];
-    let mut adrs = 0;
-    let mut flag = true;
-
-    let _ = std::fs::remove_file("/sf/log05.txt");
-    for n in (0..5).rev() {
-        let name_from = format!("log{:02}.txt", n);
-        let name_to = format!("log{:02}.txt", n + 1);
-        let result = std::fs::rename(format!("/sf/{}", name_from), format!("/sf/{}", name_to));
-        println!("Move {} to {}: {:?}", name_from, name_to, result);
-    }
-
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .append(true)
-        .open("/sf/log00.txt")
-        .unwrap();
-
-    while flag {
-        let mut size = 0;
-        read_fram(adrs, &mut buffer).unwrap();
-        adrs += buffer.len() as u16;
-        for b in buffer {
-            size += 1;
-            if b == 0 {
-                flag = false;
-                break;
-            }
-        }
-        file.write_all(&buffer[..size]).unwrap();
-    }
-
-    println!("Data in FRAM has been copied to log00.txt.");
-}
-
 // panic handler with FRAM
 use std::panic::{self, PanicInfo};
 
@@ -198,4 +147,40 @@ pub fn set_log(log_level: log::LevelFilter) {
     log::set_boxed_logger(Box::new(FramLogger))
         .map(|()| log::set_max_level(log_level))
         .unwrap();
+}
+
+pub fn move_fram_to_flash() {
+    let mut buffer: [u8; 32] = [0; 32];
+    let mut adrs = 0;
+    let mut flag = true;
+
+    let _ = std::fs::remove_file("/sf/log05.txt");
+    for n in (0..5).rev() {
+        let name_from = format!("log{:02}.txt", n);
+        let name_to = format!("log{:02}.txt", n + 1);
+        let result = std::fs::rename(format!("/sf/{}", name_from), format!("/sf/{}", name_to));
+        println!("Move {} to {}: {:?}", name_from, name_to, result);
+    }
+
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open("/sf/log00.txt")
+        .unwrap();
+
+    while flag {
+        let mut size = 0;
+        read_fram(adrs, &mut buffer).unwrap();
+        adrs += buffer.len() as u16;
+        for b in buffer {
+            size += 1;
+            if b == 0 {
+                flag = false;
+                break;
+            }
+        }
+        file.write_all(&buffer[..size]).unwrap();
+    }
+
+    println!("Data in FRAM has been copied to log00.txt.");
 }
