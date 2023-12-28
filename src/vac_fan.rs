@@ -47,7 +47,7 @@ pub fn init(peripherals: &mut Peripherals, ods: &Arc<ods::Ods>) -> anyhow::Resul
         loop {
             let mut set_v = 0.0;
 
-            let cmd = rx.recv();
+            let cmd = rx.try_recv();
             if cmd.is_ok() {
                 match cmd.unwrap() {
                     Command::SetVoltage(v) => {

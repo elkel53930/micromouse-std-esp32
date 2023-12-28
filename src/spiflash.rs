@@ -10,17 +10,16 @@ pub const PARTITION: &'static str = "storage0";
 
 pub fn mount() {
     // Mount FAT filesystem
+    let base_path = CString::new(BASE_PATH).unwrap();
+    let partition = CString::new(PARTITION).unwrap();
+    let mount_config = esp_vfs_fat_mount_config_t {
+        max_files: MAX_FILES,
+        format_if_mount_failed: true,
+        allocation_unit_size: ALLOCATION_UNIT_SIZE,
+    };
+    let mut handle: esp_idf_sys::wl_handle_t = esp_idf_sys::WL_INVALID_HANDLE;
+
     unsafe {
-        let mount_config = esp_vfs_fat_mount_config_t {
-            max_files: MAX_FILES,
-            format_if_mount_failed: true,
-            allocation_unit_size: ALLOCATION_UNIT_SIZE,
-        };
-        let mut handle: esp_idf_sys::wl_handle_t = esp_idf_sys::WL_INVALID_HANDLE;
-
-        let base_path = CString::new(BASE_PATH).unwrap();
-        let partition = CString::new(PARTITION).unwrap();
-
         let mount_result = esp_vfs_fat_spiflash_mount(
             base_path.as_ptr(),
             partition.as_ptr(),

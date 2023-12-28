@@ -1,5 +1,3 @@
-pub const CONTROL_CYCLE: u32 = 1; // ms
-
 use yaml_rust::{Yaml, YamlLoader};
 
 pub struct YamlConfig {

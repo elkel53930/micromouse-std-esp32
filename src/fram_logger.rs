@@ -10,9 +10,7 @@ use std::io::Write as _;
 
 const I2C_ADDRESS: u8 = 0x50;
 
-
 static mut I2C: Option<I2cDriver<'static>> = None;
-static mut CURSOR: u16 = 0; // Write position
 
 fn i2c_master_init<'d>(
     i2c: impl Peripheral<P = impl I2c> + 'd,
@@ -65,6 +63,8 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
 // Macros, like println! and print!
 use core::fmt::{self, Write};
 
+static mut CURSOR: u16 = 0; // Write position
+
 pub fn fram_print(args: fmt::Arguments) {
     let mut writer = FramWriter {};
     writer.write_fmt(args).unwrap();
@@ -106,26 +106,6 @@ impl Write for FramWriter {
     }
 }
 
-// panic handler with FRAM
-use std::panic::{self, PanicInfo};
-
-fn fram_panic_handler(info: &PanicInfo) {
-    if let Some(location) = info.location() {
-        fprintln!(
-            "Panic occurred in file '{}' at line {}",
-            location.file(),
-            location.line()
-        );
-    } else {
-        fprintln!("Panic occurred but can't get location information...");
-    }
-    fprintln!("{}", info);
-}
-
-pub fn set_panic_handler() {
-    panic::set_hook(Box::new(fram_panic_handler));
-}
-
 use log::{Level, Metadata, Record};
 pub struct FramLogger;
 
@@ -147,6 +127,26 @@ pub fn set_log(log_level: log::LevelFilter) {
     log::set_boxed_logger(Box::new(FramLogger))
         .map(|()| log::set_max_level(log_level))
         .unwrap();
+}
+
+// panic handler with FRAM
+use std::panic::{self, PanicInfo};
+
+fn fram_panic_handler(info: &PanicInfo) {
+    if let Some(location) = info.location() {
+        fprintln!(
+            "Panic occurred in file '{}' at line {}",
+            location.file(),
+            location.line()
+        );
+    } else {
+        fprintln!("Panic occurred but can't get location information...");
+    }
+    fprintln!("{}", info);
+}
+
+pub fn set_panic_handler() {
+    panic::set_hook(Box::new(fram_panic_handler));
 }
 
 pub fn move_fram_to_flash() {

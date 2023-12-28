@@ -11,6 +11,7 @@ static mut SPI: Option<SpiDeviceDriver<'static, SpiDriver<'static>>> = None;
 static mut CS_R: Option<PinDriver<'_, Gpio46, Output>> = None;
 static mut CS_L: Option<PinDriver<'_, Gpio10, Output>> = None;
 
+// Transfer data to and from the encoder R
 fn transfer_r(read: &mut [u8], write: &[u8]) -> anyhow::Result<()> {
     unsafe {
         CS_R.as_mut().unwrap().set_low()?;
@@ -23,6 +24,7 @@ fn transfer_r(read: &mut [u8], write: &[u8]) -> anyhow::Result<()> {
     Ok(())
 }
 
+// Transfer data to and from the encoder L
 fn transfer_l(read: &mut [u8], write: &[u8]) -> anyhow::Result<()> {
     unsafe {
         CS_L.as_mut().unwrap().set_low()?;
@@ -70,6 +72,7 @@ fn concat(msb: u8, lsb: u8) -> u16 {
     (msb as u16) * 256 + (lsb as u16) & 0x3fff
 }
 
+// Read angular from encoder R
 pub fn read_r() -> anyhow::Result<u16> {
     let w_buffer: [u8; 2] = [0x7f, 0xfe];
     let mut r_buffer: [u8; 2] = [0, 0];
@@ -77,6 +80,7 @@ pub fn read_r() -> anyhow::Result<u16> {
     Ok(concat(r_buffer[0], r_buffer[1]))
 }
 
+// Read angular from encoder L
 pub fn read_l() -> anyhow::Result<u16> {
     let w_buffer: [u8; 2] = [0x7f, 0xfe];
     let mut r_buffer: [u8; 2] = [0, 0];

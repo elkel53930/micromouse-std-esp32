@@ -102,7 +102,7 @@ impl ConsoleCommand for CmdDl {
 
         let mut buf: [u8; 10] = [0; 10];
         loop {
-            match uart::read(&mut buf) {
+            match uart::receive(&mut buf) {
                 Ok(size) => {
                     if size == 0 {
                         FreeRtos::delay_ms(100);
@@ -124,7 +124,7 @@ impl ConsoleCommand for CmdDl {
                 break;
             }
 
-            uart::write(&buffer[..size])?;
+            uart::send(&buffer[..size])?;
         }
 
         Ok(())

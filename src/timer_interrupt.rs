@@ -25,12 +25,19 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
     Ok(())
 }
 
+// Get the current time in microseconds
+// It is reset to 0 every 1000us
 fn get_us() -> u32 {
+    // The timer counter is incremented by hardware every 1us.
     let counter = unsafe { TIMER.as_mut().unwrap().counter().unwrap() };
     counter as u32
 }
 
+// Wait for a given number of microseconds
 pub fn wait_us(duration_us: u32) {
+    if duration_us > 999 {
+        panic!("duration_us exceeds maximum allowable value of 999");
+    }
     let start_us = get_us();
     let mut current_us = start_us;
 
@@ -49,6 +56,7 @@ pub fn wait_us(duration_us: u32) {
     }
 }
 
+// Wait until the timer counter is reset to 0
 pub fn sync_ms() {
     let mut prev = get_us();
     loop {
@@ -60,12 +68,14 @@ pub fn sync_ms() {
     }
 }
 
+// Timer interrupt handler
 fn timer_isr() {
     unsafe {
         COUNTER_MS += 1;
     }
 }
 
+// Get the time in milliseconds since the timer was started
 pub fn get_ms() -> u32 {
     unsafe { COUNTER_MS }
 }

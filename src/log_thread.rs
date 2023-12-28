@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 const LOG_FILE_NAME: &str = "/sf/log{:02}.csv";
 
+// Log data
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Log {
     pub current_omega: f32,
@@ -21,6 +22,7 @@ pub struct Log {
 }
 
 impl Log {
+    // Convert to CSV string
     pub fn to_string(&self) -> String {
         format!(
             "{},{},{},{},{},{},{},{},{},{}\n",
@@ -37,6 +39,7 @@ impl Log {
         )
     }
 
+    // CSV header
     pub fn header() -> String {
         format!(
             "current_omega,omega_ctrl,current_theta,theta_ctrl,current_x,target_x,x_ctrl,current_v,target_v,v_ctrl\n"
@@ -72,9 +75,11 @@ pub fn init(ods: &Arc<ods::Ods>) -> anyhow::Result<Sender<LogCommand>> {
     std::thread::Builder::new().spawn(move || -> anyhow::Result<()> {
         loop {
             loop {
+                // Wait for the start command
                 let command = rx.recv().unwrap();
                 if command == LogCommand::Start {
                     uprintln!("[Log] Started");
+                    // Shift log files
                     let _ = std::fs::remove_file("/sf/log05.csv");
                     for n in (0..5).rev() {
                         let name_from = format!("log{:02}.csv", n);
@@ -88,8 +93,10 @@ pub fn init(ods: &Arc<ods::Ods>) -> anyhow::Result<Sender<LogCommand>> {
                 }
             }
             loop {
+                // Wait for the save command
                 let command = rx.recv().unwrap();
                 if command == LogCommand::Save {
+                    // Write log data as CSV file
                     let mut file = fs::OpenOptions::new()
                         .write(true)
                         .append(true)
@@ -119,5 +126,5 @@ pub fn init(ods: &Arc<ods::Ods>) -> anyhow::Result<Sender<LogCommand>> {
         }
     })?;
 
-    Ok(tx)
+    Ok(tx) // return the command sender
 }

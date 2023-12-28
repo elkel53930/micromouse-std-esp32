@@ -18,6 +18,7 @@ mod control_thread;
 mod encoder;
 pub mod imu;
 mod led;
+mod led_thread;
 mod log_thread;
 pub mod misc;
 mod motor;
@@ -41,7 +42,7 @@ pub static CS: esp_idf_hal::task::CriticalSection = esp_idf_hal::task::CriticalS
 
 pub struct OperationContext {
     pub ods: Arc<ods::Ods>,
-    pub led_tx: Sender<led::Command>,
+    pub led_tx: Sender<led_thread::Command>,
     pub vac_tx: Sender<vac_fan::Command>,
     pub command_tx: Sender<control_thread::Command>,
     pub response_rx: Receiver<control_thread::Response>,
@@ -89,7 +90,8 @@ fn main() -> anyhow::Result<()> {
     let mut peripherals = Peripherals::take().unwrap();
 
     // Initialize LEDs
-    ctx.led_tx = led::init(&mut peripherals)?;
+    led::init(&mut peripherals)?;
+    ctx.led_tx = led_thread::init()?;
 
     // Initialize vacuum motor
     ctx.vac_tx = vac_fan::init(&mut peripherals, &mut ctx.ods)?;

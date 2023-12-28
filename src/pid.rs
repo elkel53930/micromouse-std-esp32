@@ -27,18 +27,28 @@ impl Pid {
         } else {
             error
         };
+
+        // Proportional term
         let p = self.p * error;
+
+        // Integral term
         self.integral += error;
+        // Limit the integral term
         if self.integral > self.i_limit {
             self.integral = self.i_limit;
         }
         if self.integral < -self.i_limit {
             self.integral = -self.i_limit;
         }
-
         let i = self.i * self.integral;
+
+        // Derivative term
         let d = self.d * (error - self.last_error);
+
+        // Store last error
         self.last_error = error;
+
+        // The output is the sum of the terms
         p + i + d
     }
 

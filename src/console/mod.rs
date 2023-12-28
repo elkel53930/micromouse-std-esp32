@@ -3,7 +3,7 @@ use esp_idf_hal::delay::FreeRtos;
 use crate::control_thread;
 use crate::led::LedColor::*;
 use crate::ods;
-use crate::uart::{self, read, read_line};
+use crate::uart::{self, read_line, receive};
 use crate::OperationContext;
 
 mod file;
@@ -18,7 +18,7 @@ fn blocking_uart_read(buffer: &mut [u8], timeout_ms: u32) -> anyhow::Result<()> 
         }
         time_count += 1;
         FreeRtos::delay_ms(1);
-        match read(&mut buffer[i..]) {
+        match receive(&mut buffer[i..]) {
             Ok(size) => {
                 if size == 0 {
                     continue;
@@ -254,7 +254,7 @@ impl ConsoleCommand for CmdSen {
                 r_raw
             );
             FreeRtos::delay_ms(100);
-            match read(&mut buffer) {
+            match receive(&mut buffer) {
                 Ok(size) => {
                     if size != 0 {
                         break;
@@ -325,7 +325,7 @@ impl ConsoleCommand for CmdOdo {
                 gyro
             );
             FreeRtos::delay_ms(100);
-            match read(&mut buffer) {
+            match receive(&mut buffer) {
                 Ok(size) => {
                     if size != 0 {
                         break;
@@ -476,7 +476,7 @@ impl ConsoleCommand for CmdBatt {
 
             uprintln!("{}[V]", batt_phy);
             FreeRtos::delay_ms(100);
-            match read(&mut buffer) {
+            match receive(&mut buffer) {
                 Ok(size) => {
                     if size != 0 {
                         break;
