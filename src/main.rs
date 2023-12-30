@@ -23,17 +23,10 @@ mod log_thread;
 pub mod misc;
 mod motor;
 pub mod ods;
-pub mod pid;
 mod spiflash;
 pub mod timer_interrupt;
-mod trajectory;
 mod vac_fan;
 mod wall_sensor;
-
-use control_thread::Command;
-
-use mm_maze_solver::maze;
-use mm_maze_solver::solver;
 
 #[allow(unused_imports)]
 use led::LedColor::{Blue, Green, Red};
@@ -107,7 +100,6 @@ fn main() -> anyhow::Result<()> {
 
     {
         let yaml_config = config::YamlConfig::new("/sf/config.yaml".to_string())?;
-        yaml_config.show();
 
         motor::init(&mut peripherals)?;
         wall_sensor::init(&mut peripherals)?;
@@ -131,157 +123,15 @@ fn main() -> anyhow::Result<()> {
     uprintln!("Boot count: {}", boot_count);
     fprintln!("Boot count: {}", boot_count);
 
-    ctx.led_tx.send((Blue, Some("10")))?;
-
     // Wait for the user to interrupt the rf sensor
     ctx.command_tx
         .send(control_thread::Command::SetActivateWallSensor(
             true, false, false, true,
         ))?;
 
-    let mut goto_console = false;
-    loop {
-        let (rs, ls) = {
-            let wall_sensor = ctx.ods.wall_sensor.lock().unwrap();
-            (
-                wall_sensor.rs_raw.unwrap_or(0),
-                wall_sensor.ls_raw.unwrap_or(0),
-            )
-        };
-        if ls > 1200 {
-            goto_console = true;
-            break;
-        }
-        if rs > 1200 {
-            break;
-        }
-    }
-
     ctx.led_tx.send((Blue, Some("0")))?;
 
     let mut console = console::Console::new();
-    if goto_console {
-        return console.run(&ctx);
-    }
-
-    // Calibrate the gyro
-    ctx.led_tx.send((Red, Some("10")))?;
-    uprintln!("Start gyro calibration");
-    ctx.command_tx
-        .send(control_thread::Command::GyroCalibration)?;
-    let _response = ctx.response_rx.recv().unwrap(); // Wait for Done
-    let offset = {
-        let imu = ctx.ods.imu.lock().unwrap();
-        imu.gyro_x_offset
-    };
-    uprintln!("Gyro offset: {}", offset);
-    ctx.led_tx.send((Red, Some("0")))?;
-
-    // Countdown
-    ctx.led_tx.send((Green, Some("1")))?;
-    FreeRtos::delay_ms(1000);
-    ctx.led_tx.send((Green, Some("0")))?;
-    ctx.led_tx.send((Blue, Some("1")))?;
-    FreeRtos::delay_ms(1000);
-    ctx.led_tx.send((Blue, Some("0")))?;
-    ctx.led_tx.send((Red, Some("1")))?;
-    FreeRtos::delay_ms(1000);
-    ctx.led_tx.send((Red, None))?;
-    ctx.led_tx.send((Blue, None))?;
-    ctx.led_tx.send((Green, None))?;
-
-    search_run(&mut ctx)?;
-
-    ctx.led_tx.send((Green, Some("1")))?;
-
-    ctx.led_tx.send((Red, Some("0")))?;
 
     console.run(&ctx)
-}
-
-fn search_run(ctx: &mut OperationContext) -> anyhow::Result<()> {
-    let mut stepmap = solver::StepMap::new();
-    let mut local_maze = maze::Maze::new();
-
-    let mut x = 0;
-    let mut y = 0;
-    let mut d = maze::Direction::East;
-
-    let goal_x = 3;
-    let goal_y = 3;
-
-    let mut cmd = Command::Start(0.017 + 0.045);
-    while x != goal_x || y != goal_y {
-        ctx.command_tx.send(cmd)?;
-        let _response = ctx.response_rx.recv().unwrap(); // Wait for CommandRequest
-        let wall_sensor = {
-            let wall_sensor = ctx.ods.wall_sensor.lock().unwrap();
-            wall_sensor.clone()
-        };
-
-        fprint!(
-            "ls {}({}), lf {}({}), rf {}({}), rs {}({}), ",
-            wall_sensor.ls_raw.unwrap(),
-            wall_sensor.ls.unwrap(),
-            wall_sensor.lf_raw.unwrap(),
-            wall_sensor.lf.unwrap(),
-            wall_sensor.rf_raw.unwrap(),
-            wall_sensor.rf.unwrap(),
-            wall_sensor.rs_raw.unwrap(),
-            wall_sensor.rs.unwrap()
-        );
-
-        if wall_sensor.ls.unwrap() {
-            local_maze.set_wall2(y, x, d, maze::Facing::Left, maze::Wall::Present);
-        } else {
-            local_maze.set_wall2(y, x, d, maze::Facing::Left, maze::Wall::Absent);
-        }
-        if wall_sensor.rs.unwrap() {
-            local_maze.set_wall2(y, x, d, maze::Facing::Right, maze::Wall::Present);
-        } else {
-            local_maze.set_wall2(y, x, d, maze::Facing::Right, maze::Wall::Absent);
-        }
-        if wall_sensor.rf.unwrap() || wall_sensor.lf.unwrap() {
-            local_maze.set_wall2(y, x, d, maze::Facing::Forward, maze::Wall::Present);
-        } else {
-            local_maze.set_wall2(y, x, d, maze::Facing::Forward, maze::Wall::Absent);
-        }
-
-        let new_dir;
-        let dir_to_go =
-            match solver::decide_direction(&local_maze, goal_x, goal_y, y, x, &mut stepmap) {
-                Some(dir_to_go) => {
-                    let (update_x, update_y) = maze::nsew_to_index(dir_to_go);
-                    x = ((x as isize) + update_x) as usize;
-                    y = ((y as isize) + update_y) as usize;
-                    fprint!("x:{}, y:{}, d:{:?}, go:{:?}, ", x, y, d, dir_to_go);
-                    new_dir = dir_to_go;
-                    maze::nsew_to_fblr(d, dir_to_go)
-                }
-                None => {
-                    fprintln!("Can not reach the goal.");
-                    ctx.led_tx.send((Red, Some("0001")))?;
-                    break;
-                }
-            };
-        d = new_dir;
-
-        cmd = match dir_to_go {
-            maze::DirectionOfTravel::Forward => Command::Forward,
-            maze::DirectionOfTravel::Left => Command::TurnL,
-            maze::DirectionOfTravel::Right => Command::TurnR,
-            maze::DirectionOfTravel::Backward => Command::TurnBack,
-        };
-        fprintln!("cmd:{:?}", cmd);
-    }
-
-    ctx.command_tx.send(Command::Stop)?;
-
-    FreeRtos::delay_ms(2000);
-
-    for line in local_maze.lines_iter(goal_x, goal_y) {
-        fprintln!("{}", line);
-    }
-
-    Ok(())
 }

@@ -20,7 +20,6 @@ pub fn correct_value<T: PartialOrd + Copy + Into<f32>>(table: &[(T, f32)], raw_v
             && raw_value_f32 > table[i].0.into()
             && raw_value_f32 < table[i + 1].0.into()
         {
-            // 線形補間を使用して値を補正
             let fraction =
                 (raw_value_f32 - table[i].0.into()) / (table[i + 1].0.into() - table[i].0.into());
             return table[i].1 + fraction * (table[i + 1].1 - table[i].1);

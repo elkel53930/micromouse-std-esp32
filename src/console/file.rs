@@ -1,6 +1,3 @@
-/* File transfer command */
-pub struct CmdFt {}
-
 use super::blocking_uart_read;
 use super::ConsoleCommand;
 
@@ -10,6 +7,9 @@ use std::io::{BufRead, BufReader, Read};
 
 use crate::uart;
 use crate::OperationContext;
+
+/* File transfer command */
+pub struct CmdFt {}
 
 impl ConsoleCommand for CmdFt {
     fn execute(&self, args: &[&str], mut _ctx: &OperationContext) -> anyhow::Result<()> {
