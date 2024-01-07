@@ -106,6 +106,44 @@ impl YamlConfig {
     }
 
     #[allow(dead_code)]
+    pub fn load_vec_str(&self, field: &str, default: Vec<String>) -> Vec<String> {
+        if self.yaml.is_none() {
+            println!(
+                "{} is not opened, using default value {:?} for {}.",
+                self.filename, default, field
+            );
+            return default;
+        }
+        let result = self.yaml.as_ref().unwrap()[field].as_vec();
+        match result {
+            Some(value) => {
+                let mut vec = Vec::new();
+                for item in value {
+                    let item = match item.as_str() {
+                        Some(item) => item,
+                        None => {
+                            println!(
+                                "Warning at {} in {}, using default value {:?}",
+                                field, self.filename, default
+                            );
+                            return default;
+                        }
+                    };
+                    vec.push(item.to_string());
+                }
+                vec
+            }
+            None => {
+                println!(
+                    "Warning at {} in {}, using default value {:?}",
+                    field, self.filename, default
+                );
+                return default;
+            }
+        }
+    }
+
+    #[allow(dead_code)]
     pub fn load_vec_i16_f32(&self, field: &str, default: Vec<(i16, f32)>) -> Vec<(i16, f32)> {
         if self.yaml.is_none() {
             println!(

@@ -27,6 +27,7 @@ pub mod pid;
 mod spiflash;
 pub mod timer_interrupt;
 mod trajectory;
+mod ui;
 mod vac_fan;
 mod wall_sensor;
 
@@ -139,28 +140,12 @@ fn main() -> anyhow::Result<()> {
             true, false, false, true,
         ))?;
 
-    let mut goto_console = false;
-    loop {
-        let (rs, ls) = {
-            let wall_sensor = ctx.ods.wall_sensor.lock().unwrap();
-            (
-                wall_sensor.rs_raw.unwrap_or(0),
-                wall_sensor.ls_raw.unwrap_or(0),
-            )
-        };
-        if ls > 1200 {
-            goto_console = true;
-            break;
-        }
-        if rs > 1200 {
-            break;
-        }
-    }
+    uprintln!("Hold left to enter the console.");
 
     ctx.led_tx.send((Blue, Some("0")))?;
 
     let mut console = console::Console::new();
-    if goto_console {
+    if ui::hold_ws(&ctx) == ui::UserOperation::HoldL {
         return console.run(&ctx);
     }
 
@@ -177,26 +162,64 @@ fn main() -> anyhow::Result<()> {
     uprintln!("Gyro offset: {}", offset);
     ctx.led_tx.send((Red, Some("0")))?;
 
-    // Countdown
-    ctx.led_tx.send((Green, Some("1")))?;
-    FreeRtos::delay_ms(1000);
-    ctx.led_tx.send((Green, Some("0")))?;
-    ctx.led_tx.send((Blue, Some("1")))?;
-    FreeRtos::delay_ms(1000);
-    ctx.led_tx.send((Blue, Some("0")))?;
-    ctx.led_tx.send((Red, Some("1")))?;
-    FreeRtos::delay_ms(1000);
-    ctx.led_tx.send((Red, None))?;
-    ctx.led_tx.send((Blue, None))?;
-    ctx.led_tx.send((Green, None))?;
+    ui::countdown(&ctx);
 
-    search_run(&mut ctx)?;
+    test_run(&mut ctx)?;
 
     ctx.led_tx.send((Green, Some("1")))?;
 
     ctx.led_tx.send((Red, Some("0")))?;
 
     console.run(&ctx)
+}
+
+fn test_run(ctx: &mut OperationContext) -> anyhow::Result<()> {
+    use crate::control_thread::Command::*;
+
+    fprintln!("Start test run");
+
+    let mut cmds: Vec<Command> = vec![];
+    {
+        let yaml_config = config::YamlConfig::new("/sf/config.yaml".to_string())?;
+        let test_pattern = yaml_config.load_vec_str("test_pattern", vec![]);
+
+        fprintln!("test_pattern: {:?}", test_pattern);
+
+        for s in test_pattern {
+            cmds.push(if s == "StartA" {
+                fprintln!("StartA");
+                Start(0.017 + 0.045)
+            } else if s == "Start" {
+                fprintln!("Start");
+                Start(0.045)
+            } else if s == "Stop" {
+                fprintln!("Stop");
+                Stop
+            } else if s == "Forward" {
+                fprintln!("Forward");
+                Forward
+            } else if s == "TurnL" {
+                fprintln!("TurnL");
+                TurnL
+            } else if s == "TurnR" {
+                fprintln!("TurnR");
+                TurnR
+            } else if s == "TurnBack" {
+                fprintln!("TurnBack");
+                TurnBack
+            } else {
+                fprintln!("Unknown command {}", s);
+                continue;
+            });
+        }
+    }
+
+    //    let cmds = [Start(0.017 + 0.045), Forward, Stop];
+    for cmd in cmds {
+        ctx.command_tx.send(cmd)?;
+        let _response = ctx.response_rx.recv().unwrap(); // Wait for CommandRequest
+    }
+    Ok(())
 }
 
 fn search_run(ctx: &mut OperationContext) -> anyhow::Result<()> {

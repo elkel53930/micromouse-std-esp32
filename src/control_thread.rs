@@ -3,7 +3,7 @@ use crate::encoder;
 use crate::imu;
 use crate::led::{self, LedColor::*};
 use crate::log_thread;
-use crate::misc::{correct_value, FIR};
+use crate::misc::{correct_value, rad, FIR};
 use crate::motor;
 use crate::ods;
 use crate::ods::MicromouseState;
@@ -517,10 +517,10 @@ fn turn(ctx: &mut ControlContext, direction: TurnDirection) -> anyhow::Result<()
         measure(ctx, true, true, true, true)?;
         update(ctx);
 
-        let omega_target;
-        let mut theta_target = std::f32::consts::PI * (step as f32 / 150.0);
-        if theta_target > std::f32::consts::PI / 2.0 {
-            theta_target = std::f32::consts::PI / 2.0;
+        let omega_target; // angular velocity
+        let mut theta_target = std::f32::consts::PI * (step as f32 / 150.0); // angle
+        if theta_target > rad(90.0) {
+            theta_target = rad(90.0);
             omega_target = 0.0;
         } else {
             omega_target = std::f32::consts::PI; // rad/s

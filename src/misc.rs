@@ -97,3 +97,13 @@ fn main() {
     }
 }
 */
+
+#[allow(dead_code)]
+pub fn rad(deg: f32) -> f32 {
+    deg * std::f32::consts::PI / 180.0
+}
+
+#[allow(dead_code)]
+pub fn deg(rad: f32) -> f32 {
+    rad * 180.0 / std::f32::consts::PI
+}
