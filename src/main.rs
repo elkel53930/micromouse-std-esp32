@@ -17,12 +17,14 @@ mod console;
 mod control_thread;
 mod encoder;
 pub mod imu;
+pub mod interpreter;
 mod led;
 mod led_thread;
 mod log_thread;
 pub mod misc;
 mod motor;
 pub mod ods;
+pub mod parser;
 pub mod pid;
 mod spiflash;
 pub mod timer_interrupt;
@@ -87,6 +89,51 @@ fn main() -> anyhow::Result<()> {
         log_tx: mpsc::channel().0,
         vac_tx: mpsc::channel().0,
     };
+
+    // Interpreter test
+    {
+        let test_script = "let $x = 123.456;
+let $s = 0.0;
+let $last = 0.0;
+
+if ($x > 1.0){
+	$s = $x
+} else {
+	$s = 1.0
+};
+
+let $flag = 1;
+
+while $flag {
+	$last = $s;
+	$s = ((($x / $s) + $s) / 2.0);
+	if ($s >= $last) {
+		$flag = 0
+	} else {
+		pass
+	}
+};
+print!(\"The square root of\", $x, \"is\", $last);
+print!($last, \"*\", $last, \"=\", ($last * $last))";
+
+        let parser = parser::p_statement();
+        let mut s = parser::ParserState::new(test_script);
+        let result = parser(&mut s);
+        match result {
+            Ok(statement) => {
+                let mut env = interpreter::Environment::new();
+                let _ = interpreter::evaluate_statement(&mut env, &statement);
+            }
+            Err(e) => {
+                println!("Error at {} : {}", s.pos_string(), e);
+            }
+        }
+    }
+
+    // Stop
+    loop {
+        esp_idf_hal::delay::FreeRtos::delay_ms(1000);
+    }
 
     let mut peripherals = Peripherals::take().unwrap();
 
