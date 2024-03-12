@@ -38,54 +38,28 @@ pub enum Value {
     Float(Float),
     Str(Str),
 }
+pub struct Environment{
+    variables: HashMap<VariableName, Value>,
+    functions: HashMap<String, Box<dyn BuildInFunction>>,
+}
 
-pub type Environment = HashMap<VariableName, Value>;
-type Function = dyn Fn(&Vec<Value>) -> Result<Value, String>;
-
-fn fn_print(args: &Vec<Value>) -> Result<Value, String> {
-    for arg in args {
-        match arg {
-            Value::Int(i) => print!("{} ", i),
-            Value::Float(f) => print!("{} ", f),
-            Value::Str(s) => print!("{} ", s),
+impl Environment{
+    pub fn new() -> Environment{
+        Environment{
+            variables: HashMap::new(),
+            functions: HashMap::new(),
         }
     }
-    println!("");
-    Ok(Value::Int(1))
 }
 
-fn fn_input_str(args: &Vec<Value>) -> Result<Value, String> {
-    if args.len() > 0 {
-        return Err("input() takes no arguments".to_string());
-    }
-    println!("input_str is not implemented yet.");
-    Ok(Value::Str("".to_string()))
+pub trait BuildInFunction{
+    fn execute(&self, args: &Vec<Value>) -> Result<Value, String>;
+    fn name(&self) -> &str;
 }
 
-fn fn_input_int(args: &Vec<Value>) -> Result<Value, String> {
-    if args.len() > 0 {
-        return Err("input() takes no arguments".to_string());
-    }
-    println!("input_int is not implemented yet.");
-    Ok(Value::Int(0))
-}
-
-fn fn_input_float(args: &Vec<Value>) -> Result<Value, String> {
-    if args.len() > 0 {
-        return Err("input() takes no arguments".to_string());
-    }
-    println!("input_float is not implemented yet.");
-    Ok(Value::Float(0.0))
-}
-
-fn get_function(name: &str) -> Option<Box<Function>> {
-    match name {
-        "print" => Some(Box::new(fn_print)),
-        "input" => Some(Box::new(fn_input_str)),
-        "input_int" => Some(Box::new(fn_input_int)),
-        "input_float" => Some(Box::new(fn_input_float)),
-        _ => None,
-    }
+fn call_built_in_function(env: &Environment, name: &str, args: &Vec<Value>) -> Result<Value, String> {
+    let function = env.functions.get(name).ok_or(format!("Function not found: {}", name))?;
+    function.execute(args)
 }
 
 pub fn evaluate_expression(
@@ -99,16 +73,16 @@ pub fn evaluate_expression(
         Expression::Variable(v) => {
             // if the variable is not found, return an error
             environment
+                .variables
                 .get(v)
                 .ok_or(format!("Variable not found: {}", v))?;
-            Ok(environment[v].clone())
+            Ok(environment.variables[v].clone())
         }
         Expression::FunctionCall(name, args) => {
             let mut evaluated_args = Vec::new();
             for arg in args {
                 evaluated_args.push(evaluate_expression(environment, arg)?);
             }
-            let function = get_function(&name).ok_or(format!("Function not found: {}", name))?;
             let mut values = Vec::new();
             for arg in evaluated_args {
                 match arg {
@@ -117,7 +91,7 @@ pub fn evaluate_expression(
                     Value::Str(s) => values.push(Value::Str(s)),
                 }
             }
-            Ok(function(&values)?)
+            call_built_in_function(environment, name, &values)
         }
         Expression::BinaryOperation(op, lhs, rhs) => {
             let lhs = evaluate_expression(environment, lhs)?;
@@ -191,7 +165,7 @@ pub fn evaluate_statement(
         }
         Statement::VariableDeclaration(name, expression) => {
             let value = evaluate_expression(environment, expression)?;
-            environment.insert(name.clone(), value);
+            environment.variables.insert(name.clone(), value);
             Ok(())
         }
         Statement::Sequence(statements) => {
@@ -202,10 +176,11 @@ pub fn evaluate_statement(
         }
         Statement::Assign(name, expression) => {
             environment
+                .variables
                 .get(name)
                 .ok_or(format!("Variable not found: {}", name))?;
             let value = evaluate_expression(environment, expression)?;
-            environment.insert(name.clone(), value);
+            environment.variables.insert(name.clone(), value);
             Ok(())
         }
         Statement::If(condition, then_branch, else_branch) => {
