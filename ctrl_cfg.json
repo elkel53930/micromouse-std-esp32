@@ -1,0 +1,40 @@
+{
+	"ws_cfg": {
+		"led_rise_time": 40,
+		"rs_reference": 415,
+		"ls_reference": 332,
+		"rs_threshold": 200,
+		"rf_threshold": 30,
+		"lf_threshold": 330,
+		"ls_threshold": 130
+	},
+	"gyro_cfg": {
+		"correction_table": [
+			[
+				-32768,
+				-40.03366425054514
+			],
+			[
+				32767,
+				40.032442520068734
+			]
+		],
+		"correction_coefficient": 0.97
+	},
+	"enc_cfg": {
+		"wheel_diameter": 14.0,
+		"gear_ratio": 2.0
+	},
+	"battery_cfg": {
+		"correction_table": [
+			[
+				355,
+				5.0
+			],
+			[
+				688,
+				9.0
+			]
+		]
+	}
+}

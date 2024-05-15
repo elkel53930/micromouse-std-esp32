@@ -374,7 +374,7 @@ impl ConsoleCommand for CmdGoffset {
             .send(control_thread::Command::GyroCalibration)?;
         let resp = ctx.response_rx.recv().unwrap();
         match resp {
-            control_thread::Response::Done => {
+            control_thread::Response::CalibrationDone => {
                 let offset = {
                     let imu = ctx.ods.imu.lock().unwrap();
                     imu.gyro_x_offset

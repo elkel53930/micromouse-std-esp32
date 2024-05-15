@@ -107,9 +107,6 @@ fn main() -> anyhow::Result<()> {
     ctx.log_tx = log_tx.clone();
 
     {
-        let yaml_config = config::YamlConfig::new("/sf/config.yaml".to_string())?;
-        yaml_config.show();
-
         motor::init(&mut peripherals)?;
         wall_sensor::init(&mut peripherals)?;
         fram_logger::init(&mut peripherals)?;
@@ -120,8 +117,7 @@ fn main() -> anyhow::Result<()> {
         encoder::init(&mut peripherals)?;
 
         timer_interrupt::init(&mut peripherals)?;
-        (ctx.command_tx, ctx.response_rx) =
-            control_thread::init(&yaml_config, &ctx.ods, log_tx.clone())?;
+        (ctx.command_tx, ctx.response_rx) = control_thread::init(&ctx.ods, log_tx.clone())?;
     } // yaml_config is dropped here
 
     // You can use println up to before uart:init.
@@ -134,6 +130,9 @@ fn main() -> anyhow::Result<()> {
 
     ctx.led_tx.send((Blue, Some("10")))?;
 
+    let mut console = console::Console::new();
+    console.run(&ctx);
+
     // Wait for the user to interrupt the rf sensor
     ctx.command_tx
         .send(control_thread::Command::SetActivateWallSensor(
@@ -144,7 +143,6 @@ fn main() -> anyhow::Result<()> {
 
     ctx.led_tx.send((Blue, Some("0")))?;
 
-    let mut console = console::Console::new();
     if ui::hold_ws(&ctx) == ui::UserOperation::HoldL {
         return console.run(&ctx);
     }
@@ -188,25 +186,25 @@ fn test_run(ctx: &mut OperationContext) -> anyhow::Result<()> {
         for s in test_pattern {
             cmds.push(if s == "StartA" {
                 fprintln!("StartA");
-                Start(0.017 + 0.045)
+                SStart(0.017 + 0.045)
             } else if s == "Start" {
                 fprintln!("Start");
-                Start(0.045)
+                SStart(0.045)
             } else if s == "Stop" {
                 fprintln!("Stop");
-                Stop
+                SStop
             } else if s == "Forward" {
                 fprintln!("Forward");
-                Forward
+                SForward
             } else if s == "TurnL" {
                 fprintln!("TurnL");
-                TurnL
+                SLeft
             } else if s == "TurnR" {
                 fprintln!("TurnR");
-                TurnR
+                SRight
             } else if s == "TurnBack" {
                 fprintln!("TurnBack");
-                TurnBack
+                SReturn
             } else {
                 fprintln!("Unknown command {}", s);
                 continue;
@@ -233,7 +231,7 @@ fn search_run(ctx: &mut OperationContext) -> anyhow::Result<()> {
     let goal_x = 3;
     let goal_y = 3;
 
-    let mut cmd = Command::Start(0.017 + 0.045);
+    let mut cmd = Command::SStart(0.017 + 0.045);
     while x != goal_x || y != goal_y {
         ctx.command_tx.send(cmd)?;
         let _response = ctx.response_rx.recv().unwrap(); // Wait for CommandRequest
@@ -290,15 +288,15 @@ fn search_run(ctx: &mut OperationContext) -> anyhow::Result<()> {
         d = new_dir;
 
         cmd = match dir_to_go {
-            maze::DirectionOfTravel::Forward => Command::Forward,
-            maze::DirectionOfTravel::Left => Command::TurnL,
-            maze::DirectionOfTravel::Right => Command::TurnR,
-            maze::DirectionOfTravel::Backward => Command::TurnBack,
+            maze::DirectionOfTravel::Forward => Command::SForward,
+            maze::DirectionOfTravel::Left => Command::SLeft,
+            maze::DirectionOfTravel::Right => Command::SRight,
+            maze::DirectionOfTravel::Backward => Command::SReturn,
         };
         fprintln!("cmd:{:?}", cmd);
     }
 
-    ctx.command_tx.send(Command::Stop)?;
+    ctx.command_tx.send(Command::SStop)?;
 
     FreeRtos::delay_ms(2000);
 

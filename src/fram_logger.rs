@@ -143,6 +143,10 @@ fn fram_panic_handler(info: &PanicInfo) {
         fprintln!("Panic occurred but can't get location information...");
     }
     fprintln!("{}", info);
+
+    loop {
+        esp_idf_hal::delay::FreeRtos::delay_ms(1000);
+    }
 }
 
 pub fn set_panic_handler() {
