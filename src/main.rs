@@ -131,7 +131,7 @@ fn main() -> anyhow::Result<()> {
     ctx.led_tx.send((Blue, Some("10")))?;
 
     let mut console = console::Console::new();
-    console.run(&ctx);
+    console.run(&ctx)?;
 
     // Wait for the user to interrupt the rf sensor
     ctx.command_tx

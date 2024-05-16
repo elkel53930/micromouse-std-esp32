@@ -13,12 +13,6 @@ use std::io::prelude::*;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Arc;
 
-#[derive(Debug, PartialEq, Clone, Copy)]
-enum TurnDirection {
-    Right,
-    Left,
-}
-
 #[derive(Debug, Serialize, Deserialize, Default)]
 struct WsConfig {
     led_rise_time: u32,
@@ -74,6 +68,11 @@ struct ControlContext {
     command_rx: Receiver<Command>,
 
     config: ControlThreadConfig,
+
+    ls_ena: bool,
+    lf_ena: bool,
+    rf_ena: bool,
+    rs_ena: bool,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -88,9 +87,9 @@ pub enum Command {
     SReturn,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Response {
-    CalibrationDone,
+    CalibrationDone(f32),
     CommandRequest,
 }
 
@@ -257,17 +256,17 @@ fn update(ctx: &mut ControlContext) {
     }
 }
 
-fn gyro_calibration(ctx: &mut ControlContext) -> anyhow::Result<()> {
+fn gyro_calibration(ctx: &mut ControlContext) {
     // Measure gyro offset
     let mut gyro_offset = 0.0;
-    led::on(Blue)?;
+    led::on(Blue).unwrap();
     {
         let mut imu = ctx.ods.imu.lock().unwrap();
         imu.gyro_x_offset = 0.0;
     }
 
     for _ in 0..1000 {
-        measure(ctx, false, false, false, false)?;
+        measure(ctx, false, false, false, false).unwrap();
         {
             let imu = ctx.ods.imu.lock().unwrap();
             gyro_offset += imu.gyro_x_phy as f32;
@@ -277,11 +276,13 @@ fn gyro_calibration(ctx: &mut ControlContext) -> anyhow::Result<()> {
 
     {
         let mut imu = ctx.ods.imu.lock().unwrap();
-        imu.gyro_x_offset = gyro_offset / 1000.0;
+        gyro_offset /= 1000.0;
+        imu.gyro_x_offset = gyro_offset;
     }
-    ctx.response_tx.send(Response::CalibrationDone)?;
-    led::off(Blue)?;
-    Ok(())
+    ctx.response_tx
+        .send(Response::CalibrationDone(gyro_offset))
+        .unwrap();
+    led::off(Blue).unwrap();
 }
 
 pub fn init(
@@ -310,6 +311,10 @@ pub fn init(
         log_tx: log_tx,
         command_rx: rx,
         config: config,
+        ls_ena: false,
+        lf_ena: false,
+        rf_ena: false,
+        rs_ena: false,
     };
 
     // Spawn the control thread
@@ -325,6 +330,23 @@ pub fn init(
     std::thread::Builder::new().spawn(move || -> anyhow::Result<()> {
         wall_sensor::off()?;
         loop {
+            ctx.command_rx.try_recv().ok().map(|cmd| match cmd {
+                Command::GyroCalibration => {
+                    gyro_calibration(&mut ctx);
+                }
+                Command::SetActivateWallSensor(ls, lf, rf, rs) => {
+                    ctx.ls_ena = ls;
+                    ctx.lf_ena = lf;
+                    ctx.rf_ena = rf;
+                    ctx.rs_ena = rs;
+                }
+                Command::SStart(velocity) => {}
+                Command::SForward => {}
+                Command::SStop => {}
+                Command::SRight => {}
+                Command::SLeft => {}
+                Command::SReturn => {}
+            });
             measure(&mut ctx, true, true, true, true)?;
             // update(&mut ctx);
             sync_ms();
