@@ -318,11 +318,13 @@ impl ConsoleCommand for CmdOdo {
                 imu.gyro_x_phy
             };
             uprintln!(
-                "x: {}[m], y: {}[m], theta: {}[rad], gyro: {}[rad/s]",
+                "x: {}[m], y: {}[m], theta: {}[rad], gyro: {}[rad/s], v_r: {}[m/s], v_l: {}[m/s]",
                 micromouse.x,
                 micromouse.y,
                 micromouse.theta,
-                gyro
+                gyro,
+                micromouse.v_r,
+                micromouse.v_l
             );
             FreeRtos::delay_ms(100);
             match receive(&mut buffer) {

@@ -44,6 +44,8 @@ pub struct MicromouseState {
     pub theta: f32, // Heading [rad]
     pub omega: f32, // Angular velocity [rad/s]
     pub v: f32,     // Velocity [m/s]
+    pub v_l: f32,   // Left wheel velocity [m/s]
+    pub v_r: f32,   // Right wheel velocity [m/s]
 }
 pub struct Ods {
     pub imu: Mutex<OdsImu>,

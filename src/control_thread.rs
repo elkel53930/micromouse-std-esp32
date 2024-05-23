@@ -5,6 +5,7 @@ use crate::log_thread;
 use crate::misc::correct_value;
 use crate::ods;
 use crate::ods::MicromouseState;
+use crate::pid;
 use crate::timer_interrupt::{sync_ms, wait_us};
 use crate::wall_sensor;
 use serde::{Deserialize, Serialize};
@@ -56,6 +57,10 @@ struct ControlThreadConfig {
     gyro_cfg: GyroConfig,
     enc_cfg: EncoderConfig,
     battery_cfg: BatteryConfig,
+}
+
+struct SearchControl {
+    v_pid: pid::Pid,
 }
 
 struct ControlContext {
@@ -233,14 +238,21 @@ fn reset_micromouse_state(ctx: &mut ControlContext) {
 }
 
 fn update(ctx: &mut ControlContext) {
-    let enc_diff = {
+    let (enc_r_diff, enc_l_diff) = {
         let enc = ctx.ods.encoder.lock().unwrap();
-        (enc.l_diff as f32 + enc.r_diff as f32) / 2.0
+        (enc.r_diff as f32, enc.l_diff as f32)
     };
-    let velocity = enc_diff / ctx.config.enc_cfg.gear_ratio
+
+    let v_r = enc_r_diff / ctx.config.enc_cfg.gear_ratio
         * ctx.config.enc_cfg.wheel_diameter
         * std::f32::consts::PI
         / 16384.0;
+    let v_l = enc_l_diff / ctx.config.enc_cfg.gear_ratio
+        * ctx.config.enc_cfg.wheel_diameter
+        * std::f32::consts::PI
+        / 16384.0;
+
+    let velocity = (v_r + v_l) / 2.0;
 
     let gyro = {
         let imu = ctx.ods.imu.lock().unwrap();
@@ -252,6 +264,8 @@ fn update(ctx: &mut ControlContext) {
         micromouse.v = velocity;
         micromouse.x += velocity * micromouse.theta.cos() * 0.001;
         micromouse.y += velocity * micromouse.theta.sin() * 0.001;
+        micromouse.v_l = v_l;
+        micromouse.v_r = v_r;
         micromouse.omega = gyro;
     }
 }
@@ -330,26 +344,33 @@ pub fn init(
     std::thread::Builder::new().spawn(move || -> anyhow::Result<()> {
         wall_sensor::off()?;
         loop {
-            ctx.command_rx.try_recv().ok().map(|cmd| match cmd {
-                Command::GyroCalibration => {
-                    gyro_calibration(&mut ctx);
+            match ctx.command_rx.try_recv() {
+                Ok(cmd) => match cmd {
+                    Command::GyroCalibration => {
+                        gyro_calibration(&mut ctx);
+                    }
+                    Command::SetActivateWallSensor(ls, lf, rf, rs) => {
+                        ctx.ls_ena = ls;
+                        ctx.lf_ena = lf;
+                        ctx.rf_ena = rf;
+                        ctx.rs_ena = rs;
+                    }
+                    Command::SStart(_distance) => {}
+                    Command::SForward => {}
+                    Command::SStop => {}
+                    Command::SRight => {}
+                    Command::SLeft => {}
+                    Command::SReturn => {}
+                },
+                Err(mpsc::TryRecvError::Empty) => {
+                    measure(&mut ctx, true, true, true, true)?;
+                    update(&mut ctx);
+                    sync_ms();
                 }
-                Command::SetActivateWallSensor(ls, lf, rf, rs) => {
-                    ctx.ls_ena = ls;
-                    ctx.lf_ena = lf;
-                    ctx.rf_ena = rf;
-                    ctx.rs_ena = rs;
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    panic!("command_rx disconnected");
                 }
-                Command::SStart(velocity) => {}
-                Command::SForward => {}
-                Command::SStop => {}
-                Command::SRight => {}
-                Command::SLeft => {}
-                Command::SReturn => {}
-            });
-            measure(&mut ctx, true, true, true, true)?;
-            // update(&mut ctx);
-            sync_ms();
+            }
         }
     })?;
 
