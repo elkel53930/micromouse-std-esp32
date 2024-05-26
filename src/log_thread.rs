@@ -48,7 +48,7 @@ impl Log {
 }
 
 pub const LOG_SIZE_IN_BYTE: usize = 200_000;
-pub const LOG_SIZE: usize = LOG_SIZE_IN_BYTE / std::mem::size_of::<Log>();
+pub const LOG_LEN: usize = LOG_SIZE_IN_BYTE / std::mem::size_of::<Log>();
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LogCommand {

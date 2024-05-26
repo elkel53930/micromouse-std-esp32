@@ -152,6 +152,10 @@ impl Console {
                     "list" => {
                         self.list(&args[1..arg_num]);
                     }
+                    "exit" => {
+                        uprintln!("Exit console.");
+                        return Ok(());
+                    }
                     _ => {
                         uprintln!("Command not found: '{}'", args[0]);
                     }

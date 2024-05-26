@@ -62,7 +62,7 @@ impl Ods {
             encoder: Mutex::new(OdsEncoder::default()),
             wall_sensor: Mutex::new(OdsWallSensor::default()),
             micromouse: Mutex::new(MicromouseState::default()),
-            log: Mutex::new(Vec::with_capacity(log_thread::LOG_SIZE)),
+            log: Mutex::new(Vec::with_capacity(log_thread::LOG_LEN)),
         }
     }
 }

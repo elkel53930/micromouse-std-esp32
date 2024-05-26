@@ -15,7 +15,7 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
         rx = peripherals.pins.gpio44.clone_unchecked();
     }
 
-    let config = uart::config::Config::new().baudrate(Hertz(115_200));
+    let config = uart::config::Config::new().baudrate(Hertz(3_000_000));
     unsafe {
         let uart = UartDriver::new(
             peripherals.uart1.clone_unchecked(),

@@ -13,7 +13,7 @@ if len(sys.argv) != 3:
 	print('usage: ft [file] [destination]')
 	sys.exit(1)
 
-with serial.Serial(serial_port, 115200, timeout=1) as ser:
+with serial.Serial(serial_port, 3000000, timeout=1) as ser:
 	# First, send an enter key to refresh the command prompt.
 	ser.write('\n'.encode('utf-8'))
 	time.sleep(0.5)

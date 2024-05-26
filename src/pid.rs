@@ -1,3 +1,14 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct PidParameter {
+    p: f32,
+    i: f32,
+    d: f32,
+    i_limit: f32,
+    dead_zone: f32,
+}
+
 pub struct Pid {
     p: f32,
     i: f32,
@@ -9,15 +20,15 @@ pub struct Pid {
 }
 
 impl Pid {
-    pub fn new(p: f32, i: f32, d: f32, i_limit: f32, dead_zone: f32) -> Self {
+    pub fn new(parameter: PidParameter) -> Self {
         Pid {
-            p,
-            i,
-            d,
+            p: parameter.p,
+            i: parameter.i,
+            d: parameter.d,
             last_error: 0.0,
             integral: 0.0,
-            i_limit: i_limit,
-            dead_zone: dead_zone,
+            i_limit: parameter.i_limit,
+            dead_zone: parameter.dead_zone,
         }
     }
 

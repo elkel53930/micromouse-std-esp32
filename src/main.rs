@@ -127,48 +127,36 @@ fn main() -> anyhow::Result<()> {
 
     uprintln!("Boot count: {}", boot_count);
     fprintln!("Boot count: {}", boot_count);
-
-    ctx.led_tx.send((Blue, Some("10")))?;
-
-    let mut console = console::Console::new();
-    console.run(&ctx)?;
-
-    // Wait for the user to interrupt the rf sensor
-    ctx.command_tx
-        .send(control_thread::Command::SetActivateWallSensor(
-            true, false, false, true,
-        ))?;
-
     uprintln!("Hold left to enter the console.");
 
-    ctx.led_tx.send((Blue, Some("0")))?;
+    // Calibrate the gyro
+    //    ctx.led_tx.send((Red, Some("10")))?;
+    //    uprintln!("Start gyro calibration");
+    //    ctx.command_tx
+    //        .send(control_thread::Command::GyroCalibration)?;
+    //    let _response = ctx.response_rx.recv().unwrap(); // Wait for Done
+    //    let offset = {
+    //        let imu = ctx.ods.imu.lock().unwrap();
+    //        imu.gyro_x_offset
+    //    };
+    //    uprintln!("Gyro offset: {}", offset);
 
-    if ui::hold_ws(&ctx) == ui::UserOperation::HoldL {
+    let mut console = console::Console::new();
+
+    ctx.led_tx.send((Blue, Some("0")))?;
+    ctx.led_tx.send((Red, Some("0")))?;
+    if ui::hold_ws(&ctx) == ui::UserOperation::HoldR {
+        ui::countdown(&ctx);
+        ctx.command_tx.send(control_thread::Command::SStart(1.0))?;
+        let response = ctx.response_rx.recv()?; // Wait for CommandRequest
+        if response != control_thread::Response::CommandRequest {
+            return Err(anyhow::anyhow!("Unexpected response: {:?}", response));
+        }
+        return console.run(&ctx);
+    } else {
+        // HoldR or TimeOut
         return console.run(&ctx);
     }
-
-    // Calibrate the gyro
-    ctx.led_tx.send((Red, Some("10")))?;
-    uprintln!("Start gyro calibration");
-    ctx.command_tx
-        .send(control_thread::Command::GyroCalibration)?;
-    let _response = ctx.response_rx.recv().unwrap(); // Wait for Done
-    let offset = {
-        let imu = ctx.ods.imu.lock().unwrap();
-        imu.gyro_x_offset
-    };
-    uprintln!("Gyro offset: {}", offset);
-    ctx.led_tx.send((Red, Some("0")))?;
-
-    ui::countdown(&ctx);
-
-    test_run(&mut ctx)?;
-
-    ctx.led_tx.send((Green, Some("1")))?;
-
-    ctx.led_tx.send((Red, Some("0")))?;
-
-    console.run(&ctx)
 }
 
 fn test_run(ctx: &mut OperationContext) -> anyhow::Result<()> {

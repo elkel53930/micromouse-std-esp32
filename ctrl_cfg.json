@@ -36,5 +36,18 @@
 				9.0
 			]
 		]
+	},
+	"search_ctrl_cfg": {
+		"ff_coeff_l": 2.080,
+		"ff_offset_l": -0.134,
+		"ff_coeff_r": 2.080,
+		"ff_offset_r": -0.134,
+		"v_pid": {
+			"p": 1,
+			"i": 0.1,
+			"d": 0.1,
+			"i_limit": 100,
+			"dead_zone": 0
+		}
 	}
 }

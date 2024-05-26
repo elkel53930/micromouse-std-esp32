@@ -1,3 +1,4 @@
+mod motor_control;
 use crate::encoder;
 use crate::imu;
 use crate::led::{self, LedColor::*};
@@ -57,10 +58,17 @@ struct ControlThreadConfig {
     gyro_cfg: GyroConfig,
     enc_cfg: EncoderConfig,
     battery_cfg: BatteryConfig,
+
+    search_ctrl_cfg: SearchControlConfig,
 }
 
-struct SearchControl {
-    v_pid: pid::Pid,
+#[derive(Debug, Serialize, Deserialize, Default)]
+struct SearchControlConfig {
+    ff_coeff_l: f32,
+    ff_offset_l: f32,
+    ff_coeff_r: f32,
+    ff_offset_r: f32,
+    v_pid: pid::PidParameter,
 }
 
 struct ControlContext {
@@ -98,13 +106,12 @@ pub enum Response {
     CommandRequest,
 }
 
-fn measure(
-    ctx: &mut ControlContext,
-    ls_enable: bool,
-    lf_enable: bool,
-    rf_enable: bool,
-    rs_enable: bool,
-) -> anyhow::Result<()> {
+fn measure(ctx: &mut ControlContext) -> anyhow::Result<()> {
+    let ls_enable = ctx.ls_ena;
+    let lf_enable = ctx.lf_ena;
+    let rf_enable = ctx.rf_ena;
+    let rs_enable = ctx.rs_ena;
+
     let batt = wall_sensor::read_batt()?;
     let batt_phy = correct_value(
         &ctx.config.battery_cfg.correction_table.as_slice(),
@@ -280,7 +287,7 @@ fn gyro_calibration(ctx: &mut ControlContext) {
     }
 
     for _ in 0..1000 {
-        measure(ctx, false, false, false, false).unwrap();
+        measure(ctx).unwrap();
         {
             let imu = ctx.ods.imu.lock().unwrap();
             gyro_offset += imu.gyro_x_phy as f32;
@@ -315,7 +322,13 @@ pub fn init(
         return Ok(result);
     }
 
-    let config = read().unwrap_or(ControlThreadConfig::default());
+    let config = match read() {
+        Ok(c) => c,
+        Err(e) => {
+            println!("❌Failed to read config: {:?}", e);
+            ControlThreadConfig::default()
+        }
+    };
 
     println!("{:?}", config);
 
@@ -355,22 +368,23 @@ pub fn init(
                         ctx.rf_ena = rf;
                         ctx.rs_ena = rs;
                     }
-                    Command::SStart(_distance) => {}
+                    Command::SStart(distance) => {
+                        motor_control::start(&mut ctx, distance).unwrap();
+                    }
                     Command::SForward => {}
                     Command::SStop => {}
                     Command::SRight => {}
                     Command::SLeft => {}
                     Command::SReturn => {}
                 },
-                Err(mpsc::TryRecvError::Empty) => {
-                    measure(&mut ctx, true, true, true, true)?;
-                    update(&mut ctx);
-                    sync_ms();
-                }
+                Err(mpsc::TryRecvError::Empty) => {}
                 Err(mpsc::TryRecvError::Disconnected) => {
                     panic!("command_rx disconnected");
                 }
             }
+            measure(&mut ctx)?;
+            update(&mut ctx);
+            sync_ms()
         }
     })?;
 
