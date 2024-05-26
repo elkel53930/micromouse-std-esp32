@@ -1,0 +1,24 @@
+#!/usr/bin/env python3
+
+import sys
+import serial
+import os
+import time
+import re
+
+# Send the file given as an argument via the serial port.
+serial_port = '/dev/ttyUSB0'
+
+command = ' '.join(sys.argv[1:]) + '\n'
+
+with serial.Serial(serial_port, 115200, timeout=1) as ser:
+    
+    # Send 'ft /sf/{filename} {filesize}'.
+    ser.write(command.encode('utf-8'))
+
+    # Wait until the string 'Start' is received.
+    while True:
+        line = ser.readline().decode('utf-8').rstrip()
+        print(line)
+        if re.match(r'\d\.\d\d\[V\]', line):
+            break

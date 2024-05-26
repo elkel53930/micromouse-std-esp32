@@ -1,0 +1,4 @@
+[connection]
+serial = "/dev/ttyUSB0"
+partition_table = "partitions.csv"
+baudrate = 3000000

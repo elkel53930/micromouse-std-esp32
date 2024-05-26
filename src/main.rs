@@ -12,7 +12,6 @@ pub mod uart;
 pub mod fram_logger;
 use crate::fram_logger::fram_print;
 
-mod config;
 mod console;
 mod control_thread;
 mod encoder;
@@ -145,6 +144,7 @@ fn main() -> anyhow::Result<()> {
 
     ctx.led_tx.send((Blue, Some("0")))?;
     ctx.led_tx.send((Red, Some("0")))?;
+    ctx.led_tx.send((Red, None))?;
     if ui::hold_ws(&ctx) == ui::UserOperation::HoldR {
         ui::countdown(&ctx);
         ctx.command_tx.send(control_thread::Command::SStart(1.0))?;
@@ -157,55 +157,6 @@ fn main() -> anyhow::Result<()> {
         // HoldR or TimeOut
         return console.run(&ctx);
     }
-}
-
-fn test_run(ctx: &mut OperationContext) -> anyhow::Result<()> {
-    use crate::control_thread::Command::*;
-
-    fprintln!("Start test run");
-
-    let mut cmds: Vec<Command> = vec![];
-    {
-        let yaml_config = config::YamlConfig::new("/sf/config.yaml".to_string())?;
-        let test_pattern = yaml_config.load_vec_str("test_pattern", vec![]);
-
-        fprintln!("test_pattern: {:?}", test_pattern);
-
-        for s in test_pattern {
-            cmds.push(if s == "StartA" {
-                fprintln!("StartA");
-                SStart(0.017 + 0.045)
-            } else if s == "Start" {
-                fprintln!("Start");
-                SStart(0.045)
-            } else if s == "Stop" {
-                fprintln!("Stop");
-                SStop
-            } else if s == "Forward" {
-                fprintln!("Forward");
-                SForward
-            } else if s == "TurnL" {
-                fprintln!("TurnL");
-                SLeft
-            } else if s == "TurnR" {
-                fprintln!("TurnR");
-                SRight
-            } else if s == "TurnBack" {
-                fprintln!("TurnBack");
-                SReturn
-            } else {
-                fprintln!("Unknown command {}", s);
-                continue;
-            });
-        }
-    }
-
-    //    let cmds = [Start(0.017 + 0.045), Forward, Stop];
-    for cmd in cmds {
-        ctx.command_tx.send(cmd)?;
-        let _response = ctx.response_rx.recv().unwrap(); // Wait for CommandRequest
-    }
-    Ok(())
 }
 
 fn search_run(ctx: &mut OperationContext) -> anyhow::Result<()> {

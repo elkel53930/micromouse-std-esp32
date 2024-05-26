@@ -32,10 +32,9 @@ pub fn hold_ws(ctx: &OperationContext) -> UserOperation {
             result = UserOperation::HoldR;
             break;
         }
-        uprintln!("ls: {}, rs: {}", ls, rs);
         FreeRtos::delay_ms(10);
     }
-    ctx.led_tx.send((Blue, None)).unwrap();
+    ctx.led_tx.send((Blue, Some("0"))).unwrap();
     result
 }
 

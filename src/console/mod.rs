@@ -1,10 +1,11 @@
-use esp_idf_hal::delay::FreeRtos;
-
 use crate::control_thread;
 use crate::led::LedColor::*;
 use crate::ods;
 use crate::uart::{self, read_line, receive};
 use crate::OperationContext;
+use esp_idf_hal::delay::FreeRtos;
+use std::fs::File;
+use std::io::prelude::*;
 
 mod file;
 
@@ -431,25 +432,19 @@ struct CmdConfig {}
 impl ConsoleCommand for CmdConfig {
     fn execute(&self, args: &[&str], mut _ctx: &OperationContext) -> anyhow::Result<()> {
         if args.len() == 0 {
-            let yaml_config = crate::config::YamlConfig::new("/sf/config.yaml".to_string())?;
-            yaml_config.ushow();
+            let mut f = File::open("/sf/ctrl_cfg.json")?;
+            let mut contents = String::new();
+            f.read_to_string(&mut contents)?;
+            let result = serde_json::from_str(&contents)?;
+            uprintln!("{:?}", result);
             return Ok(());
         }
-
-        if args.len() == 1 {
-            let yaml_config = crate::config::YamlConfig::new("/sf/config.yaml".to_string())?;
-            let value = yaml_config.load(args[0])?;
-            uprintln!("{}: {:?}", args[0], value);
-            return Ok(());
-        }
-
         return Err(anyhow::anyhow!("Invalid argument"));
     }
 
     fn hint(&self) {
         uprintln!("Show current configurations.");
-        uprintln!("Usage: config [parameter_name]");
-        uprintln!("  if parameter_name is not specified, show all parameters.");
+        uprintln!("Usage: config");
     }
 
     fn name(&self) -> &str {

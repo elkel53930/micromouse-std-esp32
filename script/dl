@@ -10,7 +10,7 @@ serial_port = '/dev/ttyUSB0'
 dir_name = 'downloads/'
 
 def receive_file(filename):
-	ser = serial.Serial(serial_port, 3000000, timeout=1)
+	ser = serial.Serial(serial_port, 115200, timeout=1)
 
 	ser.write('\n'.encode('utf-8'))
 	time.sleep(0.5)
@@ -55,7 +55,7 @@ if __name__ == "__main__":
 	if len(sys.argv) != 2:
 		print("Download a file from the micromouse")
 		print("The file will be saved in the ./" + dir_name + " directory.")
-		print("Usage: python dl {filename}")
+		print("Usage: python dl {filename without /sf/}")
 		sys.exit(1)
 
 	filename = sys.argv[1]

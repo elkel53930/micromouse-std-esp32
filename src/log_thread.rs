@@ -1,58 +1,15 @@
 use crate::ods;
-use std::fs;
-use std::io::Write;
+use std::fs::File;
 use std::sync::mpsc::{self, Sender};
 use std::sync::Arc;
 
 const LOG_FILE_NAME: &str = "/sf/log{:02}.csv";
 
-// Log data
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Log {
-    pub current_omega: f32,
-    pub omega_ctrl: f32,
-    pub current_theta: f32,
-    pub theta_ctrl: f32,
-    pub current_x: f32,
-    pub target_x: f32,
-    pub x_ctrl: f32,
-    pub current_v: f32,
-    pub target_v: f32,
-    pub v_ctrl: f32,
-}
-
-impl Log {
-    // Convert to CSV string
-    pub fn to_string(&self) -> String {
-        format!(
-            "{},{},{},{},{},{},{},{},{},{}\n",
-            self.current_omega,
-            self.omega_ctrl,
-            self.current_theta,
-            self.theta_ctrl,
-            self.current_x,
-            self.target_x,
-            self.x_ctrl,
-            self.current_v,
-            self.target_v,
-            self.v_ctrl
-        )
-    }
-
-    // CSV header
-    pub fn header() -> String {
-        format!(
-            "current_omega,omega_ctrl,current_theta,theta_ctrl,current_x,target_x,x_ctrl,current_v,target_v,v_ctrl\n"
-        )
-    }
-}
-
 pub const LOG_SIZE_IN_BYTE: usize = 200_000;
-pub const LOG_LEN: usize = LOG_SIZE_IN_BYTE / std::mem::size_of::<Log>();
+pub const LOG_LEN: usize = LOG_SIZE_IN_BYTE / std::mem::size_of::<crate::ods::MicromouseState>();
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LogCommand {
-    Start,
     Save,
 }
 
@@ -74,54 +31,24 @@ pub fn init(ods: &Arc<ods::Ods>) -> anyhow::Result<Sender<LogCommand>> {
 
     std::thread::Builder::new().spawn(move || -> anyhow::Result<()> {
         loop {
-            loop {
-                // Wait for the start command
-                let command = rx.recv().unwrap();
-                if command == LogCommand::Start {
-                    uprintln!("[Log] Started");
-                    // Shift log files
-                    let _ = std::fs::remove_file("/sf/log05.csv");
-                    for n in (0..5).rev() {
-                        let name_from = format!("log{:02}.csv", n);
-                        let name_to = format!("log{:02}.csv", n + 1);
-                        let _ = std::fs::rename(
-                            format!("/sf/{}", name_from),
-                            format!("/sf/{}", name_to),
-                        );
-                    }
-                    break;
+            // Wait for the save command
+            log::info!("Waiting for the save command...");
+            let command = rx.recv().unwrap();
+            if command == LogCommand::Save {
+                // Write log data as CSV file
+                let mut log_data = ods.log.lock().unwrap();
+                log::info!("Saving log data... ({} records)", log_data.len());
+
+                let mut wtr = csv::Writer::from_writer(File::create("/sf/log.csv")?);
+                for user in log_data.iter() {
+                    wtr.serialize(user)?;
                 }
-            }
-            loop {
-                // Wait for the save command
-                let command = rx.recv().unwrap();
-                if command == LogCommand::Save {
-                    // Write log data as CSV file
-                    let mut file = fs::OpenOptions::new()
-                        .write(true)
-                        .append(true)
-                        .open(LOG_FILE_NAME)?;
+                wtr.flush()?;
 
-                    let mut log = ods.log.lock().unwrap();
-
-                    uprintln!("[Log] Saving log");
-
-                    file.write_all(Log::header().as_bytes())?;
-
-                    let mut counter = 0;
-
-                    for log_data in log.iter() {
-                        file.write_all(log_data.to_string().as_bytes())?;
-                        file.flush()?;
-                        counter += 1;
-                    }
-
-                    uprintln!("counter: {}", counter);
-
-                    log.clear(); // clear() does not release heap memory.
-                    uprintln!("[Log] Done");
-                    break;
-                }
+                log_data.clear(); // clear() does not release heap memory.
+                log::info!("Saved");
+            } else {
+                log::warn!("Unknown command: {:?}", command);
             }
         }
     })?;

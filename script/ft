@@ -10,10 +10,10 @@ serial_port = '/dev/ttyUSB0'
 
 if len(sys.argv) != 3:
 	print("Send a file to the micromouse via the serial port.")
-	print('usage: ft [file] [destination]')
+	print('usage: ft [filename] [destination without /sf/]')
 	sys.exit(1)
 
-with serial.Serial(serial_port, 3000000, timeout=1) as ser:
+with serial.Serial(serial_port, 115200, timeout=1) as ser:
 	# First, send an enter key to refresh the command prompt.
 	ser.write('\n'.encode('utf-8'))
 	time.sleep(0.5)
@@ -22,8 +22,11 @@ with serial.Serial(serial_port, 3000000, timeout=1) as ser:
 	time.sleep(0.5)
 
 	print("Starting transfer")	
-	# Send 'ft /sf/{filename} {filesize}'.
-	ser.write(('ft /sf/' + sys.argv[2] + ' ' + str(os.path.getsize(sys.argv[1])) + '\n').encode('utf-8'))
+	destination = sys.argv[2]
+	filename = sys.argv[1]
+	filesize = os.path.getsize(filename)
+	# Send 'ft /sf/{destination} {filesize}'.
+	ser.write(('ft /sf/' + destination + ' ' + str(filesize) + '\n').encode('utf-8'))
 
 	# Wait until the string 'Start' is received.
 	while True:

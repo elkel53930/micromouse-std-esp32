@@ -4,6 +4,7 @@ use esp_idf_hal::gpio::{
 };
 use esp_idf_hal::peripheral::Peripheral;
 use esp_idf_hal::peripherals::Peripherals;
+use esp_idf_sys::adc1_get_raw;
 
 struct WallSensorHardware<'a> {
     ad: AdcDriver<'a, ADC1>,
@@ -49,11 +50,8 @@ pub fn read_ls() -> anyhow::Result<u16> {
     #[allow(unused_mut)]
     let mut result;
     unsafe {
-        result = HARDWARE
-            .as_mut()
-            .unwrap()
-            .ad
-            .read(&mut HARDWARE.as_mut().unwrap().ls)?;
+        let hw = HARDWARE.as_mut().unwrap();
+        result = hw.ad.read(&mut hw.ls)?;
     }
     Ok(result)
 }
@@ -62,11 +60,8 @@ pub fn read_lf() -> anyhow::Result<u16> {
     #[allow(unused_mut)]
     let mut result;
     unsafe {
-        result = HARDWARE
-            .as_mut()
-            .unwrap()
-            .ad
-            .read(&mut HARDWARE.as_mut().unwrap().lf)?;
+        let hw = HARDWARE.as_mut().unwrap();
+        result = hw.ad.read(&mut hw.lf)?;
     }
     Ok(result)
 }
@@ -75,11 +70,8 @@ pub fn read_rf() -> anyhow::Result<u16> {
     #[allow(unused_mut)]
     let mut result;
     unsafe {
-        result = HARDWARE
-            .as_mut()
-            .unwrap()
-            .ad
-            .read(&mut HARDWARE.as_mut().unwrap().rf)?;
+        let hw = HARDWARE.as_mut().unwrap();
+        result = hw.ad.read(&mut hw.rf)?;
     }
     Ok(result)
 }
@@ -88,11 +80,8 @@ pub fn read_rs() -> anyhow::Result<u16> {
     #[allow(unused_mut)]
     let mut result;
     unsafe {
-        result = HARDWARE
-            .as_mut()
-            .unwrap()
-            .ad
-            .read(&mut HARDWARE.as_mut().unwrap().rs)?;
+        let hw = HARDWARE.as_mut().unwrap();
+        result = hw.ad.read(&mut hw.rs)?;
     }
     Ok(result)
 }
@@ -101,11 +90,8 @@ pub fn read_batt() -> anyhow::Result<u16> {
     #[allow(unused_mut)]
     let mut result;
     unsafe {
-        result = HARDWARE
-            .as_mut()
-            .unwrap()
-            .ad
-            .read(&mut HARDWARE.as_mut().unwrap().batt)?;
+        let hw = HARDWARE.as_mut().unwrap();
+        result = hw.ad.read(&mut hw.batt)?;
     }
     Ok(result)
 }
@@ -119,36 +105,40 @@ pub fn read_batt() -> anyhow::Result<u16> {
 */
 pub fn on_ls() -> anyhow::Result<()> {
     unsafe {
-        HARDWARE.as_mut().unwrap().sel0.set_high()?;
-        HARDWARE.as_mut().unwrap().sel1.set_low()?;
-        HARDWARE.as_mut().unwrap().ena.set_high()?;
+        let hw = HARDWARE.as_mut().unwrap();
+        hw.sel0.set_high()?;
+        hw.sel1.set_low()?;
+        hw.ena.set_high()?;
     }
     Ok(())
 }
 
 pub fn on_lf() -> anyhow::Result<()> {
     unsafe {
-        HARDWARE.as_mut().unwrap().sel0.set_high()?;
-        HARDWARE.as_mut().unwrap().sel1.set_high()?;
-        HARDWARE.as_mut().unwrap().ena.set_high()?;
+        let hw = HARDWARE.as_mut().unwrap();
+        hw.sel0.set_high()?;
+        hw.sel1.set_high()?;
+        hw.ena.set_high()?;
     }
     Ok(())
 }
 
 pub fn on_rf() -> anyhow::Result<()> {
     unsafe {
-        HARDWARE.as_mut().unwrap().sel0.set_low()?;
-        HARDWARE.as_mut().unwrap().sel1.set_high()?;
-        HARDWARE.as_mut().unwrap().ena.set_high()?;
+        let hw = HARDWARE.as_mut().unwrap();
+        hw.sel0.set_low()?;
+        hw.sel1.set_high()?;
+        hw.ena.set_high()?;
     }
     Ok(())
 }
 
 pub fn on_rs() -> anyhow::Result<()> {
     unsafe {
-        HARDWARE.as_mut().unwrap().sel0.set_low()?;
-        HARDWARE.as_mut().unwrap().sel1.set_low()?;
-        HARDWARE.as_mut().unwrap().ena.set_high()?;
+        let hw = HARDWARE.as_mut().unwrap();
+        hw.sel0.set_low()?;
+        hw.sel1.set_low()?;
+        hw.ena.set_high()?;
     }
     Ok(())
 }

@@ -1,4 +1,6 @@
 use crate::log_thread;
+use log;
+use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -37,22 +39,26 @@ pub struct OdsWallSensor {
     pub batt_phy: f32,
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone, Copy)]
 pub struct MicromouseState {
-    pub x: f32,     // X coordinate [m]
-    pub y: f32,     // Y coordinate [m]
-    pub theta: f32, // Heading [rad]
-    pub omega: f32, // Angular velocity [rad/s]
-    pub v: f32,     // Velocity [m/s]
-    pub v_l: f32,   // Left wheel velocity [m/s]
-    pub v_r: f32,   // Right wheel velocity [m/s]
+    pub time: u32,   // Time [ms]
+    pub x: f32,      // X coordinate [m]
+    pub y: f32,      // Y coordinate [m]
+    pub theta: f32,  // Heading [rad]
+    pub omega: f32,  // Angular velocity [rad/s]
+    pub v: f32,      // Velocity [m/s]
+    pub v_l: f32,    // Left wheel velocity [m/s]
+    pub v_r: f32,    // Right wheel velocity [m/s]
+    pub duty_l: f32, // Left wheel duty [%]
+    pub duty_r: f32, // Left wheel duty [%]
 }
+
 pub struct Ods {
     pub imu: Mutex<OdsImu>,
     pub encoder: Mutex<OdsEncoder>,
     pub wall_sensor: Mutex<OdsWallSensor>,
     pub micromouse: Mutex<MicromouseState>,
-    pub log: Mutex<Vec<log_thread::Log>>,
+    pub log: Mutex<Vec<MicromouseState>>,
 }
 
 impl Ods {

@@ -3,12 +3,14 @@ use crate::encoder;
 use crate::imu;
 use crate::led::{self, LedColor::*};
 use crate::log_thread;
+use crate::log_thread::LOG_LEN;
 use crate::misc::correct_value;
 use crate::ods;
 use crate::ods::MicromouseState;
 use crate::pid;
 use crate::timer_interrupt::{sync_ms, wait_us};
 use crate::wall_sensor;
+use embedded_svc::utils::asyncify::timer;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::prelude::*;
@@ -68,7 +70,24 @@ struct SearchControlConfig {
     ff_offset_l: f32,
     ff_coeff_r: f32,
     ff_offset_r: f32,
+    vel_fwd: f32,
     v_pid: pid::PidParameter,
+}
+
+struct LogInfo {
+    interval: u8,
+    counter: u8,
+    is_full: bool,
+}
+
+impl LogInfo {
+    fn new() -> Self {
+        Self {
+            interval: 0,
+            counter: 0,
+            is_full: false,
+        }
+    }
 }
 
 struct ControlContext {
@@ -76,6 +95,7 @@ struct ControlContext {
 
     #[allow(unused)]
     log_tx: Sender<log_thread::LogCommand>,
+    log_info: LogInfo,
 
     response_tx: Sender<Response>,
     command_rx: Receiver<Command>,
@@ -86,6 +106,57 @@ struct ControlContext {
     lf_ena: bool,
     rf_ena: bool,
     rs_ena: bool,
+}
+
+impl ControlContext {
+    fn new(
+        ods: Arc<ods::Ods>,
+        log_tx: Sender<log_thread::LogCommand>,
+        response_tx: Sender<Response>,
+        command_rx: Receiver<Command>,
+        config: ControlThreadConfig,
+    ) -> Self {
+        Self {
+            ods,
+            log_tx,
+            log_info: LogInfo::new(),
+            response_tx,
+            command_rx,
+            config,
+            ls_ena: false,
+            lf_ena: false,
+            rf_ena: false,
+            rs_ena: false,
+        }
+    }
+    pub fn start_log(&mut self, interval: u8) {
+        log::info!("Start logging.");
+        self.log_info.counter = 0;
+        self.log_info.is_full = false;
+        self.ods.log.lock().unwrap().clear();
+    }
+
+    pub fn log(&mut self) {
+        if self.log_info.is_full {
+            return;
+        }
+        self.log_info.counter += 1;
+        if self.log_info.counter >= self.log_info.interval {
+            self.log_info.counter = 0;
+            {
+                let mut log = self.ods.log.lock().unwrap();
+                log.push(*self.ods.micromouse.lock().unwrap());
+            }
+            if self.ods.log.lock().unwrap().len() >= LOG_LEN {
+                log::warn!("Log is full.");
+                self.log_info.is_full = true;
+            }
+        }
+    }
+
+    pub fn stop_log(&mut self) {
+        let _ = self.log_tx.send(log_thread::LogCommand::Save);
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -119,14 +190,11 @@ fn measure(ctx: &mut ControlContext) -> anyhow::Result<()> {
     );
 
     let (ls_raw, ls) = if ls_enable {
+        let ls_off = wall_sensor::read_ls()?;
         wall_sensor::on_ls()?;
         wait_us(ctx.config.ws_cfg.led_rise_time);
         let ls_on = wall_sensor::read_ls()?;
-
         wall_sensor::off()?;
-        wait_us(ctx.config.ws_cfg.led_rise_time);
-        let ls_off = wall_sensor::read_ls()?;
-
         let ls = ls_on - ls_off;
         (Some(ls), Some(ls > ctx.config.ws_cfg.ls_threshold))
     } else {
@@ -134,14 +202,11 @@ fn measure(ctx: &mut ControlContext) -> anyhow::Result<()> {
     };
 
     let (lf_raw, lf) = if lf_enable {
+        let lf_off = wall_sensor::read_lf()?;
         wall_sensor::on_lf()?;
         wait_us(ctx.config.ws_cfg.led_rise_time);
         let lf_on = wall_sensor::read_lf()?;
-
         wall_sensor::off()?;
-        wait_us(ctx.config.ws_cfg.led_rise_time);
-        let lf_off = wall_sensor::read_lf()?;
-
         let lf = lf_on - lf_off;
         (Some(lf), Some(lf > ctx.config.ws_cfg.lf_threshold))
     } else {
@@ -149,14 +214,11 @@ fn measure(ctx: &mut ControlContext) -> anyhow::Result<()> {
     };
 
     let (rf_raw, rf) = if rf_enable {
+        let rf_off = wall_sensor::read_rf()?;
         wall_sensor::on_rf()?;
         wait_us(ctx.config.ws_cfg.led_rise_time);
         let rf_on = wall_sensor::read_rf()?;
-
         wall_sensor::off()?;
-        wait_us(ctx.config.ws_cfg.led_rise_time);
-        let rf_off = wall_sensor::read_rf()?;
-
         let rf = rf_on - rf_off;
         (Some(rf), Some(rf > ctx.config.ws_cfg.rf_threshold))
     } else {
@@ -164,14 +226,11 @@ fn measure(ctx: &mut ControlContext) -> anyhow::Result<()> {
     };
 
     let (rs_raw, rs) = if rs_enable {
+        let rs_off = wall_sensor::read_rs()?;
         wall_sensor::on_rs()?;
         wait_us(ctx.config.ws_cfg.led_rise_time);
         let rs_on = wall_sensor::read_rs()?;
-
         wall_sensor::off()?;
-        wait_us(ctx.config.ws_cfg.led_rise_time);
-        let rs_off = wall_sensor::read_rs()?;
-
         let rs = rs_on - rs_off;
         (Some(rs), Some(rs > ctx.config.ws_cfg.rs_threshold))
     } else {
@@ -274,7 +333,16 @@ fn update(ctx: &mut ControlContext) {
         micromouse.v_l = v_l;
         micromouse.v_r = v_r;
         micromouse.omega = gyro;
+        micromouse.time = crate::timer_interrupt::get_ms();
     }
+}
+
+fn set_motor_duty(ctx: &ControlContext, duty_l: f32, duty_r: f32) {
+    crate::motor::set_l(duty_l);
+    crate::motor::set_r(duty_r);
+    let mut micromouse = ctx.ods.micromouse.lock().unwrap();
+    micromouse.duty_l = duty_l;
+    micromouse.duty_r = duty_r;
 }
 
 fn gyro_calibration(ctx: &mut ControlContext) {
@@ -332,17 +400,7 @@ pub fn init(
 
     println!("{:?}", config);
 
-    let mut ctx = ControlContext {
-        ods: ods.clone(),
-        response_tx: tx,
-        log_tx: log_tx,
-        command_rx: rx,
-        config: config,
-        ls_ena: false,
-        lf_ena: false,
-        rf_ena: false,
-        rs_ena: false,
-    };
+    let mut ctx = ControlContext::new(ods.clone(), log_tx, tx, rx, config);
 
     // Spawn the control thread
     esp_idf_hal::task::thread::ThreadSpawnConfiguration {
@@ -379,7 +437,7 @@ pub fn init(
                 },
                 Err(mpsc::TryRecvError::Empty) => {}
                 Err(mpsc::TryRecvError::Disconnected) => {
-                    panic!("command_rx disconnected");
+                    log::warn!("command_rx disconnected.");
                 }
             }
             measure(&mut ctx)?;

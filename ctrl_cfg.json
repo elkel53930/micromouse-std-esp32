@@ -38,10 +38,11 @@
 		]
 	},
 	"search_ctrl_cfg": {
-		"ff_coeff_l": 2.080,
+		"ff_coeff_l": 2.000,
 		"ff_offset_l": -0.134,
 		"ff_coeff_r": 2.080,
 		"ff_offset_r": -0.134,
+		"vel_fwd": 1.0,
 		"v_pid": {
 			"p": 1,
 			"i": 0.1,

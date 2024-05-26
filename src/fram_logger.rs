@@ -1,3 +1,4 @@
+use crate::timer_interrupt::get_time;
 use anyhow::Ok;
 use esp_idf_hal::delay::BLOCK;
 use esp_idf_hal::gpio::AnyIOPin;
@@ -116,7 +117,16 @@ impl log::Log for FramLogger {
 
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
-            fprintln!("{} - {}", record.level(), record.args());
+            let (min, sec, ms, us) = get_time();
+            fprintln!(
+                "[{:02}:{:02}:{:03}:{:03}] {} - {}",
+                min,
+                sec,
+                ms,
+                us,
+                record.level(),
+                record.args()
+            );
         }
     }
 

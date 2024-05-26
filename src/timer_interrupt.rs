@@ -27,7 +27,7 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
 
 // Get the current time in microseconds
 // It is reset to 0 every 1000us
-fn get_us() -> u32 {
+pub fn get_us() -> u32 {
     // The timer counter is incremented by hardware every 1us.
     let counter = unsafe { TIMER.as_mut().unwrap().counter().unwrap() };
     counter as u32
@@ -61,7 +61,7 @@ pub fn sync_ms() {
     let mut prev = get_us();
     loop {
         let now = get_us();
-        if prev > 500 && now < 500 {
+        if prev > now {
             break;
         }
         prev = now;
@@ -78,4 +78,14 @@ fn timer_isr() {
 // Get the time in milliseconds since the timer was started
 pub fn get_ms() -> u32 {
     unsafe { COUNTER_MS }
+}
+
+// min sec ms us
+pub fn get_time() -> (u8, u8, u16, u16) {
+    let ms = get_ms();
+    let min = ms / 60000;
+    let sec = (ms % 60000) / 1000;
+    let ms = (ms % 1000) as u16;
+    let us = get_us() as u16;
+    (min as u8, sec as u8, ms, us)
 }
