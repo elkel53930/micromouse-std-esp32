@@ -157,6 +157,13 @@ impl ControlContext {
     pub fn stop_log(&mut self) {
         let _ = self.log_tx.send(log_thread::LogCommand::Save);
     }
+
+    pub fn set_ws_enable(&mut self, ls: bool, lf: bool, rf: bool, rs: bool) {
+        self.ls_ena = ls;
+        self.lf_ena = lf;
+        self.rf_ena = rf;
+        self.rs_ena = rs;
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -421,12 +428,10 @@ pub fn init(
                         gyro_calibration(&mut ctx);
                     }
                     Command::SetActivateWallSensor(ls, lf, rf, rs) => {
-                        ctx.ls_ena = ls;
-                        ctx.lf_ena = lf;
-                        ctx.rf_ena = rf;
-                        ctx.rs_ena = rs;
+                        ctx.set_ws_enable(ls, lf, rf, rs);
                     }
                     Command::SStart(distance) => {
+                        ctx.set_ws_enable(true, true, true, true);
                         motor_control::start(&mut ctx, distance).unwrap();
                     }
                     Command::SForward => {}

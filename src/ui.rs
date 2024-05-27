@@ -35,6 +35,7 @@ pub fn hold_ws(ctx: &OperationContext) -> UserOperation {
         FreeRtos::delay_ms(10);
     }
     ctx.led_tx.send((Blue, Some("0"))).unwrap();
+    log::info!("hold_ws: {:?}", result);
     result
 }
 
