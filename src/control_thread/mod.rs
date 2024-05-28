@@ -90,6 +90,11 @@ impl LogInfo {
     }
 }
 
+enum WsStep {
+    Side,
+    Front,
+}
+
 struct ControlContext {
     ods: Arc<ods::Ods>,
 
@@ -102,10 +107,8 @@ struct ControlContext {
 
     config: ControlThreadConfig,
 
-    ls_ena: bool,
-    lf_ena: bool,
-    rf_ena: bool,
-    rs_ena: bool,
+    ws_ena: bool,
+    ws_step: WsStep,
 }
 
 impl ControlContext {
@@ -123,16 +126,15 @@ impl ControlContext {
             response_tx,
             command_rx,
             config,
-            ls_ena: false,
-            lf_ena: false,
-            rf_ena: false,
-            rs_ena: false,
+            ws_ena: false,
+            ws_step: WsStep::Side,
         }
     }
     pub fn start_log(&mut self, interval: u8) {
         log::info!("Start logging.");
         self.log_info.counter = 0;
         self.log_info.is_full = false;
+        self.log_info.interval = interval;
         self.ods.log.lock().unwrap().clear();
     }
 
@@ -158,18 +160,15 @@ impl ControlContext {
         let _ = self.log_tx.send(log_thread::LogCommand::Save);
     }
 
-    pub fn set_ws_enable(&mut self, ls: bool, lf: bool, rf: bool, rs: bool) {
-        self.ls_ena = ls;
-        self.lf_ena = lf;
-        self.rf_ena = rf;
-        self.rs_ena = rs;
+    pub fn set_ws_enable(&mut self, ena: bool) {
+        self.ws_ena = ena;
     }
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Command {
     GyroCalibration,
-    SetActivateWallSensor(bool, bool, bool, bool),
+    SetActivateWallSensor(bool),
     SStart(f32),
     SForward,
     SStop,
@@ -185,77 +184,82 @@ pub enum Response {
 }
 
 fn measure(ctx: &mut ControlContext) -> anyhow::Result<()> {
-    let ls_enable = ctx.ls_ena;
-    let lf_enable = ctx.lf_ena;
-    let rf_enable = ctx.rf_ena;
-    let rs_enable = ctx.rs_ena;
-
     let batt = wall_sensor::read_batt()?;
     let batt_phy = correct_value(
         &ctx.config.battery_cfg.correction_table.as_slice(),
         batt as i16,
     );
 
-    let (ls_raw, ls) = if ls_enable {
-        let ls_off = wall_sensor::read_ls()?;
-        wall_sensor::on_ls()?;
-        wait_us(ctx.config.ws_cfg.led_rise_time);
-        let ls_on = wall_sensor::read_ls()?;
-        wall_sensor::off()?;
-        let ls = ls_on - ls_off;
-        (Some(ls), Some(ls > ctx.config.ws_cfg.ls_threshold))
-    } else {
-        (None, None)
-    };
+    if ctx.ws_ena {
+        match ctx.ws_step {
+            WsStep::Side => {
+                let ls_off = wall_sensor::read_ls()?;
+                wall_sensor::on_ls()?;
+                wait_us(ctx.config.ws_cfg.led_rise_time);
+                let ls_on = wall_sensor::read_ls()?;
+                wall_sensor::off()?;
+                let ls_raw = ls_on - ls_off;
+                let ls = Some(ls_raw > ctx.config.ws_cfg.ls_threshold);
 
-    let (lf_raw, lf) = if lf_enable {
-        let lf_off = wall_sensor::read_lf()?;
-        wall_sensor::on_lf()?;
-        wait_us(ctx.config.ws_cfg.led_rise_time);
-        let lf_on = wall_sensor::read_lf()?;
-        wall_sensor::off()?;
-        let lf = lf_on - lf_off;
-        (Some(lf), Some(lf > ctx.config.ws_cfg.lf_threshold))
-    } else {
-        (None, None)
-    };
+                let rs_off = wall_sensor::read_rs()?;
+                wall_sensor::on_rs()?;
+                wait_us(ctx.config.ws_cfg.led_rise_time);
+                let rs_on = wall_sensor::read_rs()?;
+                wall_sensor::off()?;
+                let rs_raw = rs_on - rs_off;
+                let rs = Some(rs_raw > ctx.config.ws_cfg.rs_threshold);
 
-    let (rf_raw, rf) = if rf_enable {
-        let rf_off = wall_sensor::read_rf()?;
-        wall_sensor::on_rf()?;
-        wait_us(ctx.config.ws_cfg.led_rise_time);
-        let rf_on = wall_sensor::read_rf()?;
-        wall_sensor::off()?;
-        let rf = rf_on - rf_off;
-        (Some(rf), Some(rf > ctx.config.ws_cfg.rf_threshold))
-    } else {
-        (None, None)
-    };
+                let mut ws = ctx.ods.wall_sensor.lock().unwrap();
+                ws.ls_raw = Some(ls_raw);
+                ws.rs_raw = Some(rs_raw);
+                ws.ls = ls;
+                ws.rs = rs;
+                ws.batt_raw = batt;
+                ws.batt_phy = batt_phy;
 
-    let (rs_raw, rs) = if rs_enable {
-        let rs_off = wall_sensor::read_rs()?;
-        wall_sensor::on_rs()?;
-        wait_us(ctx.config.ws_cfg.led_rise_time);
-        let rs_on = wall_sensor::read_rs()?;
-        wall_sensor::off()?;
-        let rs = rs_on - rs_off;
-        (Some(rs), Some(rs > ctx.config.ws_cfg.rs_threshold))
-    } else {
-        (None, None)
-    };
+                ctx.ws_step = WsStep::Front;
+            }
+            WsStep::Front => {
+                let lf_off = wall_sensor::read_lf()?;
+                wall_sensor::on_lf()?;
+                wait_us(ctx.config.ws_cfg.led_rise_time);
+                let lf_on = wall_sensor::read_lf()?;
+                wall_sensor::off()?;
+                let lf_raw = lf_on - lf_off;
+                let lf = Some(lf_raw > ctx.config.ws_cfg.lf_threshold);
 
-    {
+                let rf_off = wall_sensor::read_rf()?;
+                wall_sensor::on_rf()?;
+                wait_us(ctx.config.ws_cfg.led_rise_time);
+                let rf_on = wall_sensor::read_rf()?;
+                wall_sensor::off()?;
+                let rf_raw = rf_on - rf_off;
+                let rf = Some(rf_raw > ctx.config.ws_cfg.rf_threshold);
+
+                let mut ws = ctx.ods.wall_sensor.lock().unwrap();
+                ws.lf_raw = Some(lf_raw);
+                ws.rf_raw = Some(rf_raw);
+                ws.lf = lf;
+                ws.rf = rf;
+                ws.batt_raw = batt;
+                ws.batt_phy = batt_phy;
+
+                ctx.ws_step = WsStep::Side;
+            }
+        }
+    } else {
         let mut ws = ctx.ods.wall_sensor.lock().unwrap();
-        ws.ls_raw = ls_raw;
-        ws.lf_raw = lf_raw;
-        ws.rf_raw = rf_raw;
-        ws.rs_raw = rs_raw;
-        ws.ls = ls;
-        ws.lf = lf;
-        ws.rf = rf;
-        ws.rs = rs;
         ws.batt_raw = batt;
         ws.batt_phy = batt_phy;
+        ws.lf_raw = None;
+        ws.rf_raw = None;
+        ws.lf = None;
+        ws.rf = None;
+        ws.ls_raw = None;
+        ws.rs_raw = None;
+        ws.ls = None;
+        ws.rs = None;
+        ctx.ws_step = WsStep::Side;
     }
 
     wall_sensor::off()?;
@@ -427,11 +431,11 @@ pub fn init(
                     Command::GyroCalibration => {
                         gyro_calibration(&mut ctx);
                     }
-                    Command::SetActivateWallSensor(ls, lf, rf, rs) => {
-                        ctx.set_ws_enable(ls, lf, rf, rs);
+                    Command::SetActivateWallSensor(ena) => {
+                        ctx.set_ws_enable(ena);
                     }
                     Command::SStart(distance) => {
-                        ctx.set_ws_enable(true, true, true, true);
+                        ctx.set_ws_enable(true);
                         motor_control::start(&mut ctx, distance).unwrap();
                     }
                     Command::SForward => {}

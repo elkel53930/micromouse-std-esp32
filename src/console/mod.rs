@@ -214,9 +214,7 @@ impl ConsoleCommand for CmdSen {
 
         // Activate wall sensors
         ctx.command_tx
-            .send(control_thread::Command::SetActivateWallSensor(
-                true, true, true, true,
-            ))
+            .send(control_thread::Command::SetActivateWallSensor(true))
             .unwrap();
 
         uprintln!("Press any key to exit.");
@@ -273,9 +271,7 @@ impl ConsoleCommand for CmdSen {
 
         // Inactivate wall sensors
         ctx.command_tx
-            .send(control_thread::Command::SetActivateWallSensor(
-                false, false, false, false,
-            ))
+            .send(control_thread::Command::SetActivateWallSensor(false))
             .unwrap();
 
         FreeRtos::delay_ms(500);
@@ -346,9 +342,7 @@ impl ConsoleCommand for CmdOdo {
 
         // Inactivate wall sensors
         ctx.command_tx
-            .send(control_thread::Command::SetActivateWallSensor(
-                false, false, false, false,
-            ))
+            .send(control_thread::Command::SetActivateWallSensor(false))
             .unwrap();
 
         FreeRtos::delay_ms(500);

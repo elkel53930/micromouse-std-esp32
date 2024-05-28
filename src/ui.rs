@@ -12,9 +12,7 @@ pub enum UserOperation {
 
 pub fn hold_ws(ctx: &OperationContext) -> UserOperation {
     ctx.command_tx
-        .send(control_thread::Command::SetActivateWallSensor(
-            true, false, false, true,
-        ))
+        .send(control_thread::Command::SetActivateWallSensor(true))
         .unwrap();
     FreeRtos::delay_ms(10);
     ctx.led_tx.send((Blue, Some("01"))).unwrap();

@@ -32,7 +32,7 @@ pub(super) fn start(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<(
     control_thread::reset_micromouse_state(ctx);
     let target_v = 0.5; //ctx.config.search_ctrl_cfg.vel_fwd;
 
-    ctx.start_log(1);
+    ctx.start_log(0);
     control_thread::set_motor_duty(ctx, 100.0, 100.0);
     for _ in 0..2 {
         control_thread::measure(ctx)?;
@@ -48,7 +48,7 @@ pub(super) fn start(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<(
     let mut call_log: u32 = 0;
 
     let time = timer_interrupt::get_ms();
-    for _ in 0..100 {
+    for _ in 0..200 {
         crate::led::on(crate::led::LedColor::Red)?;
         let volt_r = calc_ff_r(ctx, target_v);
         let volt_l = calc_ff_l(ctx, target_v);
