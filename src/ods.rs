@@ -46,6 +46,7 @@ pub struct MicromouseState {
     pub y: f32,      // Y coordinate [m]
     pub theta: f32,  // Heading [rad]
     pub omega: f32,  // Angular velocity [rad/s]
+    pub v_batt: f32, // Battery voltage [V]
     pub v: f32,      // Velocity [m/s]
     pub v_l: f32,    // Left wheel velocity [m/s]
     pub v_r: f32,    // Right wheel velocity [m/s]

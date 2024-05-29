@@ -42,9 +42,9 @@
 		"ff_offset_l": -0.134,
 		"ff_coeff_r": 2.080,
 		"ff_offset_r": -0.134,
-		"vel_fwd": 1.0,
-		"v_pid": {
-			"p": 1,
+		"vel_fwd": 0.5,
+		"theta_pid": {
+			"p": 0.5,
 			"i": 0.1,
 			"d": 0.1,
 			"i_limit": 100,

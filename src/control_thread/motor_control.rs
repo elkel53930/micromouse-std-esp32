@@ -1,6 +1,8 @@
 use crate::control_thread::{self, ControlContext, Response};
 use crate::motor;
+use crate::ods::MicromouseState;
 use crate::timer_interrupt;
+use crate::pid;
 
 // velocity[m/s] -> voltage[V]
 fn calc_ff_l(ctx: &ControlContext, vel: f32) -> f32 {
@@ -18,9 +20,9 @@ fn calc_ff_r(ctx: &ControlContext, v: f32) -> f32 {
     volt.max(0.0).min(7.4)
 }
 
-fn calc_duty(ctx: &ControlContext, voltage: f32) -> f32 {
+fn calc_duty(micromouse: &MicromouseState, voltage: f32) -> f32 {
     // battery voltage
-    let vb = ctx.ods.wall_sensor.lock().unwrap().batt_phy;
+    let vb = micromouse.v_batt;
     // voltage[V] -> duty[%]
     (voltage / vb) * 100.0
 }
@@ -28,6 +30,10 @@ fn calc_duty(ctx: &ControlContext, voltage: f32) -> f32 {
 // This function is called when the velocity is zero.
 // Move forward a [distance] millimeter and exits without decelerating.
 pub(super) fn start(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<()> {
+    let mut theta_pid = pid::Pid::new(
+        ctx.config.search_ctrl_cfg.theta_pid.clone()    );
+    let target_theta = 0.0;
+
     motor::enable(true);
     control_thread::reset_micromouse_state(ctx);
     let target_v = ctx.config.search_ctrl_cfg.vel_fwd;
@@ -43,13 +49,14 @@ pub(super) fn start(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<(
 
     for _ in 0..200 {
         crate::led::on(crate::led::LedColor::Red)?;
+        control_thread::measure(ctx)?;
+        let micromouse = control_thread::update(ctx);
+        let fb_theta = theta_pid.update(micromouse.theta - target_theta);
         let volt_r = calc_ff_r(ctx, target_v);
         let volt_l = calc_ff_l(ctx, target_v);
-        let duty_r = calc_duty(ctx, volt_r);
-        let duty_l = calc_duty(ctx, volt_l);
+        let duty_r = calc_duty(&micromouse, volt_r + fb_theta);
+        let duty_l = calc_duty(&micromouse, volt_l - fb_theta);
         control_thread::set_motor_duty(ctx, duty_l, duty_r);
-        control_thread::measure(ctx)?;
-        control_thread::update(ctx);
         ctx.log();
         crate::led::off(crate::led::LedColor::Red)?;
         timer_interrupt::sync_ms();

@@ -1,12 +1,12 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default, Clone, Copy)]
 pub struct PidParameter {
-    p: f32,
-    i: f32,
-    d: f32,
-    i_limit: f32,
-    dead_zone: f32,
+    pub p: f32,
+    pub i: f32,
+    pub d: f32,
+    pub i_limit: f32,
+    pub dead_zone: f32,
 }
 
 pub struct Pid {

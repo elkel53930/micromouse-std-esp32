@@ -71,7 +71,7 @@ struct SearchControlConfig {
     ff_coeff_r: f32,
     ff_offset_r: f32,
     vel_fwd: f32,
-    v_pid: pid::PidParameter,
+    theta_pid: pid::PidParameter,
 }
 
 struct LogInfo {
@@ -314,7 +314,7 @@ fn reset_micromouse_state(ctx: &mut ControlContext) {
     *micromouse = MicromouseState::default();
 }
 
-fn update(ctx: &mut ControlContext) {
+fn update(ctx: &mut ControlContext) -> MicromouseState {
     let (enc_r_diff, enc_l_diff) = {
         let enc = ctx.ods.encoder.lock().unwrap();
         (enc.r_diff as f32, enc.l_diff as f32)
@@ -343,9 +343,12 @@ fn update(ctx: &mut ControlContext) {
         micromouse.y += velocity * micromouse.theta.sin() * 0.001;
         micromouse.v_l = v_l;
         micromouse.v_r = v_r;
+        micromouse.v_batt = ctx.ods.wall_sensor.lock().unwrap().batt_phy;
         micromouse.omega = gyro;
         micromouse.time = crate::timer_interrupt::get_ms();
+        micromouse.clone()
     }
+
 }
 
 fn set_motor_duty(ctx: &ControlContext, duty_l: f32, duty_r: f32) {
