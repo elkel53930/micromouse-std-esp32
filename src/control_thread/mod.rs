@@ -348,7 +348,6 @@ fn update(ctx: &mut ControlContext) -> MicromouseState {
         micromouse.time = crate::timer_interrupt::get_ms();
         micromouse.clone()
     }
-
 }
 
 fn set_motor_duty(ctx: &ControlContext, duty_l: f32, duty_r: f32) {

@@ -1,8 +1,8 @@
 use crate::control_thread::{self, ControlContext, Response};
 use crate::motor;
 use crate::ods::MicromouseState;
-use crate::timer_interrupt;
 use crate::pid;
+use crate::timer_interrupt;
 
 // velocity[m/s] -> voltage[V]
 fn calc_ff_l(ctx: &ControlContext, vel: f32) -> f32 {
@@ -30,8 +30,7 @@ fn calc_duty(micromouse: &MicromouseState, voltage: f32) -> f32 {
 // This function is called when the velocity is zero.
 // Move forward a [distance] millimeter and exits without decelerating.
 pub(super) fn start(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<()> {
-    let mut theta_pid = pid::Pid::new(
-        ctx.config.search_ctrl_cfg.theta_pid.clone()    );
+    let mut theta_pid = pid::Pid::new(ctx.config.search_ctrl_cfg.theta_pid.clone());
     let target_theta = 0.0;
 
     motor::enable(true);
