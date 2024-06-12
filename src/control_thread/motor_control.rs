@@ -31,7 +31,9 @@ fn calc_duty(micromouse: &MicromouseState, voltage: f32) -> f32 {
 // Move forward a [distance] millimeter and exits without decelerating.
 pub(super) fn start(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<()> {
     let mut theta_pid = pid::Pid::new(ctx.config.search_ctrl_cfg.theta_pid.clone());
-    let target_theta = 0.0;
+    let mut omega_pid = pid::Pid::new(ctx.config.search_ctrl_cfg.omega_pid.clone());
+    let target_theta = std::f32::consts::PI / 2.0;
+    let target_omega = 0.0;
 
     motor::enable(true);
     control_thread::reset_micromouse_state(ctx);
@@ -51,10 +53,11 @@ pub(super) fn start(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<(
         control_thread::measure(ctx)?;
         let micromouse = control_thread::update(ctx);
         let fb_theta = theta_pid.update(micromouse.theta - target_theta);
+        let fb_omega = omega_pid.update(micromouse.omega - target_omega);
         let volt_r = calc_ff_r(ctx, target_v);
         let volt_l = calc_ff_l(ctx, target_v);
-        let duty_r = calc_duty(&micromouse, volt_r + fb_theta);
-        let duty_l = calc_duty(&micromouse, volt_l - fb_theta);
+        let duty_r = calc_duty(&micromouse, volt_r + fb_theta + fb_omega);
+        let duty_l = calc_duty(&micromouse, volt_l - fb_theta - fb_omega);
         control_thread::set_motor_duty(ctx, duty_l, duty_r);
         ctx.log();
         crate::led::off(crate::led::LedColor::Red)?;

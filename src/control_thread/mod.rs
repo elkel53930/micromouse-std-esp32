@@ -72,6 +72,7 @@ struct SearchControlConfig {
     ff_offset_r: f32,
     vel_fwd: f32,
     theta_pid: pid::PidParameter,
+    omega_pid: pid::PidParameter,
 }
 
 struct LogInfo {
@@ -346,6 +347,13 @@ fn update(ctx: &mut ControlContext) -> MicromouseState {
         micromouse.v_batt = ctx.ods.wall_sensor.lock().unwrap().batt_phy;
         micromouse.omega = gyro;
         micromouse.time = crate::timer_interrupt::get_ms();
+        {
+            let ws = ctx.ods.wall_sensor.lock().unwrap();
+            micromouse.ls = ws.ls_raw.unwrap_or(0);
+            micromouse.lf = ws.lf_raw.unwrap_or(0);
+            micromouse.rf = ws.rf_raw.unwrap_or(0);
+            micromouse.rs = ws.rs_raw.unwrap_or(0);
+        }
         micromouse.clone()
     }
 }

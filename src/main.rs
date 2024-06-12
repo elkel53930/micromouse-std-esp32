@@ -125,24 +125,24 @@ fn main() -> anyhow::Result<()> {
     fprintln!("Boot count: {}", boot_count);
     uprintln!("Hold left to enter the console.");
 
-    // Calibrate the gyro
-    //    ctx.led_tx.send((Red, Some("10")))?;
-    //    uprintln!("Start gyro calibration");
-    //    ctx.command_tx
-    //        .send(control_thread::Command::GyroCalibration)?;
-    //    let _response = ctx.response_rx.recv().unwrap(); // Wait for Done
-    //    let offset = {
-    //        let imu = ctx.ods.imu.lock().unwrap();
-    //        imu.gyro_x_offset
-    //    };
-    //    uprintln!("Gyro offset: {}", offset);
-
     let mut console = console::Console::new();
 
     ctx.led_tx.send((Blue, Some("0")))?;
     ctx.led_tx.send((Red, Some("0")))?;
     ctx.led_tx.send((Red, None))?;
     if ui::hold_ws(&ctx) == ui::UserOperation::HoldR {
+        // Calibrate the gyro
+        ctx.led_tx.send((Red, Some("10")))?;
+        uprintln!("Start gyro calibration");
+        ctx.command_tx
+            .send(control_thread::Command::GyroCalibration)?;
+        let _response = ctx.response_rx.recv().unwrap(); // Wait for Done
+        let offset = {
+            let imu = ctx.ods.imu.lock().unwrap();
+            imu.gyro_x_offset
+        };
+        uprintln!("Gyro offset: {}", offset);
+
         ui::countdown(&ctx);
         ctx.command_tx.send(control_thread::Command::SStart(1.0))?;
         let response = ctx.response_rx.recv()?; // Wait for CommandRequest

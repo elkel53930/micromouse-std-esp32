@@ -39,7 +39,7 @@ pub struct OdsWallSensor {
     pub batt_phy: f32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct MicromouseState {
     pub time: u32,   // Time [ms]
     pub x: f32,      // X coordinate [m]
@@ -52,6 +52,32 @@ pub struct MicromouseState {
     pub v_r: f32,    // Right wheel velocity [m/s]
     pub duty_l: f32, // Left wheel duty [%]
     pub duty_r: f32, // Left wheel duty [%]
+    pub ls: u16,    // Left side sensor value
+    pub lf: u16,    // Left front sensor value
+    pub rf: u16,    // Right front sensor value
+    pub rs: u16,    // Right side sensor value
+}
+
+impl Default for MicromouseState {
+    fn default() -> Self {
+        MicromouseState {
+            time: 0,
+            x: 0.045, // Start position
+            y: 0.027,
+            theta: std::f32::consts::PI / 2.0, // Start orientation (North, y-axis positive)
+            omega: 0.0,
+            v_batt: 0.0,
+            v: 0.0,
+            v_l: 0.0,
+            v_r: 0.0,
+            duty_l: 0.0,
+            duty_r: 0.0,
+            ls: 0,
+            lf: 0,
+            rf: 0,
+            rs: 0,
+        }
+    }
 }
 
 pub struct Ods {

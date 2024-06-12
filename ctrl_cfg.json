@@ -44,10 +44,17 @@
 		"ff_offset_r": -0.134,
 		"vel_fwd": 0.5,
 		"theta_pid": {
-			"p": 0.5,
-			"i": 0.1,
-			"d": 0.1,
-			"i_limit": 100,
+			"p": 1.0,
+			"i": 0.3,
+			"d": 0.3,
+			"i_limit": 10.0,
+			"dead_zone": 0
+		},
+		"omega_pid": {
+			"p": 0.1,
+			"i": 0.01,
+			"d": 0.01,
+			"i_limit": 10.0,
 			"dead_zone": 0
 		}
 	}
