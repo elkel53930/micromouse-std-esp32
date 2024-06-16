@@ -11,7 +11,7 @@ serial_port = '/dev/ttyUSB0'
 
 command = ' '.join(sys.argv[1:]) + '\n'
 
-with serial.Serial(serial_port, 115200, timeout=1) as ser:
+with serial.Serial(serial_port, 921600, timeout=1) as ser:
     
     # Send 'ft /sf/{filename} {filesize}'.
     ser.write(command.encode('utf-8'))

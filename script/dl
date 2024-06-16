@@ -10,7 +10,7 @@ serial_port = '/dev/ttyUSB0'
 dir_name = 'downloads/'
 
 def receive_file(filename):
-	ser = serial.Serial(serial_port, 115200, timeout=1)
+	ser = serial.Serial(serial_port, 921600, timeout=1)
 
 	ser.write('\n'.encode('utf-8'))
 	time.sleep(0.5)
