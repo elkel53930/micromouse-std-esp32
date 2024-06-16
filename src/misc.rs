@@ -111,3 +111,37 @@ pub fn rad(deg: f32) -> f32 {
 pub fn deg(rad: f32) -> f32 {
     rad * 180.0 / std::f32::consts::PI
 }
+pub struct MovingAverage {
+    window_size: usize,
+    values: Vec<f32>,
+}
+
+impl MovingAverage {
+    pub fn new(window_size: usize) -> Self {
+        MovingAverage {
+            window_size,
+            values: Vec::with_capacity(window_size),
+        }
+    }
+
+    pub fn update(&mut self, value: f32) -> f32 {
+        if self.values.len() == self.window_size {
+            self.values.remove(0);
+        }
+        self.values.push(value);
+        let mut sum = 0.0;
+        for v in &self.values {
+            sum += v;
+        }
+        sum / self.values.len() as f32
+    }
+
+    pub fn reset(&mut self) {
+        self.values.clear();
+    }
+
+    pub fn set_window_size(&mut self, window_size: usize) {
+        self.window_size = window_size;
+        self.reset();
+    }
+}

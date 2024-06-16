@@ -1,5 +1,6 @@
 use crate::log_thread;
 use log;
+use mm_traj;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 
@@ -52,10 +53,16 @@ pub struct MicromouseState {
     pub v_r: f32,    // Right wheel velocity [m/s]
     pub duty_l: f32, // Left wheel duty [%]
     pub duty_r: f32, // Left wheel duty [%]
-    pub ls: u16,    // Left side sensor value
-    pub lf: u16,    // Left front sensor value
-    pub rf: u16,    // Right front sensor value
-    pub rs: u16,    // Right side sensor value
+    pub ls: u16,     // Left side sensor value
+    pub lf: u16,     // Left front sensor value
+    pub rf: u16,     // Right front sensor value
+    pub rs: u16,     // Right side sensor value
+    pub target_x: f32,
+    pub target_y: f32,
+    pub target_v: f32,
+    pub target_a: f32,
+    pub target_theta: f32,
+    pub target_omega: f32,
 }
 
 impl Default for MicromouseState {
@@ -76,26 +83,32 @@ impl Default for MicromouseState {
             lf: 0,
             rf: 0,
             rs: 0,
+            target_x: 0.045,
+            target_y: 0.027,
+            target_v: 0.0,
+            target_a: 0.0,
+            target_theta: std::f32::consts::PI / 2.0,
+            target_omega: 0.0,
         }
     }
 }
 
 pub struct Ods {
-    pub imu: Mutex<OdsImu>,
-    pub encoder: Mutex<OdsEncoder>,
-    pub wall_sensor: Mutex<OdsWallSensor>,
-    pub micromouse: Mutex<MicromouseState>,
-    pub log: Mutex<Vec<MicromouseState>>,
+    pub imu: OdsImu,
+    pub encoder: OdsEncoder,
+    pub wall_sensor: OdsWallSensor,
+    pub micromouse: MicromouseState,
+    pub log: Vec<MicromouseState>,
 }
 
 impl Ods {
     pub fn new() -> Self {
         Ods {
-            imu: Mutex::new(OdsImu::default()),
-            encoder: Mutex::new(OdsEncoder::default()),
-            wall_sensor: Mutex::new(OdsWallSensor::default()),
-            micromouse: Mutex::new(MicromouseState::default()),
-            log: Mutex::new(Vec::with_capacity(log_thread::LOG_LEN)),
+            imu: OdsImu::default(),
+            encoder: OdsEncoder::default(),
+            wall_sensor: OdsWallSensor::default(),
+            micromouse: MicromouseState::default(),
+            log: Vec::with_capacity(log_thread::LOG_LEN),
         }
     }
 }

@@ -4,18 +4,19 @@ use crate::imu;
 use crate::led::{self, LedColor::*};
 use crate::log_thread;
 use crate::log_thread::LOG_LEN;
+use crate::misc;
 use crate::misc::correct_value;
 use crate::ods;
 use crate::ods::MicromouseState;
 use crate::pid;
 use crate::timer_interrupt::{sync_ms, wait_us};
 use crate::wall_sensor;
-use embedded_svc::utils::asyncify::timer;
+use mm_traj;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::prelude::*;
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 struct WsConfig {
@@ -33,7 +34,6 @@ struct WsConfig {
 #[derive(Debug, Serialize, Deserialize, Default)]
 struct GyroConfig {
     correction_table: Vec<(i16, f32)>,
-    correction_coefficient: f32,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -73,6 +73,8 @@ struct SearchControlConfig {
     vel_fwd: f32,
     theta_pid: pid::PidParameter,
     omega_pid: pid::PidParameter,
+    v_pid: pid::PidParameter,
+    pos_pid: pid::PidParameter,
 }
 
 struct LogInfo {
@@ -97,7 +99,7 @@ enum WsStep {
 }
 
 struct ControlContext {
-    ods: Arc<ods::Ods>,
+    ods: Arc<Mutex<ods::Ods>>,
 
     #[allow(unused)]
     log_tx: Sender<log_thread::LogCommand>,
@@ -110,11 +112,19 @@ struct ControlContext {
 
     ws_ena: bool,
     ws_step: WsStep,
+
+    theta_pid: pid::Pid,
+    omega_pid: pid::Pid,
+    v_pid: pid::Pid,
+    pos_pid: pid::Pid,
+
+    v_ave: misc::MovingAverage,
+    pos_ave: misc::MovingAverage,
 }
 
 impl ControlContext {
     fn new(
-        ods: Arc<ods::Ods>,
+        ods: Arc<Mutex<ods::Ods>>,
         log_tx: Sender<log_thread::LogCommand>,
         response_tx: Sender<Response>,
         command_rx: Receiver<Command>,
@@ -129,6 +139,12 @@ impl ControlContext {
             config,
             ws_ena: false,
             ws_step: WsStep::Side,
+            theta_pid: pid::Pid::empty(),
+            omega_pid: pid::Pid::empty(),
+            v_pid: pid::Pid::empty(),
+            pos_pid: pid::Pid::empty(),
+            v_ave: misc::MovingAverage::new(20),
+            pos_ave: misc::MovingAverage::new(1),
         }
     }
     pub fn start_log(&mut self, interval: u8) {
@@ -136,7 +152,7 @@ impl ControlContext {
         self.log_info.counter = 0;
         self.log_info.is_full = false;
         self.log_info.interval = interval;
-        self.ods.log.lock().unwrap().clear();
+        self.ods.lock().unwrap().log.clear();
     }
 
     pub fn log(&mut self) {
@@ -145,12 +161,11 @@ impl ControlContext {
         }
         self.log_info.counter += 1;
         if self.log_info.counter >= self.log_info.interval {
+            let mut ods = self.ods.lock().unwrap();
             self.log_info.counter = 0;
-            {
-                let mut log = self.ods.log.lock().unwrap();
-                log.push(*self.ods.micromouse.lock().unwrap());
-            }
-            if self.ods.log.lock().unwrap().len() >= LOG_LEN {
+            let micromouse = ods.micromouse;
+            ods.log.push(micromouse);
+            if ods.log.len() >= LOG_LEN {
                 log::warn!("Log is full.");
                 self.log_info.is_full = true;
             }
@@ -210,14 +225,13 @@ fn measure(ctx: &mut ControlContext) -> anyhow::Result<()> {
                 let rs_raw = rs_on - rs_off;
                 let rs = Some(rs_raw > ctx.config.ws_cfg.rs_threshold);
 
-                let mut ws = ctx.ods.wall_sensor.lock().unwrap();
-                ws.ls_raw = Some(ls_raw);
-                ws.rs_raw = Some(rs_raw);
-                ws.ls = ls;
-                ws.rs = rs;
-                ws.batt_raw = batt;
-                ws.batt_phy = batt_phy;
-
+                {
+                    let mut ods = ctx.ods.lock().unwrap();
+                    ods.wall_sensor.ls_raw = Some(ls_raw);
+                    ods.wall_sensor.rs_raw = Some(rs_raw);
+                    ods.wall_sensor.ls = ls;
+                    ods.wall_sensor.rs = rs;
+                }
                 ctx.ws_step = WsStep::Front;
             }
             WsStep::Front => {
@@ -237,29 +251,28 @@ fn measure(ctx: &mut ControlContext) -> anyhow::Result<()> {
                 let rf_raw = rf_on - rf_off;
                 let rf = Some(rf_raw > ctx.config.ws_cfg.rf_threshold);
 
-                let mut ws = ctx.ods.wall_sensor.lock().unwrap();
-                ws.lf_raw = Some(lf_raw);
-                ws.rf_raw = Some(rf_raw);
-                ws.lf = lf;
-                ws.rf = rf;
-                ws.batt_raw = batt;
-                ws.batt_phy = batt_phy;
-
+                {
+                    let mut ods = ctx.ods.lock().unwrap();
+                    ods.wall_sensor.lf_raw = Some(lf_raw);
+                    ods.wall_sensor.rf_raw = Some(rf_raw);
+                    ods.wall_sensor.lf = lf;
+                    ods.wall_sensor.rf = rf;
+                }
                 ctx.ws_step = WsStep::Side;
             }
         }
     } else {
-        let mut ws = ctx.ods.wall_sensor.lock().unwrap();
-        ws.batt_raw = batt;
-        ws.batt_phy = batt_phy;
-        ws.lf_raw = None;
-        ws.rf_raw = None;
-        ws.lf = None;
-        ws.rf = None;
-        ws.ls_raw = None;
-        ws.rs_raw = None;
-        ws.ls = None;
-        ws.rs = None;
+        let mut ods = ctx.ods.lock().unwrap();
+        ods.wall_sensor.batt_raw = batt;
+        ods.wall_sensor.batt_phy = batt_phy;
+        ods.wall_sensor.lf_raw = None;
+        ods.wall_sensor.rf_raw = None;
+        ods.wall_sensor.lf = None;
+        ods.wall_sensor.rf = None;
+        ods.wall_sensor.ls_raw = None;
+        ods.wall_sensor.rs_raw = None;
+        ods.wall_sensor.ls = None;
+        ods.wall_sensor.rs = None;
         ctx.ws_step = WsStep::Side;
     }
 
@@ -271,55 +284,55 @@ fn measure(ctx: &mut ControlContext) -> anyhow::Result<()> {
     let encoder_r = encoder::read_r()?;
 
     let gyro_x_phy = correct_value(&ctx.config.gyro_cfg.correction_table.as_slice(), gyro_x);
-    let gyro_x_phy = gyro_x_phy * ctx.config.gyro_cfg.correction_coefficient;
 
     {
-        let mut imu = ctx.ods.imu.lock().unwrap();
-        imu.gyro_x_raw = gyro_x;
-        imu.gyro_x_phy = gyro_x_phy - imu.gyro_x_offset;
-    }
+        let mut ods = ctx.ods.lock().unwrap();
+        // IMU
+        ods.imu.gyro_x_raw = gyro_x;
+        ods.imu.gyro_x_phy = gyro_x_phy - ods.imu.gyro_x_offset;
 
-    {
-        let mut enc = ctx.ods.encoder.lock().unwrap();
-        enc.l_prev = enc.l;
-        enc.r_prev = enc.r;
-        enc.l = encoder_l;
-        enc.r = encoder_r;
-
+        // Encoders
+        ods.encoder.l_prev = ods.encoder.l;
+        ods.encoder.r_prev = ods.encoder.r;
+        ods.encoder.l = encoder_l;
+        ods.encoder.r = encoder_r;
         // the value overflows at 16384
-        let temp = enc.l as i32 - enc.l_prev as i32;
-        enc.l_diff = if temp > 8192 {
+        let temp = ods.encoder.l as i32 - ods.encoder.l_prev as i32;
+        ods.encoder.l_diff = if temp > 8192 {
             temp - 16384
         } else if temp < -8192 {
             temp + 16384
         } else {
             temp
         } as i16;
-        enc.l_diff = -enc.l_diff;
+        ods.encoder.l_diff = -ods.encoder.l_diff;
+        let temp = ods.encoder.r as i32 - ods.encoder.r_prev as i32;
+        ods.encoder.r_diff = if temp > 8192 {
+            temp - 16384
+        } else if temp < -8192 {
+            temp + 16384
+        } else {
+            temp
+        } as i16;
 
-        let temp = enc.r as i32 - enc.r_prev as i32;
-        enc.r_diff = if temp > 8192 {
-            temp - 16384
-        } else if temp < -8192 {
-            temp + 16384
-        } else {
-            temp
-        } as i16;
+        // Battery
+        ods.wall_sensor.batt_raw = batt;
+        ods.wall_sensor.batt_phy = batt_phy;
     }
 
     Ok(())
 }
 
 fn reset_micromouse_state(ctx: &mut ControlContext) {
-    let mut micromouse = ctx.ods.micromouse.lock().unwrap();
-    *micromouse = MicromouseState::default();
+    let mut ods = ctx.ods.lock().unwrap();
+    ods.micromouse = MicromouseState::default();
 }
 
 fn update(ctx: &mut ControlContext) -> MicromouseState {
-    let (enc_r_diff, enc_l_diff) = {
-        let enc = ctx.ods.encoder.lock().unwrap();
-        (enc.r_diff as f32, enc.l_diff as f32)
-    };
+    let mut ods = ctx.ods.lock().unwrap();
+
+    let enc_r_diff = ods.encoder.r_diff as f32;
+    let enc_l_diff = ods.encoder.l_diff as f32;
 
     let v_r = enc_r_diff / ctx.config.enc_cfg.gear_ratio
         * ctx.config.enc_cfg.wheel_diameter
@@ -332,63 +345,57 @@ fn update(ctx: &mut ControlContext) -> MicromouseState {
 
     let velocity = (v_r + v_l) / 2.0;
 
-    let gyro = {
-        let imu = ctx.ods.imu.lock().unwrap();
-        imu.gyro_x_phy
-    };
-    {
-        let mut micromouse = ctx.ods.micromouse.lock().unwrap();
-        micromouse.theta += gyro * 0.001;
-        micromouse.v = velocity;
-        micromouse.x += velocity * micromouse.theta.cos() * 0.001;
-        micromouse.y += velocity * micromouse.theta.sin() * 0.001;
-        micromouse.v_l = v_l;
-        micromouse.v_r = v_r;
-        micromouse.v_batt = ctx.ods.wall_sensor.lock().unwrap().batt_phy;
-        micromouse.omega = gyro;
-        micromouse.time = crate::timer_interrupt::get_ms();
-        {
-            let ws = ctx.ods.wall_sensor.lock().unwrap();
-            micromouse.ls = ws.ls_raw.unwrap_or(0);
-            micromouse.lf = ws.lf_raw.unwrap_or(0);
-            micromouse.rf = ws.rf_raw.unwrap_or(0);
-            micromouse.rs = ws.rs_raw.unwrap_or(0);
-        }
-        micromouse.clone()
-    }
+    let gyro = ods.imu.gyro_x_phy;
+    let ave_velo = ctx.v_ave.update(velocity); // moving average
+    ods.micromouse.theta += gyro * 0.001;
+    ods.micromouse.v = ave_velo;
+    // Odometry is calculated by integrating the non-averaged velocity
+    ods.micromouse.x += velocity * ods.micromouse.theta.cos() * 0.001;
+    ods.micromouse.y += velocity * ods.micromouse.theta.sin() * 0.001;
+    ods.micromouse.v_l = v_l;
+    ods.micromouse.v_r = v_r;
+    ods.micromouse.v_batt = ods.wall_sensor.batt_phy;
+    ods.micromouse.omega = gyro;
+    ods.micromouse.time = crate::timer_interrupt::get_ms();
+    ods.micromouse.ls = ods.wall_sensor.ls_raw.unwrap_or(0);
+    ods.micromouse.lf = ods.wall_sensor.lf_raw.unwrap_or(0);
+    ods.micromouse.rf = ods.wall_sensor.rf_raw.unwrap_or(0);
+    ods.micromouse.rs = ods.wall_sensor.rs_raw.unwrap_or(0);
+
+    ods.micromouse.clone()
+}
+
+fn update_target(ctx: &mut ControlContext, target: &mm_traj::State) {
+    let mut ods = ctx.ods.lock().unwrap();
+    ods.micromouse.target_x = target.x;
+    ods.micromouse.target_y = target.y;
+    ods.micromouse.target_v = target.v;
+    ods.micromouse.target_a = target.a;
+    ods.micromouse.target_theta = target.theta;
+    ods.micromouse.target_omega = target.omega;
 }
 
 fn set_motor_duty(ctx: &ControlContext, duty_l: f32, duty_r: f32) {
     crate::motor::set_l(duty_l);
     crate::motor::set_r(duty_r);
-    let mut micromouse = ctx.ods.micromouse.lock().unwrap();
-    micromouse.duty_l = duty_l;
-    micromouse.duty_r = duty_r;
+    let mut ods = ctx.ods.lock().unwrap();
+    ods.micromouse.duty_l = duty_l;
+    ods.micromouse.duty_r = duty_r;
 }
 
 fn gyro_calibration(ctx: &mut ControlContext) {
     // Measure gyro offset
     let mut gyro_offset = 0.0;
     led::on(Blue).unwrap();
-    {
-        let mut imu = ctx.ods.imu.lock().unwrap();
-        imu.gyro_x_offset = 0.0;
-    }
+    ctx.ods.lock().unwrap().imu.gyro_x_offset = 0.0;
 
     for _ in 0..1000 {
         measure(ctx).unwrap();
-        {
-            let imu = ctx.ods.imu.lock().unwrap();
-            gyro_offset += imu.gyro_x_phy as f32;
-        }
+        gyro_offset += ctx.ods.lock().unwrap().imu.gyro_x_phy as f32;
         sync_ms();
     }
 
-    {
-        let mut imu = ctx.ods.imu.lock().unwrap();
-        gyro_offset /= 1000.0;
-        imu.gyro_x_offset = gyro_offset;
-    }
+    ctx.ods.lock().unwrap().imu.gyro_x_offset = gyro_offset / 1000.0;
     ctx.response_tx
         .send(Response::CalibrationDone(gyro_offset))
         .unwrap();
@@ -396,7 +403,7 @@ fn gyro_calibration(ctx: &mut ControlContext) {
 }
 
 pub fn init(
-    ods: &Arc<ods::Ods>,
+    ods: &Arc<Mutex<ods::Ods>>,
     log_tx: Sender<log_thread::LogCommand>,
 ) -> anyhow::Result<(Sender<Command>, Receiver<Response>)> {
     // Message queues

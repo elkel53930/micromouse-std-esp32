@@ -3,6 +3,7 @@ use crate::motor;
 use crate::ods::MicromouseState;
 use crate::pid;
 use crate::timer_interrupt;
+use mm_traj::{self, TrajResult};
 
 // velocity[m/s] -> voltage[V]
 fn calc_ff_l(ctx: &ControlContext, vel: f32) -> f32 {
@@ -27,45 +28,169 @@ fn calc_duty(micromouse: &MicromouseState, voltage: f32) -> f32 {
     (voltage / vb) * 100.0
 }
 
+fn calc_diff(xa: f32, ya: f32, xb: f32, yb: f32, theta: f32) -> f32 {
+    let delta_x = xb - xa;
+    let delta_y = yb - ya;
+    let diff = delta_x * theta.cos() + delta_y * theta.sin();
+    diff
+}
+
 // This function is called when the velocity is zero.
 // Move forward a [distance] millimeter and exits without decelerating.
 pub(super) fn start(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<()> {
-    let mut theta_pid = pid::Pid::new(ctx.config.search_ctrl_cfg.theta_pid.clone());
-    let mut omega_pid = pid::Pid::new(ctx.config.search_ctrl_cfg.omega_pid.clone());
-    let target_theta = std::f32::consts::PI / 2.0;
-    let target_omega = 0.0;
+    ctx.theta_pid = pid::Pid::new(ctx.config.search_ctrl_cfg.theta_pid.clone());
+    ctx.omega_pid = pid::Pid::new(ctx.config.search_ctrl_cfg.omega_pid.clone());
+    ctx.v_pid = pid::Pid::new(ctx.config.search_ctrl_cfg.v_pid.clone());
+    ctx.pos_pid = pid::Pid::new(ctx.config.search_ctrl_cfg.pos_pid.clone());
 
-    motor::enable(true);
     control_thread::reset_micromouse_state(ctx);
-    let target_v = ctx.config.search_ctrl_cfg.vel_fwd;
+    let target = {
+        let ods = ctx.ods.lock().unwrap();
+        mm_traj::State {
+            x: ods.micromouse.target_x,
+            y: ods.micromouse.target_y,
+            theta: ods.micromouse.target_theta,
+            omega: 0.0,
+            v: 0.0,
+            a: 0.0,
+        }
+    };
 
+    // uprintln!("Start straight:\n  distance={}mm", distance);
+    // uprintln!("  straight={:?}", straight);
+    motor::set_l(0.0);
+    motor::set_r(0.0);
+    motor::enable(true);
+
+    // uprintln!("start log");
     ctx.start_log(0);
-    control_thread::set_motor_duty(ctx, 100.0, 100.0);
-    for _ in 0..2 {
-        control_thread::measure(ctx)?;
-        control_thread::update(ctx);
-        ctx.log();
-        timer_interrupt::sync_ms();
-    }
 
-    for _ in 0..200 {
+    let mut straight =
+        mm_traj::Straight::new(target, 0.09 - 0.027, ctx.config.search_ctrl_cfg.vel_fwd);
+    let mut flag = true;
+    while flag {
+        let target = straight.proceed();
+        // uprintln!("target={:?}", target);
+        let target = match target {
+            TrajResult::Done(target) => {
+                flag = false;
+                target
+            }
+            TrajResult::Continue(target) => target,
+        };
+
         crate::led::on(crate::led::LedColor::Red)?;
         control_thread::measure(ctx)?;
         let micromouse = control_thread::update(ctx);
-        let fb_theta = theta_pid.update(micromouse.theta - target_theta);
-        let fb_omega = omega_pid.update(micromouse.omega - target_omega);
-        let volt_r = calc_ff_r(ctx, target_v);
-        let volt_l = calc_ff_l(ctx, target_v);
-        let duty_r = calc_duty(&micromouse, volt_r + fb_theta + fb_omega);
-        let duty_l = calc_duty(&micromouse, volt_l - fb_theta - fb_omega);
+        control_thread::update_target(ctx, &target);
+        let fb_theta = ctx.theta_pid.update(target.theta - micromouse.theta);
+        let fb_omega = ctx.omega_pid.update(target.omega - micromouse.omega);
+        let fb_v = ctx.v_pid.update(target.v - micromouse.v);
+        let diff_pos = calc_diff(micromouse.x, micromouse.y, target.x, target.y, target.theta);
+        let diff_pos = ctx.pos_ave.update(diff_pos);
+        let fb_pos = ctx.pos_pid.update(diff_pos);
+        let ff_r = calc_ff_r(ctx, target.v);
+        let ff_l = calc_ff_l(ctx, target.v);
+        let duty_r = calc_duty(&micromouse, ff_r + fb_pos + fb_v + fb_theta + fb_omega);
+        let duty_l = calc_duty(&micromouse, ff_l + fb_pos + fb_v - fb_theta - fb_omega);
         control_thread::set_motor_duty(ctx, duty_l, duty_r);
         ctx.log();
         crate::led::off(crate::led::LedColor::Red)?;
         timer_interrupt::sync_ms();
     }
-    motor::set_l(0.0);
-    motor::set_r(0.0);
+
+    // constant speed
+    let target = {
+        let ods = ctx.ods.lock().unwrap();
+        mm_traj::State {
+            x: ods.micromouse.target_x,
+            y: ods.micromouse.target_y,
+            theta: ods.micromouse.target_theta,
+            omega: 0.0,
+            v: ods.micromouse.target_v,
+            a: 0.0,
+        }
+    };
+    let mut straight = mm_traj::Straight::new(target, 0.09, ctx.config.search_ctrl_cfg.vel_fwd);
+    let mut flag = true;
+    while flag {
+        let target = straight.proceed();
+        // uprintln!("target={:?}", target);
+        let target = match target {
+            TrajResult::Done(target) => {
+                flag = false;
+                target
+            }
+            TrajResult::Continue(target) => target,
+        };
+
+        crate::led::on(crate::led::LedColor::Red)?;
+        control_thread::measure(ctx)?;
+        let micromouse = control_thread::update(ctx);
+        control_thread::update_target(ctx, &target);
+        let fb_theta = ctx.theta_pid.update(target.theta - micromouse.theta);
+        let fb_omega = ctx.omega_pid.update(target.omega - micromouse.omega);
+        let fb_v = ctx.v_pid.update(target.v - micromouse.v);
+        let diff_pos = calc_diff(micromouse.x, micromouse.y, target.x, target.y, target.theta);
+        let diff_pos = ctx.pos_ave.update(diff_pos);
+        let fb_pos = ctx.pos_pid.update(diff_pos);
+        let ff_r = calc_ff_r(ctx, target.v);
+        let ff_l = calc_ff_l(ctx, target.v);
+        let duty_r = calc_duty(&micromouse, ff_r + fb_pos + fb_v + fb_theta + fb_omega);
+        let duty_l = calc_duty(&micromouse, ff_l + fb_pos + fb_v - fb_theta - fb_omega);
+        control_thread::set_motor_duty(ctx, duty_l, duty_r);
+        ctx.log();
+        crate::led::off(crate::led::LedColor::Red)?;
+        timer_interrupt::sync_ms();
+    }
+
+    // decelerate
+    let target = {
+        let ods = ctx.ods.lock().unwrap();
+        mm_traj::State {
+            x: ods.micromouse.target_x,
+            y: ods.micromouse.target_y,
+            theta: ods.micromouse.target_theta,
+            omega: 0.0,
+            v: ods.micromouse.target_v,
+            a: 0.0,
+        }
+    };
+    let mut straight = mm_traj::Straight::new(target, 0.045, 0.0);
+    let mut flag = true;
+    while flag {
+        let target = straight.proceed();
+        // uprintln!("target={:?}", target);
+        let target = match target {
+            TrajResult::Done(target) => {
+                flag = false;
+                target
+            }
+            TrajResult::Continue(target) => target,
+        };
+
+        crate::led::on(crate::led::LedColor::Red)?;
+        control_thread::measure(ctx)?;
+        let micromouse = control_thread::update(ctx);
+        control_thread::update_target(ctx, &target);
+        let fb_theta = ctx.theta_pid.update(target.theta - micromouse.theta);
+        let fb_omega = ctx.omega_pid.update(target.omega - micromouse.omega);
+        let fb_v = ctx.v_pid.update(target.v - micromouse.v);
+        let diff_pos = calc_diff(micromouse.x, micromouse.y, target.x, target.y, target.theta);
+        let diff_pos = ctx.pos_ave.update(diff_pos);
+        let fb_pos = ctx.pos_pid.update(diff_pos);
+        let ff_r = calc_ff_r(ctx, target.v);
+        let ff_l = calc_ff_l(ctx, target.v);
+        let duty_r = calc_duty(&micromouse, ff_r + fb_pos + fb_v + fb_theta + fb_omega);
+        let duty_l = calc_duty(&micromouse, ff_l + fb_pos + fb_v - fb_theta - fb_omega);
+        control_thread::set_motor_duty(ctx, duty_l, duty_r);
+        ctx.log();
+        crate::led::off(crate::led::LedColor::Red)?;
+        timer_interrupt::sync_ms();
+    }
+
     ctx.stop_log();
+    control_thread::set_motor_duty(ctx, 0.0, 0.0);
     ctx.response_tx.send(Response::CommandRequest).unwrap();
     Ok(())
 }

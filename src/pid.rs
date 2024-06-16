@@ -20,6 +20,17 @@ pub struct Pid {
 }
 
 impl Pid {
+    pub fn empty() -> Self {
+        Pid {
+            p: 0.0,
+            i: 0.0,
+            d: 0.0,
+            last_error: 0.0,
+            integral: 0.0,
+            i_limit: 0.0,
+            dead_zone: 0.0,
+        }
+    }
     pub fn new(parameter: PidParameter) -> Self {
         Pid {
             p: parameter.p,

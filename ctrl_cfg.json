@@ -12,14 +12,13 @@
 		"correction_table": [
 			[
 				-32768,
-				-40.03366425054514
+				-38.832654323028784
 			],
 			[
 				32767,
-				40.032442520068734
+				38.831469244466675
 			]
-		],
-		"correction_coefficient": 0.97
+		]
 	},
 	"enc_cfg": {
 		"wheel_diameter": 14.0,
@@ -42,19 +41,33 @@
 		"ff_offset_l": -0.134,
 		"ff_coeff_r": 2.080,
 		"ff_offset_r": -0.134,
-		"vel_fwd": 0.5,
+		"vel_fwd": 0.4,
 		"theta_pid": {
-			"p": 1.0,
-			"i": 0.3,
-			"d": 0.3,
-			"i_limit": 10.0,
+			"p": 3.0,
+			"i": 0.5,
+			"d": 0.1,
+			"i_limit": 2.0,
 			"dead_zone": 0
 		},
 		"omega_pid": {
-			"p": 0.1,
-			"i": 0.01,
-			"d": 0.01,
-			"i_limit": 10.0,
+			"p": 0.2,
+			"i": 0.1,
+			"d": 0.0,
+			"i_limit": 4.0,
+			"dead_zone": 0
+		},
+		"v_pid": {
+			"p": 13,
+			"i": 0.7,
+			"d": 0.0,
+			"i_limit": 0.2,
+			"dead_zone": 0
+		},
+		"pos_pid": {
+			"p": 12.0,
+			"i": 2.5,
+			"d": 0.0,
+			"i_limit": 1.0,
 			"dead_zone": 0
 		}
 	}

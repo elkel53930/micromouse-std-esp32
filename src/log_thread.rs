@@ -1,7 +1,7 @@
 use crate::ods;
 use std::fs::File;
 use std::sync::mpsc::{self, Sender};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 const LOG_FILE_NAME: &str = "/sf/log{:02}.csv";
 
@@ -13,7 +13,7 @@ pub enum LogCommand {
     Save,
 }
 
-pub fn init(ods: &Arc<ods::Ods>) -> anyhow::Result<Sender<LogCommand>> {
+pub fn init(ods: &Arc<Mutex<ods::Ods>>) -> anyhow::Result<Sender<LogCommand>> {
     let ods = ods.clone();
 
     // Spawn the log thread
@@ -36,16 +36,16 @@ pub fn init(ods: &Arc<ods::Ods>) -> anyhow::Result<Sender<LogCommand>> {
             let command = rx.recv().unwrap();
             if command == LogCommand::Save {
                 // Write log data as CSV file
-                let mut log_data = ods.log.lock().unwrap();
-                log::info!("Saving log data... ({} records)", log_data.len());
+                let ods = &mut ods.lock().unwrap();
+                log::info!("Saving log data... ({} records)", ods.log.len());
 
                 let mut wtr = csv::Writer::from_writer(File::create("/sf/log.csv")?);
-                for user in log_data.iter() {
+                for user in ods.log.iter() {
                     wtr.serialize(user)?;
                 }
                 wtr.flush()?;
 
-                log_data.clear(); // clear() does not release heap memory.
+                ods.log.clear(); // clear() does not release heap memory.
                 log::info!("Saved");
             } else {
                 log::warn!("Unknown command: {:?}", command);

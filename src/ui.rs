@@ -19,7 +19,7 @@ pub fn hold_ws(ctx: &OperationContext) -> UserOperation {
     let mut result = UserOperation::TimeOut;
     for _ in 0..500 {
         let (rs, ls) = {
-            let wall_sensor = ctx.ods.wall_sensor.lock().unwrap();
+            let wall_sensor = ctx.ods.lock().unwrap().wall_sensor;
             (wall_sensor.rs_raw.unwrap(), wall_sensor.ls_raw.unwrap())
         };
         if ls > 1200 {

@@ -3,7 +3,7 @@ use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_sys as _;
 use log;
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 #[macro_use]
 pub mod uart;
@@ -38,7 +38,7 @@ use led::LedColor::{Blue, Green, Red};
 pub static CS: esp_idf_hal::task::CriticalSection = esp_idf_hal::task::CriticalSection::new();
 
 pub struct OperationContext {
-    pub ods: Arc<ods::Ods>,
+    pub ods: Arc<Mutex<ods::Ods>>,
     pub led_tx: Sender<led_thread::Command>,
     pub vac_tx: Sender<vac_fan::Command>,
     pub command_tx: Sender<control_thread::Command>,
@@ -76,7 +76,7 @@ fn main() -> anyhow::Result<()> {
     esp_idf_sys::link_patches();
 
     let mut ctx = OperationContext {
-        ods: Arc::new(ods::Ods::new()),
+        ods: Arc::new(Mutex::new(ods::Ods::new())),
         led_tx: mpsc::channel().0,
         command_tx: mpsc::channel().0,
         response_rx: mpsc::channel().1,
@@ -137,14 +137,12 @@ fn main() -> anyhow::Result<()> {
         ctx.command_tx
             .send(control_thread::Command::GyroCalibration)?;
         let _response = ctx.response_rx.recv().unwrap(); // Wait for Done
-        let offset = {
-            let imu = ctx.ods.imu.lock().unwrap();
-            imu.gyro_x_offset
-        };
+        let offset = ctx.ods.lock().unwrap().imu.gyro_x_offset;
         uprintln!("Gyro offset: {}", offset);
 
         ui::countdown(&ctx);
-        ctx.command_tx.send(control_thread::Command::SStart(1.0))?;
+        ctx.command_tx
+            .send(control_thread::Command::SStart(0.240))?;
         let response = ctx.response_rx.recv()?; // Wait for CommandRequest
         if response != control_thread::Response::CommandRequest {
             return Err(anyhow::anyhow!("Unexpected response: {:?}", response));

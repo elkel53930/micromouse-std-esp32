@@ -85,10 +85,7 @@ impl Console {
             let mut arg_num = 0;
             let mut len = 0;
 
-            let batt_phy = {
-                let wall_sensor = ctx.ods.wall_sensor.lock().unwrap();
-                wall_sensor.batt_phy
-            };
+            let batt_phy = ctx.ods.lock().unwrap().wall_sensor.batt_phy;
 
             uprint!("{:1.2}[V] > ", batt_phy);
 
@@ -233,17 +230,15 @@ impl ConsoleCommand for CmdSen {
         let mut r_raw;
         loop {
             {
-                let imu = ctx.ods.imu.lock().unwrap();
-                let encoder = ctx.ods.encoder.lock().unwrap();
-                let wall_sensor = ctx.ods.wall_sensor.lock().unwrap();
-                batt_raw = wall_sensor.batt_raw;
-                ls_raw = wall_sensor.ls_raw;
-                lf_raw = wall_sensor.lf_raw;
-                rf_raw = wall_sensor.rf_raw;
-                rs_raw = wall_sensor.rs_raw;
-                gyro_x_raw = imu.gyro_x_raw;
-                l_raw = encoder.l;
-                r_raw = encoder.r;
+                let ods = ctx.ods.lock().unwrap();
+                batt_raw = ods.wall_sensor.batt_raw;
+                ls_raw = ods.wall_sensor.ls_raw;
+                lf_raw = ods.wall_sensor.lf_raw;
+                rf_raw = ods.wall_sensor.rf_raw;
+                rs_raw = ods.wall_sensor.rs_raw;
+                gyro_x_raw = ods.imu.gyro_x_raw;
+                l_raw = ods.encoder.l;
+                r_raw = ods.encoder.r;
             }
             uprintln!(
                 "batt: {}, ls: {}, lf: {}, rf: {}, rs: {}, gyro: {}, enc_l: {}, enc_r: {}",
@@ -299,10 +294,7 @@ impl ConsoleCommand for CmdOdo {
             return Err(anyhow::anyhow!("Invalid argument"));
         }
 
-        {
-            let mut micromouse = ctx.ods.micromouse.lock().unwrap();
-            (*micromouse) = ods::MicromouseState::default();
-        }
+        ctx.ods.lock().unwrap().micromouse = ods::MicromouseState::default();
         uprintln!("Press any key to exit.");
         FreeRtos::delay_ms(500);
 
@@ -310,13 +302,9 @@ impl ConsoleCommand for CmdOdo {
         let mut buffer: [u8; 1] = [0];
 
         loop {
-            let micromouse = {
-                let micromouse = ctx.ods.micromouse.lock().unwrap();
-                *micromouse
-            };
-            let gyro = {
-                let imu = ctx.ods.imu.lock().unwrap();
-                imu.gyro_x_phy
+            let (micromouse, gyro) = {
+                let ods = ctx.ods.lock().unwrap();
+                (ods.micromouse, ods.imu.gyro_x_phy)
             };
             uprintln!(
                 "x: {}[m], y: {}[m], theta: {}[rad], gyro: {}[rad/s], v_r: {}[m/s], v_l: {}[m/s]",
@@ -449,7 +437,7 @@ impl ConsoleCommand for CmdConfig {
 struct CmdBatt {}
 
 impl ConsoleCommand for CmdBatt {
-    fn execute(&self, args: &[&str], mut _ctx: &OperationContext) -> anyhow::Result<()> {
+    fn execute(&self, args: &[&str], mut ctx: &OperationContext) -> anyhow::Result<()> {
         if args.len() != 0 {
             return Err(anyhow::anyhow!("Invalid argument"));
         }
@@ -460,10 +448,7 @@ impl ConsoleCommand for CmdBatt {
         let mut buffer: [u8; 1] = [0];
 
         loop {
-            let batt_phy = {
-                let wall_sensor = _ctx.ods.wall_sensor.lock().unwrap();
-                wall_sensor.batt_phy
-            };
+            let batt_phy = ctx.ods.lock().unwrap().wall_sensor.batt_phy;
 
             uprintln!("{}[V]", batt_phy);
             FreeRtos::delay_ms(100);

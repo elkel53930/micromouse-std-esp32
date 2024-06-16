@@ -5,14 +5,17 @@ use esp_idf_hal::peripheral::Peripheral;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_hal::prelude::*;
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 
 pub enum Command {
     SetVoltage(f32),
 }
 
-pub fn init(peripherals: &mut Peripherals, ods: &Arc<ods::Ods>) -> anyhow::Result<Sender<Command>> {
+pub fn init(
+    peripherals: &mut Peripherals,
+    ods: &Arc<Mutex<ods::Ods>>,
+) -> anyhow::Result<Sender<Command>> {
     let ods = ods.clone();
 
     let timer_driver = unsafe {
@@ -57,7 +60,7 @@ pub fn init(peripherals: &mut Peripherals, ods: &Arc<ods::Ods>) -> anyhow::Resul
                 }
             }
 
-            let batt_v = ods.wall_sensor.lock().unwrap().batt_phy;
+            let batt_v = ods.lock().unwrap().wall_sensor.batt_phy;
             let pwm_setting_value = (set_v / batt_v * max_duty) as u32;
             driver.set_duty(pwm_setting_value).unwrap();
             FreeRtos::delay_ms(10);
