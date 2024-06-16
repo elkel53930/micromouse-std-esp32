@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-esptool.py erase_flash
+set -e
+
 cargo fmt
+cargo build
+esptool.py erase_flash
 cargo espflash flash --partition-table partitions.csv --baud 3000000
 echo "Waiting for the device to reboot"
 sleep 6
