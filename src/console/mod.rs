@@ -77,7 +77,9 @@ impl Console {
     }
 
     pub fn run(&mut self, mut ctx: &OperationContext) -> anyhow::Result<()> {
-        println!("Welcome to ExtraICE console!");
+        fprintln!("Welcome to ExtraICE console!");
+        uprintln!("Welcome to ExtraICE console!");
+
         loop {
             ctx.led_tx.send((Green, Some("10")))?;
             let mut buf = [0u8; 256];
@@ -89,6 +91,7 @@ impl Console {
 
             uprint!("{:1.2}[V] > ", batt_phy);
 
+            // receive command
             match read_line(&mut buf, true) {
                 Ok(result) => {
                     if result == uart::ReadLineResult::Escape {
@@ -110,6 +113,10 @@ impl Console {
             if len == 0 {
                 continue;
             }
+
+            // parse command
+            // output with fprintln! macro
+            fprintln!("Command: {}", std::str::from_utf8(&buf).unwrap());
 
             let mut i = 0;
             let mut arg_start = 0;
@@ -152,10 +159,12 @@ impl Console {
                     }
                     "exit" => {
                         uprintln!("Exit console.");
+                        fprintln!("Exit console.");
                         return Ok(());
                     }
                     _ => {
                         uprintln!("Command not found: '{}'", args[0]);
+                        fprintln!("Command not found: '{}'", args[0]);
                     }
                 }
             }

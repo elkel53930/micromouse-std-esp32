@@ -405,10 +405,11 @@ fn gyro_calibration(ctx: &mut ControlContext) {
 pub fn init(
     ods: &Arc<Mutex<ods::Ods>>,
     log_tx: Sender<log_thread::LogCommand>,
-) -> anyhow::Result<(Sender<Command>, Receiver<Response>)> {
+) -> anyhow::Result<(Sender<Command>, Receiver<Response>, anyhow::Result<()>)> {
     // Message queues
     let (tx_for_ope, rx): (Sender<Command>, Receiver<Command>) = mpsc::channel();
     let (tx, rx_for_ope): (Sender<Response>, Receiver<Response>) = mpsc::channel();
+    let mut config_success = Ok(());
 
     fn read() -> anyhow::Result<ControlThreadConfig> {
         let mut f = File::open("/sf/ctrl_cfg.json")?;
@@ -422,6 +423,7 @@ pub fn init(
         Ok(c) => c,
         Err(e) => {
             println!("❌Failed to read config: {:?}", e);
+            config_success = Err(e);
             ControlThreadConfig::default()
         }
     };
@@ -472,5 +474,5 @@ pub fn init(
         }
     })?;
 
-    Ok((tx_for_ope, rx_for_ope))
+    Ok((tx_for_ope, rx_for_ope, config_success))
 }

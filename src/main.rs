@@ -1,4 +1,5 @@
 use esp_idf_hal::delay::FreeRtos;
+use esp_idf_hal::ledc::config;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_sys as _;
 use log;
@@ -96,40 +97,56 @@ fn main() -> anyhow::Result<()> {
     // File system initialization
     spiflash::mount();
 
+    // Count boot times
     let boot_count = boot_count();
 
     // Start log thread
     let log_tx = log_thread::init(&mut ctx.ods)?;
     ctx.log_tx = log_tx.clone();
 
-    {
-        motor::init(&mut peripherals)?;
-        wall_sensor::init(&mut peripherals)?;
-        fram_logger::init(&mut peripherals)?;
-        fram_logger::set_log(log::LevelFilter::Info);
-        fram_logger::set_panic_handler();
-        fram_logger::move_fram_to_flash();
-        imu::init(&mut peripherals)?;
-        encoder::init(&mut peripherals)?;
+    // Initialize peripherals
+    motor::init(&mut peripherals)?;
+    wall_sensor::init(&mut peripherals)?;
+    fram_logger::init(&mut peripherals)?;
+    fram_logger::set_log(log::LevelFilter::Info);
+    fram_logger::set_panic_handler();
+    fram_logger::move_fram_to_flash();
+    imu::init(&mut peripherals)?;
+    encoder::init(&mut peripherals)?;
+    timer_interrupt::init(&mut peripherals)?;
 
-        timer_interrupt::init(&mut peripherals)?;
-        (ctx.command_tx, ctx.response_rx) = control_thread::init(&ctx.ods, log_tx.clone())?;
-    } // yaml_config is dropped here
+    // Initialize control thread
+    let mut config_success = Ok(());
+    (ctx.command_tx, ctx.response_rx, config_success) =
+        control_thread::init(&ctx.ods, log_tx.clone())?;
 
     // You can use println up to before uart:init.
     FreeRtos::delay_ms(100);
     uart::init(&mut peripherals)?;
     // After uart:init, you can use uprintln.
 
+    if let Err(e) = config_success {
+        uprintln!("Config error: {:?}", e);
+        fprintln!("Config error: {:?}", e);
+        ctx.led_tx.send((Red, Some("01")))?;
+        ctx.led_tx.send((Blue, Some("01")))?;
+        let mut console = console::Console::new();
+        console.run(&ctx)?;
+    }
+
     uprintln!("Boot count: {}", boot_count);
     fprintln!("Boot count: {}", boot_count);
+
+    // Initialize done
+    app_main(&ctx)
+}
+
+fn app_main(ctx: &OperationContext) -> anyhow::Result<()> {
     uprintln!("Hold left to enter the console.");
 
     let mut console = console::Console::new();
 
     ctx.led_tx.send((Blue, Some("0")))?;
-    ctx.led_tx.send((Red, Some("0")))?;
-    ctx.led_tx.send((Red, None))?;
     if ui::hold_ws(&ctx) == ui::UserOperation::HoldR {
         // Calibrate the gyro
         ctx.led_tx.send((Red, Some("10")))?;
