@@ -147,7 +147,8 @@ fn app_main(ctx: &OperationContext) -> anyhow::Result<()> {
     let mut console = console::Console::new();
 
     ctx.led_tx.send((Blue, Some("0")))?;
-    if ui::hold_ws(&ctx) == ui::UserOperation::HoldR {
+    if ui::hold_ws(&ctx, Some(500)) == ui::UserOperation::HoldR {
+        ui::wait(&ctx, ui::UserOperation::HoldL);
         // Calibrate the gyro
         ctx.led_tx.send((Red, Some("10")))?;
         uprintln!("Start gyro calibration");

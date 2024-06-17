@@ -149,5 +149,8 @@ pub(super) fn start(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<(
 
     stop(ctx, 100)?;
     ctx.stop_log();
+
+    ctx.response_tx.send(Response::CommandRequest).unwrap();
+
     Ok(())
 }

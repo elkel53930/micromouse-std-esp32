@@ -362,6 +362,11 @@ fn update(ctx: &mut ControlContext) -> MicromouseState {
     ods.micromouse.rf = ods.wall_sensor.rf_raw.unwrap_or(0);
     ods.micromouse.rs = ods.wall_sensor.rs_raw.unwrap_or(0);
 
+    ods.micromouse.v_integ = ctx.v_pid.get_integral();
+    ods.micromouse.pos_integ = ctx.pos_pid.get_integral();
+    ods.micromouse.theta_integ = ctx.theta_pid.get_integral();
+    ods.micromouse.omega_integ = ctx.omega_pid.get_integral();
+
     ods.micromouse.clone()
 }
 

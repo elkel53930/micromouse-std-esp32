@@ -13,9 +13,9 @@ def receive_file(filename):
 	ser = serial.Serial(serial_port, 921600, timeout=1)
 
 	ser.write('\n'.encode('utf-8'))
-	time.sleep(0.5)
+	time.sleep(0.1)
 	ser.readline()
-	time.sleep(0.5)
+	time.sleep(0.1)
 
 	# Send dl command
 	fullpath = "/sf/" + filename

@@ -42,21 +42,25 @@ pub struct OdsWallSensor {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct MicromouseState {
-    pub time: u32,   // Time [ms]
-    pub x: f32,      // X coordinate [m]
-    pub y: f32,      // Y coordinate [m]
-    pub theta: f32,  // Heading [rad]
-    pub omega: f32,  // Angular velocity [rad/s]
-    pub v_batt: f32, // Battery voltage [V]
-    pub v: f32,      // Velocity [m/s]
-    pub v_l: f32,    // Left wheel velocity [m/s]
-    pub v_r: f32,    // Right wheel velocity [m/s]
-    pub duty_l: f32, // Left wheel duty [%]
-    pub duty_r: f32, // Left wheel duty [%]
-    pub ls: u16,     // Left side sensor value
-    pub lf: u16,     // Left front sensor value
-    pub rf: u16,     // Right front sensor value
-    pub rs: u16,     // Right side sensor value
+    pub time: u32,        // Time [ms]
+    pub x: f32,           // X coordinate [m]
+    pub y: f32,           // Y coordinate [m]
+    pub theta: f32,       // Heading [rad]
+    pub omega: f32,       // Angular velocity [rad/s]
+    pub v_batt: f32,      // Battery voltage [V]
+    pub v: f32,           // Velocity [m/s]
+    pub v_l: f32,         // Left wheel velocity [m/s]
+    pub v_r: f32,         // Right wheel velocity [m/s]
+    pub duty_l: f32,      // Left wheel duty [%]
+    pub duty_r: f32,      // Left wheel duty [%]
+    pub ls: u16,          // Left side sensor value
+    pub lf: u16,          // Left front sensor value
+    pub rf: u16,          // Right front sensor value
+    pub rs: u16,          // Right side sensor value
+    pub v_integ: f32,     // Velocity integral
+    pub pos_integ: f32,   // Position integral
+    pub theta_integ: f32, // Heading integral
+    pub omega_integ: f32, // Angular velocity integral
     pub target_x: f32,
     pub target_y: f32,
     pub target_v: f32,
@@ -83,6 +87,10 @@ impl Default for MicromouseState {
             lf: 0,
             rf: 0,
             rs: 0,
+            v_integ: 0.0,
+            pos_integ: 0.0,
+            theta_integ: 0.0,
+            omega_integ: 0.0,
             target_x: 0.045,
             target_y: 0.027,
             target_v: 0.0,

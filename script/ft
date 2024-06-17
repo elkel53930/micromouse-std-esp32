@@ -16,10 +16,10 @@ if len(sys.argv) != 3:
 with serial.Serial(serial_port, 921600, timeout=1) as ser:
 	# First, send an enter key to refresh the command prompt.
 	ser.write('\n'.encode('utf-8'))
-	time.sleep(0.5)
+	time.sleep(0.1)
 	# Discard the next line.
 	ser.readline()
-	time.sleep(0.5)
+	time.sleep(0.1)
 
 	print("Starting transfer")	
 	destination = sys.argv[2]

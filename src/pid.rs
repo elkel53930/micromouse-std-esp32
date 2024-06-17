@@ -99,4 +99,8 @@ impl Pid {
     pub fn set_i_limit(&mut self, i_limit: f32) {
         self.i_limit = i_limit;
     }
+
+    pub fn get_integral(&self) -> f32 {
+        self.integral
+    }
 }
