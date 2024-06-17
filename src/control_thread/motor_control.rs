@@ -23,8 +23,8 @@ fn calc_ff_r(ctx: &ControlContext, v: f32) -> f32 {
 
 fn calc_duty(micromouse: &MicromouseState, voltage: f32) -> f32 {
     // battery voltage
-    let vb = micromouse.v_batt;
-    // voltage[V] -> duty[%]
+    let vb = 7.0; //micromouse.v_batt;
+                  // voltage[V] -> duty[%]
     (voltage / vb) * 100.0
 }
 
@@ -73,8 +73,14 @@ fn go(ctx: &mut ControlContext, distance: f32, final_velocity: f32) -> anyhow::R
         let fb_pos = ctx.pos_pid.update(diff_pos);
         let ff_r = calc_ff_r(ctx, target.v);
         let ff_l = calc_ff_l(ctx, target.v);
-        let duty_r = calc_duty(&micromouse, ff_r + fb_pos + fb_v + fb_theta + fb_omega);
-        let duty_l = calc_duty(&micromouse, ff_l + fb_pos + fb_v - fb_theta - fb_omega);
+        let duty_r = calc_duty(
+            &micromouse,
+            ff_r + fb_pos + fb_v + fb_theta + fb_omega + target.a * 0.1,
+        );
+        let duty_l = calc_duty(
+            &micromouse,
+            ff_l + fb_pos + fb_v - fb_theta - fb_omega + target.a * 0.1,
+        );
         control_thread::set_motor_duty(ctx, duty_l, duty_r);
         ctx.log();
         crate::led::off(crate::led::LedColor::Red)?;
