@@ -73,14 +73,8 @@ fn go(ctx: &mut ControlContext, distance: f32, final_velocity: f32) -> anyhow::R
         let fb_pos = ctx.pos_pid.update(diff_pos);
         let ff_r = calc_ff_r(ctx, target.v);
         let ff_l = calc_ff_l(ctx, target.v);
-        let duty_r = calc_duty(
-            &micromouse,
-            ff_r + fb_pos + fb_v + fb_theta + fb_omega + target.a * 0.1,
-        );
-        let duty_l = calc_duty(
-            &micromouse,
-            ff_l + fb_pos + fb_v - fb_theta - fb_omega + target.a * 0.1,
-        );
+        let duty_r = calc_duty(&micromouse, ff_r + fb_pos + fb_v + fb_theta + fb_omega);
+        let duty_l = calc_duty(&micromouse, ff_l + fb_pos + fb_v - fb_theta - fb_omega);
         control_thread::set_motor_duty(ctx, duty_l, duty_r);
         ctx.log();
         crate::led::off(crate::led::LedColor::Red)?;
@@ -148,7 +142,7 @@ pub(super) fn start(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<(
     go(ctx, 0.09 - 0.027, ctx.config.search_ctrl_cfg.vel_fwd)?;
 
     // constant speed
-    go(ctx, 0.09, ctx.config.search_ctrl_cfg.vel_fwd)?;
+    go(ctx, 0.18, ctx.config.search_ctrl_cfg.vel_fwd)?;
 
     // decelerate
     go(ctx, 0.045, 0.0)?;

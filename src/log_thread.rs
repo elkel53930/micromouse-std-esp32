@@ -1,3 +1,5 @@
+use crate::led::LedColor::Red;
+use crate::led_thread::Command;
 use crate::ods;
 use std::fs::File;
 use std::sync::mpsc::{self, Sender};
@@ -13,7 +15,10 @@ pub enum LogCommand {
     Save,
 }
 
-pub fn init(ods: &Arc<Mutex<ods::Ods>>) -> anyhow::Result<Sender<LogCommand>> {
+pub fn init(
+    ods: &Arc<Mutex<ods::Ods>>,
+    led_tx: Sender<Command>,
+) -> anyhow::Result<Sender<LogCommand>> {
     let ods = ods.clone();
 
     // Spawn the log thread
@@ -39,14 +44,16 @@ pub fn init(ods: &Arc<Mutex<ods::Ods>>) -> anyhow::Result<Sender<LogCommand>> {
                 let ods = &mut ods.lock().unwrap();
                 log::info!("Saving log data... ({} records)", ods.log.len());
 
+                led_tx.send((Red, Some("1"))).unwrap();
                 let mut wtr = csv::Writer::from_writer(File::create("/sf/log.csv")?);
-                for user in ods.log.iter() {
-                    wtr.serialize(user)?;
+                for log_data in ods.log.iter() {
+                    wtr.serialize(log_data)?;
                 }
                 wtr.flush()?;
 
                 ods.log.clear(); // clear() does not release heap memory.
                 log::info!("Saved");
+                led_tx.send((Red, Some("0"))).unwrap();
             } else {
                 log::warn!("Unknown command: {:?}", command);
             }

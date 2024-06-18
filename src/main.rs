@@ -101,7 +101,7 @@ fn main() -> anyhow::Result<()> {
     let boot_count = boot_count();
 
     // Start log thread
-    let log_tx = log_thread::init(&mut ctx.ods)?;
+    let log_tx = log_thread::init(&mut ctx.ods, ctx.led_tx.clone())?;
     ctx.log_tx = log_tx.clone();
 
     // Initialize peripherals
