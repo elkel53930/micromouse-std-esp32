@@ -67,14 +67,13 @@ fn go(ctx: &mut ControlContext, distance: f32, final_velocity: f32) -> anyhow::R
         control_thread::update_target(ctx, &target);
         let fb_theta = ctx.theta_pid.update(target.theta - micromouse.theta);
         let fb_omega = ctx.omega_pid.update(target.omega - micromouse.omega);
-        let fb_v = ctx.v_pid.update(target.v - micromouse.v);
+
         let diff_pos = calc_diff(micromouse.x, micromouse.y, target.x, target.y, target.theta);
         let diff_pos = ctx.pos_ave.update(diff_pos);
-        let fb_pos = ctx.pos_pid.update(diff_pos);
-        let ff_r = calc_ff_r(ctx, target.v);
-        let ff_l = calc_ff_l(ctx, target.v);
-        let duty_r = calc_duty(&micromouse, ff_r + fb_pos + fb_v + fb_theta + fb_omega);
-        let duty_l = calc_duty(&micromouse, ff_l + fb_pos + fb_v - fb_theta - fb_omega);
+        let target_v = ctx.pos_pid.update(diff_pos);
+        let fb_v = ctx.v_pid.update(target_v - micromouse.v);
+        let duty_r = calc_duty(&micromouse, fb_v + fb_theta + fb_omega);
+        let duty_l = calc_duty(&micromouse, fb_v - fb_theta - fb_omega);
         control_thread::set_motor_duty(ctx, duty_l, duty_r);
         ctx.log();
         crate::led::off(crate::led::LedColor::Red)?;
@@ -103,14 +102,13 @@ fn stop(ctx: &mut ControlContext, duration: usize) -> anyhow::Result<()> {
         control_thread::update_target(ctx, &target);
         let fb_theta = ctx.theta_pid.update(target.theta - micromouse.theta);
         let fb_omega = ctx.omega_pid.update(target.omega - micromouse.omega);
-        let fb_v = ctx.v_pid.update(target.v - micromouse.v);
+
         let diff_pos = calc_diff(micromouse.x, micromouse.y, target.x, target.y, target.theta);
         let diff_pos = ctx.pos_ave.update(diff_pos);
-        let fb_pos = ctx.pos_pid.update(diff_pos);
-        let ff_r = calc_ff_r(ctx, target.v);
-        let ff_l = calc_ff_l(ctx, target.v);
-        let duty_r = calc_duty(&micromouse, ff_r + fb_pos + fb_v + fb_theta + fb_omega);
-        let duty_l = calc_duty(&micromouse, ff_l + fb_pos + fb_v - fb_theta - fb_omega);
+        let target_v = ctx.pos_pid.update(diff_pos);
+        let fb_v = ctx.v_pid.update(target_v - micromouse.v);
+        let duty_r = calc_duty(&micromouse, fb_v + fb_theta + fb_omega);
+        let duty_l = calc_duty(&micromouse, fb_v - fb_theta - fb_omega);
         control_thread::set_motor_duty(ctx, duty_l, duty_r);
         ctx.log();
         crate::led::off(crate::led::LedColor::Red)?;
@@ -147,7 +145,7 @@ pub(super) fn start(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<(
     // decelerate
     go(ctx, 0.045, 0.0)?;
 
-    stop(ctx, 100)?;
+    stop(ctx, 300)?;
     ctx.stop_log();
 
     ctx.response_tx.send(Response::CommandRequest).unwrap();

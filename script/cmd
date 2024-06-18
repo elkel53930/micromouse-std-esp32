@@ -9,6 +9,10 @@ import re
 # Send the file given as an argument via the serial port.
 serial_port = '/dev/ttyUSB0'
 
+if len(sys.argv) < 2:
+    print('Usage: {} <command>'.format(sys.argv[0]))
+    sys.exit(1)
+
 command = ' '.join(sys.argv[1:]) + '\n'
 
 with serial.Serial(serial_port, 921600, timeout=1) as ser:
