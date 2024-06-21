@@ -21,7 +21,7 @@ fn calc_ff_r(ctx: &ControlContext, v: f32) -> f32 {
     volt.max(0.0).min(7.4)
 }
 
-fn calc_duty(micromouse: &MicromouseState, voltage: f32) -> f32 {
+fn calc_duty(_micromouse: &MicromouseState, voltage: f32) -> f32 {
     // battery voltage
     let vb = 7.0; //micromouse.v_batt;
                   // voltage[V] -> duty[%]
@@ -56,7 +56,7 @@ fn go(
 
     let mut straight = mm_traj::Straight::new(target, distance, final_velocity);
     let mut flag = true;
-    let mut event = ods::Event::None;
+    let mut event;
     while flag {
         event = ods::Event::None;
         let target = straight.proceed();
@@ -76,13 +76,15 @@ fn go(
         control_thread::update_target(ctx, &target);
         let fb_theta = ctx.theta_pid.update(target.theta - micromouse.theta);
         let fb_omega = ctx.omega_pid.update(target.omega - micromouse.omega);
+        let ff_l = calc_ff_l(ctx, target.v);
+        let ff_r = calc_ff_r(ctx, target.v);
 
         let diff_pos = calc_diff(micromouse.x, micromouse.y, target.x, target.y, target.theta);
         let diff_pos = ctx.pos_ave.update(diff_pos);
         let target_v = ctx.pos_pid.update(diff_pos);
         let fb_v = ctx.v_pid.update(target_v - micromouse.v);
-        let duty_r = calc_duty(&micromouse, fb_v + fb_theta + fb_omega);
-        let duty_l = calc_duty(&micromouse, fb_v - fb_theta - fb_omega);
+        let duty_r = calc_duty(&micromouse, ff_r + fb_v + fb_theta + fb_omega);
+        let duty_l = calc_duty(&micromouse, ff_l + fb_v - fb_theta - fb_omega);
         control_thread::set_motor_duty(ctx, duty_l, duty_r);
 
         if need_request == true {

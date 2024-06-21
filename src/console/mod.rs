@@ -446,7 +446,7 @@ impl ConsoleCommand for CmdConfig {
 struct CmdBatt {}
 
 impl ConsoleCommand for CmdBatt {
-    fn execute(&self, args: &[&str], mut ctx: &OperationContext) -> anyhow::Result<()> {
+    fn execute(&self, args: &[&str], ctx: &OperationContext) -> anyhow::Result<()> {
         if args.len() != 0 {
             return Err(anyhow::anyhow!("Invalid argument"));
         }

@@ -1,5 +1,4 @@
 use esp_idf_hal::delay::FreeRtos;
-use esp_idf_hal::ledc::config;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_sys as _;
 use log;
@@ -26,7 +25,6 @@ pub mod ods;
 pub mod pid;
 mod spiflash;
 pub mod timer_interrupt;
-mod trajectory;
 mod ui;
 mod vac_fan;
 mod wall_sensor;
@@ -35,8 +33,6 @@ use control_thread::Command::*;
 
 #[allow(unused_imports)]
 use led::LedColor::{Blue, Green, Red};
-
-pub static CS: esp_idf_hal::task::CriticalSection = esp_idf_hal::task::CriticalSection::new();
 
 pub struct OperationContext {
     pub ods: Arc<Mutex<ods::Ods>>,

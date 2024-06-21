@@ -4,7 +4,6 @@ use esp_idf_hal::gpio::{
 };
 use esp_idf_hal::peripheral::Peripheral;
 use esp_idf_hal::peripherals::Peripherals;
-use esp_idf_sys::adc1_get_raw;
 
 struct WallSensorHardware<'a> {
     ad: AdcDriver<'a, ADC1>,

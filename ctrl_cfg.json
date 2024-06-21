@@ -41,7 +41,6 @@
 		"ff_offset_l": 0,
 		"ff_coeff_r": 0.000,
 		"ff_offset_r": 0,
-		"ff_coeff_a": 0.08,
 		"vel_fwd": 0.35,
 		"theta_pid": {
 			"p": 3.0,

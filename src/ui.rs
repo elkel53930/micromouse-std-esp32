@@ -2,7 +2,6 @@ use crate::control_thread;
 use crate::led::LedColor::*;
 use crate::OperationContext;
 use esp_idf_hal::delay::FreeRtos;
-use esp_idf_hal::i2c::Operation;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum UserOperation {

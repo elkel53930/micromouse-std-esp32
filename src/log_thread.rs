@@ -5,8 +5,6 @@ use std::fs::File;
 use std::sync::mpsc::{self, Sender};
 use std::sync::{Arc, Mutex};
 
-const LOG_FILE_NAME: &str = "/sf/log{:02}.csv";
-
 pub const LOG_SIZE_IN_BYTE: usize = 200_000;
 pub const LOG_LEN: usize = LOG_SIZE_IN_BYTE / std::mem::size_of::<crate::ods::MicromouseState>();
 
