@@ -77,7 +77,7 @@ impl Console {
     }
 
     pub fn run(&mut self, mut ctx: &OperationContext) -> anyhow::Result<()> {
-        fprintln!("Welcome to ExtraICE console!");
+        log::info!("Console started.");
         uprintln!("Welcome to ExtraICE console!");
 
         loop {
@@ -115,8 +115,7 @@ impl Console {
             }
 
             // parse command
-            // output with fprintln! macro
-            fprintln!("Command: {}", std::str::from_utf8(&buf).unwrap());
+            log::info!("Command: {}", std::str::from_utf8(&buf).unwrap());
 
             let mut i = 0;
             let mut arg_start = 0;
@@ -143,6 +142,7 @@ impl Console {
                         Ok(_) => {}
                         Err(e) => {
                             uprintln!("Error: {}", e);
+                            log::error!("Command Error: {}", e);
                             cmd.hint();
                         }
                     }
@@ -159,12 +159,12 @@ impl Console {
                     }
                     "exit" => {
                         uprintln!("Exit console.");
-                        fprintln!("Exit console.");
+                        log::info!("Exit console.");
                         return Ok(());
                     }
                     _ => {
                         uprintln!("Command not found: '{}'", args[0]);
-                        fprintln!("Command not found: '{}'", args[0]);
+                        log::info!("Command not found: '{}'", args[0]);
                     }
                 }
             }

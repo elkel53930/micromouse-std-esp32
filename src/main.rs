@@ -127,7 +127,7 @@ fn main() -> anyhow::Result<()> {
 
     if let Err(e) = config_success {
         uprintln!("Config error: {:?}", e);
-        fprintln!("Config error: {:?}", e);
+        log::error!("Config error: {:?}", e);
         ctx.led_tx.send((Red, Some("01")))?;
         ctx.led_tx.send((Blue, Some("01")))?;
         let mut console = console::Console::new();
@@ -135,7 +135,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     uprintln!("Boot count: {}", boot_count);
-    fprintln!("Boot count: {}", boot_count);
+    log::info!("Boot count: {}", boot_count);
 
     // Initialize done
     app_main(&ctx)
