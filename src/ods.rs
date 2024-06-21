@@ -41,6 +41,13 @@ pub struct OdsWallSensor {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub enum Event {
+    None,
+    CommandRequest,
+    GoDone,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct MicromouseState {
     pub time: u32,        // Time [ms]
     pub x: f32,           // X coordinate [m]
@@ -67,6 +74,7 @@ pub struct MicromouseState {
     pub target_a: f32,
     pub target_theta: f32,
     pub target_omega: f32,
+    pub event: Event,
 }
 
 impl Default for MicromouseState {
@@ -97,6 +105,7 @@ impl Default for MicromouseState {
             target_a: 0.0,
             target_theta: std::f32::consts::PI / 2.0,
             target_omega: 0.0,
+            event: Event::None,
         }
     }
 }

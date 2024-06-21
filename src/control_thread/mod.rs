@@ -366,6 +366,7 @@ fn update(ctx: &mut ControlContext) -> MicromouseState {
     ods.micromouse.pos_integ = ctx.pos_pid.get_integral();
     ods.micromouse.theta_integ = ctx.theta_pid.get_integral();
     ods.micromouse.omega_integ = ctx.omega_pid.get_integral();
+    ods.micromouse.event = ods::Event::None;
 
     ods.micromouse.clone()
 }
@@ -462,8 +463,12 @@ pub fn init(
                         ctx.set_ws_enable(true);
                         motor_control::start(&mut ctx, distance).unwrap();
                     }
-                    Command::SForward => {}
-                    Command::SStop => {}
+                    Command::SForward => {
+                        motor_control::forward(&mut ctx, 0.09).unwrap();
+                    }
+                    Command::SStop => {
+                        motor_control::stop(&mut ctx, 0.045).unwrap();
+                    }
                     Command::SRight => {}
                     Command::SLeft => {}
                     Command::SReturn => {}

@@ -31,7 +31,7 @@ mod ui;
 mod vac_fan;
 mod wall_sensor;
 
-use control_thread::Command;
+use control_thread::Command::*;
 
 #[allow(unused_imports)]
 use led::LedColor::{Blue, Green, Red};
@@ -116,7 +116,7 @@ fn main() -> anyhow::Result<()> {
     timer_interrupt::init(&mut peripherals)?;
 
     // Initialize control thread
-    let mut config_success = Ok(());
+    let config_success;
     (ctx.command_tx, ctx.response_rx, config_success) =
         control_thread::init(&ctx.ods, log_tx.clone())?;
 
@@ -159,11 +159,15 @@ fn app_main(ctx: &OperationContext) -> anyhow::Result<()> {
         uprintln!("Gyro offset: {}", offset);
 
         ui::countdown(&ctx);
-        ctx.command_tx
-            .send(control_thread::Command::SStart(0.240))?;
-        let response = ctx.response_rx.recv()?; // Wait for CommandRequest
-        if response != control_thread::Response::CommandRequest {
-            return Err(anyhow::anyhow!("Unexpected response: {:?}", response));
+
+        let driving_pattern = [SStart(0.09 - 0.027), SForward, SForward, SStop];
+
+        for command in driving_pattern.iter() {
+            ctx.command_tx.send(*command)?;
+            let response = ctx.response_rx.recv()?; // Wait for CommandRequest
+            if response != control_thread::Response::CommandRequest {
+                return Err(anyhow::anyhow!("Unexpected response: {:?}", response));
+            }
         }
         return console.run(&ctx);
     } else {

@@ -1,6 +1,6 @@
 use crate::control_thread::{self, ControlContext, Response};
 use crate::motor;
-use crate::ods::MicromouseState;
+use crate::ods::{self, MicromouseState};
 use crate::pid;
 use crate::timer_interrupt;
 use mm_traj::{self, TrajResult};
@@ -35,7 +35,13 @@ fn calc_diff(xa: f32, ya: f32, xb: f32, yb: f32, theta: f32) -> f32 {
     diff
 }
 
-fn go(ctx: &mut ControlContext, distance: f32, final_velocity: f32) -> anyhow::Result<()> {
+fn go(
+    ctx: &mut ControlContext,
+    distance: f32,
+    final_velocity: f32,
+    notify_distance: Option<f32>,
+) -> anyhow::Result<()> {
+    let mut need_request = notify_distance.is_some(); // if notify_distance is Some, then need_request is true
     let target = {
         let ods = ctx.ods.lock().unwrap();
         mm_traj::State {
@@ -50,12 +56,15 @@ fn go(ctx: &mut ControlContext, distance: f32, final_velocity: f32) -> anyhow::R
 
     let mut straight = mm_traj::Straight::new(target, distance, final_velocity);
     let mut flag = true;
+    let mut event = ods::Event::None;
     while flag {
+        event = ods::Event::None;
         let target = straight.proceed();
         // uprintln!("target={:?}", target);
         let target = match target {
             TrajResult::Done(target) => {
                 flag = false;
+                event = ods::Event::GoDone;
                 target
             }
             TrajResult::Continue(target) => target,
@@ -75,6 +84,25 @@ fn go(ctx: &mut ControlContext, distance: f32, final_velocity: f32) -> anyhow::R
         let duty_r = calc_duty(&micromouse, fb_v + fb_theta + fb_omega);
         let duty_l = calc_duty(&micromouse, fb_v - fb_theta - fb_omega);
         control_thread::set_motor_duty(ctx, duty_l, duty_r);
+
+        if need_request == true {
+            if let Some(notify_distance) = notify_distance {
+                let (oy, ox) = straight.origin();
+                let diff_from_origin =
+                    ((micromouse.x - ox).powi(2) + (micromouse.y - oy).powi(2)).sqrt();
+                if diff_from_origin > notify_distance {
+                    ctx.response_tx.send(Response::CommandRequest).unwrap();
+                    event = ods::Event::CommandRequest;
+                    need_request = false;
+                }
+            }
+        }
+
+        {
+            let mut ods = ctx.ods.lock().unwrap();
+            ods.micromouse.event = event;
+        }
+
         ctx.log();
         crate::led::off(crate::led::LedColor::Red)?;
         timer_interrupt::sync_ms();
@@ -82,7 +110,9 @@ fn go(ctx: &mut ControlContext, distance: f32, final_velocity: f32) -> anyhow::R
     Ok(())
 }
 
-fn stop(ctx: &mut ControlContext, duration: usize) -> anyhow::Result<()> {
+pub(super) fn stop(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<()> {
+    // decelerate
+    go(ctx, distance, 0.0, None)?;
     let target = {
         let ods = ctx.ods.lock().unwrap();
         mm_traj::State {
@@ -95,7 +125,7 @@ fn stop(ctx: &mut ControlContext, duration: usize) -> anyhow::Result<()> {
         }
     };
 
-    for _ in 0..duration {
+    for _ in 0..200 {
         crate::led::on(crate::led::LedColor::Red)?;
         control_thread::measure(ctx)?;
         let micromouse = control_thread::update(ctx);
@@ -115,6 +145,10 @@ fn stop(ctx: &mut ControlContext, duration: usize) -> anyhow::Result<()> {
         timer_interrupt::sync_ms();
     }
     control_thread::set_motor_duty(ctx, 0.0, 0.0);
+    ctx.stop_log();
+
+    ctx.response_tx.send(Response::CommandRequest).unwrap();
+
     Ok(())
 }
 
@@ -137,18 +171,24 @@ pub(super) fn start(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<(
     ctx.start_log(0);
 
     // accelerate
-    go(ctx, 0.09 - 0.027, ctx.config.search_ctrl_cfg.vel_fwd)?;
-
-    // constant speed
-    go(ctx, 0.18, ctx.config.search_ctrl_cfg.vel_fwd)?;
-
-    // decelerate
-    go(ctx, 0.045, 0.0)?;
-
-    stop(ctx, 300)?;
-    ctx.stop_log();
+    go(
+        ctx,
+        distance,
+        ctx.config.search_ctrl_cfg.vel_fwd,
+        Some(0.07 - 0.027),
+    )?;
 
     ctx.response_tx.send(Response::CommandRequest).unwrap();
 
     Ok(())
+}
+
+pub(super) fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<()> {
+    // constant speed
+    go(
+        ctx,
+        distance,
+        ctx.config.search_ctrl_cfg.vel_fwd,
+        Some(0.07),
+    )
 }

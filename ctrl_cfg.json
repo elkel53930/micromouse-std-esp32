@@ -21,7 +21,7 @@
 		]
 	},
 	"enc_cfg": {
-		"wheel_diameter": 14.0,
+		"wheel_diameter": 13.65,
 		"gear_ratio": 2.0
 	},
 	"battery_cfg": {
@@ -42,7 +42,7 @@
 		"ff_coeff_r": 0.000,
 		"ff_offset_r": 0,
 		"ff_coeff_a": 0.08,
-		"vel_fwd": 0.5,
+		"vel_fwd": 0.35,
 		"theta_pid": {
 			"p": 3.0,
 			"i": 0.5,
