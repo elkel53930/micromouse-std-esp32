@@ -1,4 +1,5 @@
 use crate::log_thread;
+use crate::mm_const;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -78,8 +79,8 @@ impl Default for MicromouseState {
     fn default() -> Self {
         MicromouseState {
             time: 0,
-            x: 0.045, // Start position
-            y: 0.027,
+            x: mm_const::BLOCK_LENGTH / 2.0, // Start position
+            y: mm_const::INITIAL_POSITION,
             theta: std::f32::consts::PI / 2.0, // Start orientation (North, y-axis positive)
             omega: 0.0,
             v_batt: 0.0,
@@ -96,8 +97,8 @@ impl Default for MicromouseState {
             pos_integ: 0.0,
             theta_integ: 0.0,
             omega_integ: 0.0,
-            target_x: 0.045,
-            target_y: 0.027,
+            target_x: mm_const::BLOCK_LENGTH / 2.0,
+            target_y: mm_const::INITIAL_POSITION,
             target_v: 0.0,
             target_a: 0.0,
             target_theta: std::f32::consts::PI / 2.0,

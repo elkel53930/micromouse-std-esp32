@@ -20,7 +20,7 @@
 			]
 		]
 	},
-	"enc_cfg": {
+	"mech_param": {
 		"wheel_diameter": 13.65,
 		"gear_ratio": 2.0
 	},

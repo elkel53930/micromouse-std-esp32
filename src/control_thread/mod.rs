@@ -6,6 +6,7 @@ use crate::log_thread;
 use crate::log_thread::LOG_LEN;
 use crate::misc;
 use crate::misc::correct_value;
+use crate::mm_const;
 use crate::ods;
 use crate::ods::MicromouseState;
 use crate::pid;
@@ -37,7 +38,7 @@ struct GyroConfig {
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
-struct EncoderConfig {
+struct MechanicalParameter {
     wheel_diameter: f32,
     gear_ratio: f32,
 }
@@ -58,7 +59,7 @@ struct SpeedConfig {
 struct ControlThreadConfig {
     ws_cfg: WsConfig,
     gyro_cfg: GyroConfig,
-    enc_cfg: EncoderConfig,
+    mech_param: MechanicalParameter,
     battery_cfg: BatteryConfig,
 
     search_ctrl_cfg: SearchControlConfig,
@@ -334,12 +335,12 @@ fn update(ctx: &mut ControlContext) -> MicromouseState {
     let enc_r_diff = ods.encoder.r_diff as f32;
     let enc_l_diff = ods.encoder.l_diff as f32;
 
-    let v_r = enc_r_diff / ctx.config.enc_cfg.gear_ratio
-        * ctx.config.enc_cfg.wheel_diameter
+    let v_r = enc_r_diff / ctx.config.mech_param.gear_ratio
+        * ctx.config.mech_param.wheel_diameter
         * std::f32::consts::PI
         / 16384.0;
-    let v_l = enc_l_diff / ctx.config.enc_cfg.gear_ratio
-        * ctx.config.enc_cfg.wheel_diameter
+    let v_l = enc_l_diff / ctx.config.mech_param.gear_ratio
+        * ctx.config.mech_param.wheel_diameter
         * std::f32::consts::PI
         / 16384.0;
 
@@ -347,11 +348,11 @@ fn update(ctx: &mut ControlContext) -> MicromouseState {
 
     let gyro = ods.imu.gyro_x_phy;
     let ave_velo = ctx.v_ave.update(velocity); // moving average
-    ods.micromouse.theta += gyro * 0.001;
+    ods.micromouse.theta += gyro * mm_const::DT;
     ods.micromouse.v = ave_velo;
     // Odometry is calculated by integrating the non-averaged velocity
-    ods.micromouse.x += velocity * ods.micromouse.theta.cos() * 0.001;
-    ods.micromouse.y += velocity * ods.micromouse.theta.sin() * 0.001;
+    ods.micromouse.x += velocity * ods.micromouse.theta.cos() * mm_const::DT;
+    ods.micromouse.y += velocity * ods.micromouse.theta.sin() * mm_const::DT;
     ods.micromouse.v_l = v_l;
     ods.micromouse.v_r = v_r;
     ods.micromouse.v_batt = ods.wall_sensor.batt_phy;
@@ -464,7 +465,7 @@ pub fn init(
                         motor_control::start(&mut ctx, distance).unwrap();
                     }
                     Command::SForward => {
-                        motor_control::forward(&mut ctx, 0.09).unwrap();
+                        motor_control::forward(&mut ctx, mm_const::BLOCK_LENGTH).unwrap();
                     }
                     Command::SStop => {
                         motor_control::stop(&mut ctx, 0.045).unwrap();

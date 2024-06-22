@@ -20,6 +20,7 @@ mod led;
 mod led_thread;
 mod log_thread;
 pub mod misc;
+pub mod mm_const;
 mod motor;
 pub mod ods;
 pub mod pid;
@@ -156,7 +157,12 @@ fn app_main(ctx: &OperationContext) -> anyhow::Result<()> {
 
         ui::countdown(&ctx);
 
-        let driving_pattern = [SStart(0.09 - 0.027), SForward, SForward, SStop];
+        let driving_pattern = [
+            SStart(mm_const::BLOCK_LENGTH - mm_const::INITIAL_POSITION),
+            SForward,
+            SForward,
+            SStop,
+        ];
 
         for command in driving_pattern.iter() {
             ctx.command_tx.send(*command)?;
