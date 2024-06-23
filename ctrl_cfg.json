@@ -3,10 +3,32 @@
 		"led_rise_time": 40,
 		"rs_reference": 415,
 		"ls_reference": 332,
-		"rs_threshold": 200,
-		"rf_threshold": 30,
-		"lf_threshold": 330,
-		"ls_threshold": 130
+		"rs_threshold": 25,
+		"rf_threshold": 25,
+		"lf_threshold": 25,
+		"ls_threshold": 25,
+		"ls_correction_table": [
+			[
+				0, 0
+			],
+			[
+				470, 50.0
+			],
+			[
+				1000, 100.0
+			]
+		],
+		"rs_correction_table": [
+			[
+				0, 0
+			],
+			[
+				260, 50
+			],
+			[
+				790, 100
+			]
+		]
 	},
 	"gyro_cfg": {
 		"correction_table": [
@@ -42,6 +64,7 @@
 		"ff_coeff_r": 0.000,
 		"ff_offset_r": 0,
 		"vel_fwd": 0.35,
+		"ws_gain": 0.001,
 		"theta_pid": {
 			"p": 3.0,
 			"i": 0.5,

@@ -3,6 +3,7 @@ use crate::motor;
 use crate::ods::{self, MicromouseState};
 use crate::pid;
 use crate::timer_interrupt;
+use mm_maze::maze::Wall;
 use mm_traj::{self, TrajResult};
 
 // velocity[m/s] -> voltage[V]
@@ -74,7 +75,17 @@ fn go(
         control_thread::measure(ctx)?;
         let micromouse = control_thread::update(ctx);
         control_thread::update_target(ctx, &target);
-        let fb_theta = ctx.theta_pid.update(target.theta - micromouse.theta);
+
+        // Set target theta by wall sensor
+        let ws_error = match (micromouse.ls_wall, micromouse.rs_wall) {
+            (Wall::Present, Wall::Present) => micromouse.ls as i16 - micromouse.rs as i16,
+            (Wall::Present, Wall::Absent) => (micromouse.ls as i16 - 50) * 2,
+            (Wall::Absent, Wall::Present) => (50 - micromouse.rs as i16) * 2,
+            (_, _) => 0,
+        };
+        let target_theta = target.theta + (ws_error as f32) * ctx.config.search_ctrl_cfg.ws_gain;
+
+        let fb_theta = ctx.theta_pid.update(target_theta - micromouse.theta);
         let fb_omega = ctx.omega_pid.update(target.omega - micromouse.omega);
         let ff_l = calc_ff_l(ctx, target.v);
         let ff_r = calc_ff_r(ctx, target.v);
@@ -103,6 +114,7 @@ fn go(
         {
             let mut ods = ctx.ods.lock().unwrap();
             ods.micromouse.event = event;
+            ods.micromouse.ws_error = ws_error;
         }
 
         ctx.log();

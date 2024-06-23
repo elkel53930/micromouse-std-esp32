@@ -12,6 +12,7 @@ use crate::ods::MicromouseState;
 use crate::pid;
 use crate::timer_interrupt::{sync_ms, wait_us};
 use crate::wall_sensor;
+use mm_maze::maze::Wall;
 use mm_traj;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
@@ -30,6 +31,9 @@ struct WsConfig {
     rf_threshold: u16,
     lf_threshold: u16,
     ls_threshold: u16,
+
+    ls_correction_table: Vec<(u16, f32)>,
+    rs_correction_table: Vec<(u16, f32)>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -72,6 +76,7 @@ struct SearchControlConfig {
     ff_coeff_r: f32,
     ff_offset_r: f32,
     vel_fwd: f32,
+    ws_gain: f32,
     theta_pid: pid::PidParameter,
     omega_pid: pid::PidParameter,
     v_pid: pid::PidParameter,
@@ -216,7 +221,10 @@ fn measure(ctx: &mut ControlContext) -> anyhow::Result<()> {
                 let ls_on = wall_sensor::read_ls()?;
                 wall_sensor::off()?;
                 let ls_raw = ls_on - ls_off;
-                let ls = Some(ls_raw > ctx.config.ws_cfg.ls_threshold);
+                let ls_raw =
+                    correct_value(ctx.config.ws_cfg.ls_correction_table.as_slice(), ls_raw) as u16;
+                let ls = ls_raw > ctx.config.ws_cfg.ls_threshold;
+                let ls = Some(Wall::from_bool(ls));
 
                 let rs_off = wall_sensor::read_rs()?;
                 wall_sensor::on_rs()?;
@@ -224,7 +232,10 @@ fn measure(ctx: &mut ControlContext) -> anyhow::Result<()> {
                 let rs_on = wall_sensor::read_rs()?;
                 wall_sensor::off()?;
                 let rs_raw = rs_on - rs_off;
-                let rs = Some(rs_raw > ctx.config.ws_cfg.rs_threshold);
+                let rs_raw =
+                    correct_value(ctx.config.ws_cfg.ls_correction_table.as_slice(), rs_raw) as u16;
+                let rs = rs_raw > ctx.config.ws_cfg.rs_threshold;
+                let rs = Some(Wall::from_bool(rs));
 
                 {
                     let mut ods = ctx.ods.lock().unwrap();
@@ -242,7 +253,8 @@ fn measure(ctx: &mut ControlContext) -> anyhow::Result<()> {
                 let lf_on = wall_sensor::read_lf()?;
                 wall_sensor::off()?;
                 let lf_raw = lf_on - lf_off;
-                let lf = Some(lf_raw > ctx.config.ws_cfg.lf_threshold);
+                let lf = lf_raw > ctx.config.ws_cfg.lf_threshold;
+                let lf = Some(Wall::from_bool(lf));
 
                 let rf_off = wall_sensor::read_rf()?;
                 wall_sensor::on_rf()?;
@@ -250,7 +262,8 @@ fn measure(ctx: &mut ControlContext) -> anyhow::Result<()> {
                 let rf_on = wall_sensor::read_rf()?;
                 wall_sensor::off()?;
                 let rf_raw = rf_on - rf_off;
-                let rf = Some(rf_raw > ctx.config.ws_cfg.rf_threshold);
+                let rf = rf_raw > ctx.config.ws_cfg.rf_threshold;
+                let rf = Some(Wall::from_bool(rf));
 
                 {
                     let mut ods = ctx.ods.lock().unwrap();
@@ -362,6 +375,11 @@ fn update(ctx: &mut ControlContext) -> MicromouseState {
     ods.micromouse.lf = ods.wall_sensor.lf_raw.unwrap_or(0);
     ods.micromouse.rf = ods.wall_sensor.rf_raw.unwrap_or(0);
     ods.micromouse.rs = ods.wall_sensor.rs_raw.unwrap_or(0);
+
+    ods.micromouse.ls_wall = ods.wall_sensor.ls.unwrap_or(Wall::Absent);
+    ods.micromouse.lf_wall = ods.wall_sensor.lf.unwrap_or(Wall::Absent);
+    ods.micromouse.rf_wall = ods.wall_sensor.rf.unwrap_or(Wall::Absent);
+    ods.micromouse.rs_wall = ods.wall_sensor.rs.unwrap_or(Wall::Absent);
 
     ods.micromouse.v_integ = ctx.v_pid.get_integral();
     ods.micromouse.pos_integ = ctx.pos_pid.get_integral();

@@ -23,11 +23,11 @@ pub fn hold_ws(ctx: &OperationContext, timeout: Option<u16>) -> UserOperation {
             let wall_sensor = ctx.ods.lock().unwrap().wall_sensor;
             (wall_sensor.rs_raw.unwrap(), wall_sensor.ls_raw.unwrap())
         };
-        if ls > 1200 {
+        if ls > 95 {
             result = UserOperation::HoldL;
             break;
         }
-        if rs > 1200 {
+        if rs > 95 {
             result = UserOperation::HoldR;
             break;
         }
