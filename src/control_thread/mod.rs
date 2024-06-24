@@ -187,7 +187,7 @@ impl ControlContext {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Copy)]
 pub enum Command {
     GyroCalibration,
     SetActivateWallSensor(bool),
@@ -197,6 +197,13 @@ pub enum Command {
     SRight,
     SLeft,
     SReturn,
+    Test,
+}
+
+impl Default for Command {
+    fn default() -> Self {
+        Command::Test
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -491,6 +498,9 @@ pub fn init(
                     Command::SRight => {}
                     Command::SLeft => {}
                     Command::SReturn => {}
+                    Command::Test => {
+                        motor_control::test(&mut ctx).unwrap();
+                    }
                 },
                 Err(mpsc::TryRecvError::Empty) => {}
                 Err(mpsc::TryRecvError::Disconnected) => {

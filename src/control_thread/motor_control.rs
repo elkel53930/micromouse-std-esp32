@@ -78,22 +78,29 @@ fn go(
 
         // Set target theta by wall sensor
         let ws_error = match (micromouse.ls_wall, micromouse.rs_wall) {
-            (Wall::Present, Wall::Present) => micromouse.ls as i16 - micromouse.rs as i16,
-            (Wall::Present, Wall::Absent) => (micromouse.ls as i16 - 50) * 2,
-            (Wall::Absent, Wall::Present) => (50 - micromouse.rs as i16) * 2,
+            (Wall::Present, Wall::Present) => micromouse.rs as i16 - micromouse.ls as i16,
+            (Wall::Present, Wall::Absent) => (50 - micromouse.ls as i16) * 2,
+            (Wall::Absent, Wall::Present) => (micromouse.rs as i16 - 50) * 2,
             (_, _) => 0,
         };
         let target_theta = target.theta + (ws_error as f32) * ctx.config.search_ctrl_cfg.ws_gain;
 
+        // Angle feedback
         let fb_theta = ctx.theta_pid.update(target_theta - micromouse.theta);
         let fb_omega = ctx.omega_pid.update(target.omega - micromouse.omega);
+
+        // Feedforward
         let ff_l = calc_ff_l(ctx, target.v);
         let ff_r = calc_ff_r(ctx, target.v);
 
+        // Position feedback
         let diff_pos = calc_diff(micromouse.x, micromouse.y, target.x, target.y, target.theta);
         let diff_pos = ctx.pos_ave.update(diff_pos);
         let target_v = ctx.pos_pid.update(diff_pos);
+        // Velocity feedback
         let fb_v = ctx.v_pid.update(target_v - micromouse.v);
+
+        // Set duty
         let duty_r = calc_duty(&micromouse, ff_r + fb_v + fb_theta + fb_omega);
         let duty_l = calc_duty(&micromouse, ff_l + fb_v - fb_theta - fb_omega);
         control_thread::set_motor_duty(ctx, duty_l, duty_r);
@@ -205,4 +212,25 @@ pub(super) fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result
         ctx.config.search_ctrl_cfg.vel_fwd,
         Some(0.07),
     )
+}
+
+pub(super) fn test(ctx: &mut ControlContext) -> anyhow::Result<()> {
+    let target = mm_traj::State::default();
+    motor::set_l(10.0);
+    motor::set_r(10.0);
+    motor::enable(true);
+    ctx.start_log(0);
+    for _ in 0..2000 {
+        control_thread::measure(ctx)?;
+        let _ = control_thread::update(ctx);
+        control_thread::update_target(ctx, &target);
+        ctx.log();
+        timer_interrupt::sync_ms();
+    }
+    ctx.stop_log();
+    motor::set_l(0.0);
+    motor::set_r(0.0);
+    motor::enable(false);
+    ctx.response_tx.send(Response::CommandRequest).unwrap();
+    Ok(())
 }

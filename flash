@@ -8,5 +8,6 @@ cargo espflash flash --partition-table partitions.csv --baud 3000000
 echo "Waiting for the device to reboot"
 sleep 1
 ./script/ft ctrl_cfg.json ctrl_cfg.json
+./script/ft ope_cfg.json ope_cfg.json
 ./script/send reset
 #cargo espflash --partition-table partitions.csv $1 --monitor --speed 3000000

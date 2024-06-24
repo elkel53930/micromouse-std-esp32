@@ -1,9 +1,14 @@
-use esp_idf_hal::delay::FreeRtos;
-use esp_idf_hal::peripherals::Peripherals;
+use esp_idf_hal::{delay::FreeRtos, peripherals::Peripherals};
 use esp_idf_sys as _;
 use log;
-use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::{Arc, Mutex};
+use serde::{Deserialize, Serialize};
+use std::fs::{File, OpenOptions};
+use std::io::{Read, Write};
+use std::path::Path;
+use std::sync::{
+    mpsc::{self, Receiver, Sender},
+    {Arc, Mutex},
+};
 
 #[macro_use]
 pub mod uart;
@@ -30,10 +35,18 @@ mod ui;
 mod vac_fan;
 mod wall_sensor;
 
-use control_thread::Command::*;
-
 #[allow(unused_imports)]
 use led::LedColor::{Blue, Green, Red};
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+struct OperationThreadConfig {
+    test_config: TestConfig,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+struct TestConfig {
+    test_pattern: Vec<control_thread::Command>,
+}
 
 pub struct OperationContext {
     pub ods: Arc<Mutex<ods::Ods>>,
@@ -45,9 +58,6 @@ pub struct OperationContext {
 }
 
 fn boot_count() -> u32 {
-    use std::fs::{File, OpenOptions};
-    use std::io::{Read, Write};
-    use std::path::Path;
     let path = Path::new("/sf/boot_count");
 
     let count = if path.exists() {
@@ -122,23 +132,46 @@ fn main() -> anyhow::Result<()> {
     uart::init(&mut peripherals)?;
     // After uart:init, you can use uprintln.
 
+    let mut config_failure = false;
     if let Err(e) = config_success {
         uprintln!("Config error: {:?}", e);
         log::error!("Config error: {:?}", e);
+        config_failure = true;
+    }
+
+    // Read config
+    fn read() -> anyhow::Result<OperationThreadConfig> {
+        let mut f = File::open("/sf/ope_cfg.json")?;
+        let mut contents = String::new();
+        f.read_to_string(&mut contents)?;
+        let result = serde_json::from_str(&contents)?;
+        return Ok(result);
+    }
+
+    let config = match read() {
+        Ok(c) => c,
+        Err(e) => {
+            uprintln!("❌Failed to read config: {:?}", e);
+            config_failure = true;
+            OperationThreadConfig::default()
+        }
+    };
+
+    uprintln!("Boot count: {}", boot_count);
+    log::info!("Boot count: {}", boot_count);
+
+    if config_failure {
         ctx.led_tx.send((Red, Some("01")))?;
         ctx.led_tx.send((Blue, Some("01")))?;
         let mut console = console::Console::new();
         console.run(&ctx)?;
     }
 
-    uprintln!("Boot count: {}", boot_count);
-    log::info!("Boot count: {}", boot_count);
-
     // Initialize done
-    app_main(&ctx)
+    app_main(&ctx, config)
 }
 
-fn app_main(ctx: &OperationContext) -> anyhow::Result<()> {
+fn app_main(ctx: &OperationContext, config: OperationThreadConfig) -> anyhow::Result<()> {
     uprintln!("Hold left to enter the console.");
 
     let mut console = console::Console::new();
@@ -157,14 +190,7 @@ fn app_main(ctx: &OperationContext) -> anyhow::Result<()> {
 
         ui::countdown(&ctx);
 
-        let driving_pattern = [
-            SStart(mm_const::BLOCK_LENGTH - mm_const::INITIAL_POSITION),
-            SForward,
-            SForward,
-            SStop,
-        ];
-
-        for command in driving_pattern.iter() {
+        for command in config.test_config.test_pattern.iter() {
             ctx.command_tx.send(*command)?;
             let response = ctx.response_rx.recv()?; // Wait for CommandRequest
             if response != control_thread::Response::CommandRequest {

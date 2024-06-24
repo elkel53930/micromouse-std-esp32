@@ -64,7 +64,7 @@
 		"ff_coeff_r": 0.000,
 		"ff_offset_r": 0,
 		"vel_fwd": 0.35,
-		"ws_gain": 0.001,
+		"ws_gain": 0.0005,
 		"theta_pid": {
 			"p": 3.0,
 			"i": 0.5,

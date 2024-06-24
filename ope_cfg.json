@@ -1,0 +1,10 @@
+{
+	"test_config": {
+		"test_pattern": [
+            {"SStart":0.063},
+            "SForward",
+            "SForward",
+            "SStop"
+        ]
+	}
+}
