@@ -95,7 +95,6 @@ fn go(
 
         // Position feedback
         let diff_pos = calc_diff(micromouse.x, micromouse.y, target.x, target.y, target.theta);
-        let diff_pos = ctx.pos_ave.update(diff_pos);
         let target_v = ctx.pos_pid.update(diff_pos);
         // Velocity feedback
         let fb_v = ctx.v_pid.update(target_v - micromouse.v);
@@ -155,7 +154,6 @@ pub(super) fn stop(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<()
         let fb_omega = ctx.omega_pid.update(target.omega - micromouse.omega);
 
         let diff_pos = calc_diff(micromouse.x, micromouse.y, target.x, target.y, target.theta);
-        let diff_pos = ctx.pos_ave.update(diff_pos);
         let target_v = ctx.pos_pid.update(diff_pos);
         let fb_v = ctx.v_pid.update(target_v - micromouse.v);
         let duty_r = calc_duty(&micromouse, fb_v + fb_theta + fb_omega);

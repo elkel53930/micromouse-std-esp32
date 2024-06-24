@@ -125,7 +125,6 @@ struct ControlContext {
     pos_pid: pid::Pid,
 
     v_ave: misc::MovingAverage,
-    pos_ave: misc::MovingAverage,
 }
 
 impl ControlContext {
@@ -150,7 +149,6 @@ impl ControlContext {
             v_pid: pid::Pid::empty(),
             pos_pid: pid::Pid::empty(),
             v_ave: misc::MovingAverage::new(20),
-            pos_ave: misc::MovingAverage::new(1),
         }
     }
     pub fn start_log(&mut self, interval: u8) {
