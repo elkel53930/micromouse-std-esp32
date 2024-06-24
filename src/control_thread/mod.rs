@@ -14,6 +14,10 @@ use crate::timer_interrupt::{sync_ms, wait_us};
 use crate::wall_sensor;
 use mm_maze::maze::Wall;
 use mm_traj;
+use motor_control::reset_controller;
+use motor_control::turn_back;
+use motor_control::turn_left;
+use motor_control::turn_right;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::prelude::*;
@@ -76,17 +80,18 @@ struct SearchControlConfig {
     ff_coeff_r: f32,
     ff_offset_r: f32,
     vel_fwd: f32,
-    ws_gain: f32,
     theta_pid: pid::PidParameter,
     omega_pid: pid::PidParameter,
     v_pid: pid::PidParameter,
     pos_pid: pid::PidParameter,
+    wall_pid: pid::PidParameter,
 }
 
 struct LogInfo {
     interval: u8,
     counter: u8,
     is_full: bool,
+    on_logging: bool,
 }
 
 impl LogInfo {
@@ -95,6 +100,7 @@ impl LogInfo {
             interval: 0,
             counter: 0,
             is_full: false,
+            on_logging: false,
         }
     }
 }
@@ -123,6 +129,7 @@ struct ControlContext {
     omega_pid: pid::Pid,
     v_pid: pid::Pid,
     pos_pid: pid::Pid,
+    wall_pid: pid::Pid,
 
     v_ave: misc::MovingAverage,
 }
@@ -148,19 +155,20 @@ impl ControlContext {
             omega_pid: pid::Pid::empty(),
             v_pid: pid::Pid::empty(),
             pos_pid: pid::Pid::empty(),
+            wall_pid: pid::Pid::empty(),
             v_ave: misc::MovingAverage::new(20),
         }
     }
     pub fn start_log(&mut self, interval: u8) {
-        log::info!("Start logging.");
         self.log_info.counter = 0;
         self.log_info.is_full = false;
         self.log_info.interval = interval;
+        self.log_info.on_logging = true;
         self.ods.lock().unwrap().log.clear();
     }
 
     pub fn log(&mut self) {
-        if self.log_info.is_full {
+        if self.log_info.is_full || !self.log_info.on_logging {
             return;
         }
         self.log_info.counter += 1;
@@ -170,13 +178,13 @@ impl ControlContext {
             let micromouse = ods.micromouse;
             ods.log.push(micromouse);
             if ods.log.len() >= LOG_LEN {
-                log::warn!("Log is full.");
                 self.log_info.is_full = true;
             }
         }
     }
 
     pub fn stop_log(&mut self) {
+        self.log_info.on_logging = false;
         let _ = self.log_tx.send(log_thread::LogCommand::Save);
     }
 
@@ -188,13 +196,17 @@ impl ControlContext {
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Copy)]
 pub enum Command {
     GyroCalibration,
+    StartLog(u8), // The argument is the interval of logging
+    StopLog,
     SetActivateWallSensor(bool),
+    ResetController,
     SStart(f32),
     SForward,
     SStop,
     SRight,
     SLeft,
     SReturn,
+    SPivot(f32), // The arguments are the angle
     Test,
 }
 
@@ -480,22 +492,39 @@ pub fn init(
                     Command::GyroCalibration => {
                         gyro_calibration(&mut ctx);
                     }
+                    Command::StartLog(interval) => {
+                        ctx.start_log(interval);
+                        ctx.response_tx.send(Response::CommandRequest).unwrap();
+                    }
+                    Command::StopLog => {
+                        ctx.stop_log();
+                        ctx.response_tx.send(Response::CommandRequest).unwrap();
+                    }
                     Command::SetActivateWallSensor(ena) => {
                         ctx.set_ws_enable(ena);
                     }
+                    Command::ResetController => {
+                        reset_controller(&mut ctx);
+                        ctx.response_tx.send(Response::CommandRequest).unwrap();
+                    }
                     Command::SStart(distance) => {
                         ctx.set_ws_enable(true);
-                        motor_control::start(&mut ctx, distance).unwrap();
+                        motor_control::forward(&mut ctx, distance).unwrap();
                     }
                     Command::SForward => {
                         motor_control::forward(&mut ctx, mm_const::BLOCK_LENGTH).unwrap();
                     }
                     Command::SStop => {
-                        motor_control::stop(&mut ctx, 0.045).unwrap();
+                        motor_control::stop(&mut ctx, mm_const::BLOCK_LENGTH / 2.0).unwrap();
                     }
-                    Command::SRight => {}
-                    Command::SLeft => {}
-                    Command::SReturn => {}
+                    Command::SRight => turn_right(&mut ctx).unwrap(),
+                    Command::SLeft => turn_left(&mut ctx).unwrap(),
+                    Command::SReturn => turn_back(&mut ctx).unwrap(),
+                    Command::SPivot(angle) => {
+                        motor_control::pivot(&mut ctx, angle, angle / std::f32::consts::PI / 2.0)
+                            .unwrap();
+                        ctx.response_tx.send(Response::CommandRequest).unwrap();
+                    }
                     Command::Test => {
                         motor_control::test(&mut ctx).unwrap();
                     }

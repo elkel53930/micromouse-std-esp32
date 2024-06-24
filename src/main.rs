@@ -191,6 +191,7 @@ fn app_main(ctx: &OperationContext, config: OperationThreadConfig) -> anyhow::Re
         ui::countdown(&ctx);
 
         for command in config.test_config.test_pattern.iter() {
+            log::info!("Sending command: {:?}", command);
             ctx.command_tx.send(*command)?;
             let response = ctx.response_rx.recv()?; // Wait for CommandRequest
             if response != control_thread::Response::CommandRequest {

@@ -34,16 +34,16 @@
 		"correction_table": [
 			[
 				-32768,
-				-38.832654323028784
+				-40
 			],
 			[
 				32767,
-				38.831469244466675
+				40
 			]
 		]
 	},
 	"mech_param": {
-		"wheel_diameter": 13.65,
+		"wheel_diameter": 13.8,
 		"gear_ratio": 2.0
 	},
 	"battery_cfg": {
@@ -63,8 +63,7 @@
 		"ff_offset_l": 0,
 		"ff_coeff_r": 0.000,
 		"ff_offset_r": 0,
-		"vel_fwd": 0.35,
-		"ws_gain": 0.0005,
+		"vel_fwd": 0.4,
 		"theta_pid": {
 			"p": 3.0,
 			"i": 0.5,
@@ -80,7 +79,7 @@
 			"dead_zone": 0
 		},
 		"v_pid": {
-			"p": 6.3,
+			"p": 5,
 			"i": 0.04,
 			"d": 0.8,
 			"i_limit": 1000.0,
@@ -88,10 +87,17 @@
 		},
 		"pos_pid": {
 			"p": 30,
-			"i": 0,
-			"d": 0,
+			"i": 1.5,
+			"d": 100,
 			"i_limit": 10.0,
 			"dead_zone": 0
+		},
+		"wall_pid": {
+			"p": 0.001,
+			"i": 0.00002,
+			"d": 0.001,
+			"i_limit": 200.0,
+			"dead_zone": 4
 		}
 	}
 }

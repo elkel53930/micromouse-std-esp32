@@ -31,7 +31,7 @@ impl Pid {
             dead_zone: 0.0,
         }
     }
-    pub fn new(parameter: PidParameter) -> Self {
+    pub fn new(parameter: &PidParameter) -> Self {
         Pid {
             p: parameter.p,
             i: parameter.i,

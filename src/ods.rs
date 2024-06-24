@@ -44,6 +44,9 @@ pub enum Event {
     None,
     CommandRequest,
     GoDone,
+    Go,
+    Pivot,
+    Stop,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
@@ -79,6 +82,7 @@ pub struct MicromouseState {
     pub target_omega: f32,
     pub ws_error: i16,
     pub event: Event,
+    pub diff_pos: f32,
 }
 
 impl Default for MicromouseState {
@@ -115,6 +119,7 @@ impl Default for MicromouseState {
             target_omega: 0.0,
             ws_error: 0,
             event: Event::None,
+            diff_pos: 0.0,
         }
     }
 }

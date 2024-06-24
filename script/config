@@ -1,0 +1,5 @@
+#!/bin/bash
+set -e
+./ft ../ctrl_cfg.json ctrl_cfg.json
+./ft ../ope_cfg.json ope_cfg.json
+./send reset
