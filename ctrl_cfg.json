@@ -59,10 +59,6 @@
 		]
 	},
 	"search_ctrl_cfg": {
-		"ff_coeff_l": 0.000,
-		"ff_offset_l": 0,
-		"ff_coeff_r": 0.000,
-		"ff_offset_r": 0,
 		"vel_fwd": 0.4,
 		"theta_pid": {
 			"p": 3.0,
@@ -93,10 +89,10 @@
 			"dead_zone": 0
 		},
 		"wall_pid": {
-			"p": 0.001,
+			"p": 0.0001,
 			"i": 0.00002,
-			"d": 0.001,
-			"i_limit": 200.0,
+			"d": 0.0001,
+			"i_limit": 1000.0,
 			"dead_zone": 4
 		}
 	}

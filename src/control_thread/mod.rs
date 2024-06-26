@@ -75,10 +75,6 @@ struct ControlThreadConfig {
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 struct SearchControlConfig {
-    ff_coeff_l: f32,
-    ff_offset_l: f32,
-    ff_coeff_r: f32,
-    ff_offset_r: f32,
     vel_fwd: f32,
     theta_pid: pid::PidParameter,
     omega_pid: pid::PidParameter,

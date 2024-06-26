@@ -7,22 +7,6 @@ use crate::timer_interrupt;
 use mm_maze::maze::Wall;
 use mm_traj;
 
-// velocity[m/s] -> voltage[V]
-fn calc_ff_l(ctx: &ControlContext, vel: f32) -> f32 {
-    let coeff = ctx.config.search_ctrl_cfg.ff_coeff_l;
-    let offset = ctx.config.search_ctrl_cfg.ff_offset_l;
-    let volt = vel * coeff + offset;
-    volt.max(0.0).min(7.4)
-}
-
-// velocity[m/s] -> voltage[V]
-fn calc_ff_r(ctx: &ControlContext, v: f32) -> f32 {
-    let coeff = ctx.config.search_ctrl_cfg.ff_coeff_r;
-    let offset = ctx.config.search_ctrl_cfg.ff_offset_r;
-    let volt = v * coeff + offset;
-    volt.max(0.0).min(7.4)
-}
-
 fn calc_duty(_micromouse: &MicromouseState, voltage: f32) -> f32 {
     // battery voltage
     let vb = 7.0; //micromouse.v_batt;
@@ -54,6 +38,7 @@ fn go(
     distance: f32,
     final_velocity: f32,
     notify_distance: Option<f32>,
+    enable_wall_pid: bool,
 ) -> anyhow::Result<()> {
     let mut need_request = notify_distance.is_some(); // if notify_distance is Some, then need_request is true
     let target = make_target_from_ods(ctx);
@@ -67,11 +52,15 @@ fn go(
         control_thread::update_target(ctx, &target);
 
         // Set target theta by wall sensor
-        let ws_error = match (micromouse.ls_wall, micromouse.rs_wall) {
-            (Wall::Present, Wall::Present) => Some(micromouse.rs as i16 - micromouse.ls as i16),
-            (Wall::Present, Wall::Absent) => Some((50 - micromouse.ls as i16) * 2),
-            (Wall::Absent, Wall::Present) => Some((micromouse.rs as i16 - 50) * 2),
-            (_, _) => None,
+        let ws_error = if enable_wall_pid {
+            match (micromouse.ls_wall, micromouse.rs_wall) {
+                (Wall::Present, Wall::Present) => Some(micromouse.rs as i16 - micromouse.ls as i16),
+                (Wall::Present, Wall::Absent) => Some((50 - micromouse.ls as i16) * 2),
+                (Wall::Absent, Wall::Present) => Some((micromouse.rs as i16 - 50) * 2),
+                (_, _) => None,
+            }
+        } else {
+            None
         };
         if let Some(ws_error) = ws_error {
             if (ws_error.abs() as f32) < ctx.config.search_ctrl_cfg.wall_pid.dead_zone {
@@ -97,10 +86,6 @@ fn go(
         let fb_theta = ctx.theta_pid.update(target_theta - micromouse.theta);
         let fb_omega = ctx.omega_pid.update(target.omega - micromouse.omega);
 
-        // Feedforward
-        let ff_l = calc_ff_l(ctx, target.v);
-        let ff_r = calc_ff_r(ctx, target.v);
-
         // Position feedback
         let diff_pos = calc_diff(micromouse.x, micromouse.y, target.x, target.y, target.theta);
         let target_v = ctx.pos_pid.update(diff_pos);
@@ -108,8 +93,8 @@ fn go(
         let fb_v = ctx.v_pid.update(target_v - micromouse.v);
 
         // Set duty
-        let duty_r = calc_duty(&micromouse, ff_r + fb_v + fb_theta + fb_omega);
-        let duty_l = calc_duty(&micromouse, ff_l + fb_v - fb_theta - fb_omega);
+        let duty_r = calc_duty(&micromouse, fb_v + fb_theta + fb_omega);
+        let duty_l = calc_duty(&micromouse, fb_v - fb_theta - fb_omega);
         control_thread::set_motor_duty(ctx, duty_l, duty_r);
 
         if need_request == true {
@@ -142,7 +127,7 @@ fn go(
 
 pub(super) fn stop(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<()> {
     // decelerate
-    go(ctx, distance, 0.0, None)?;
+    go(ctx, distance, 0.0, None, false)?;
     let target = make_target_from_ods(ctx);
 
     for _ in 0..100 {
@@ -190,6 +175,7 @@ pub(super) fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result
         distance,
         ctx.config.search_ctrl_cfg.vel_fwd,
         Some(distance - (mm_const::BLOCK_LENGTH - 0.07)),
+        false,
     )
 }
 
@@ -245,13 +231,10 @@ pub(super) fn pivot(ctx: &mut ControlContext, angle: f32, duration: f32) -> anyh
         let fb_theta = ctx.theta_pid.update(target.theta - micromouse.theta);
         let fb_omega = ctx.omega_pid.update(target.omega - micromouse.omega);
 
-        let ff_l = calc_ff_l(ctx, target.v);
-        let ff_r = calc_ff_r(ctx, target.v);
-
         let fb_v = ctx.v_pid.update(0.0 - micromouse.v);
 
-        let duty_r = calc_duty(&micromouse, ff_r + fb_v + fb_theta + fb_omega);
-        let duty_l = calc_duty(&micromouse, ff_l + fb_v - fb_theta - fb_omega);
+        let duty_r = calc_duty(&micromouse, fb_v + fb_theta + fb_omega);
+        let duty_l = calc_duty(&micromouse, fb_v - fb_theta - fb_omega);
         control_thread::set_motor_duty(ctx, duty_l, duty_r);
 
         {
