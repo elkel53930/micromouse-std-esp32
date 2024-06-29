@@ -43,7 +43,7 @@
 		]
 	},
 	"mech_param": {
-		"wheel_diameter": 14.2,
+		"wheel_diameter": 13.8,
 		"gear_ratio": 2.0
 	},
 	"battery_cfg": {
@@ -89,7 +89,7 @@
 			"dead_zone": 0
 		},
 		"wall_pid": {
-			"p": 1,
+			"p": 10,
 			"i": 0,
 			"d": 0,
 			"i_limit": 2.0,

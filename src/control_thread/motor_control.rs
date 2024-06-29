@@ -54,7 +54,11 @@ fn go(
         // Set target theta by wall sensor
         let ws_error = if enable_wall_pid {
             match (micromouse.ls_wall, micromouse.rs_wall) {
-                (Wall::Present, Wall::Present) => Some((ctx.ls_ref - micromouse.ls as i16) * 2),
+                (Wall::Present, Wall::Present) => {
+                    let l_error = ctx.ls_ref - micromouse.ls as i16;
+                    let r_error = micromouse.rs as i16 - ctx.rs_ref;
+                    Some(r_error + l_error)
+                }
                 (Wall::Present, Wall::Absent) => Some((ctx.ls_ref - micromouse.ls as i16) * 2),
                 (Wall::Absent, Wall::Present) => Some((micromouse.rs as i16 - ctx.rs_ref) * 2),
                 (_, _) => None,

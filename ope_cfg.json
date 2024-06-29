@@ -2,16 +2,14 @@
 	"test_config": {
 		"test_pattern": [
             "ResetController",
-            {"StartLog": 5},
+            {"StartLog": 2},
             {"SStart": 0.063},
             "SForward",
             "SForward",
-            "SRight",
             "SForward",
             "SForward",
-            "SRight",
             "SForward",
-            "SRight",
+            "SForward",
             "SForward",
             "SStop",
             "StopLog"
