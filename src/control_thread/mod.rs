@@ -121,6 +121,9 @@ struct ControlContext {
     ws_ena: bool,
     ws_step: WsStep,
 
+    ls_ref: i16,
+    rs_ref: i16,
+
     theta_pid: pid::Pid,
     omega_pid: pid::Pid,
     v_pid: pid::Pid,
@@ -147,6 +150,8 @@ impl ControlContext {
             config,
             ws_ena: false,
             ws_step: WsStep::Side,
+            ls_ref: 0,
+            rs_ref: 0,
             theta_pid: pid::Pid::empty(),
             omega_pid: pid::Pid::empty(),
             v_pid: pid::Pid::empty(),

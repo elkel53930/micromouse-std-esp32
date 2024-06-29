@@ -48,21 +48,23 @@ fn go(
     while let Some(target) = straight.next() {
         crate::led::on(crate::led::LedColor::Red)?;
         control_thread::measure(ctx)?;
-        let mut micromouse = control_thread::update(ctx);
+        let micromouse = control_thread::update(ctx);
         control_thread::update_target(ctx, &target);
 
         // Set target theta by wall sensor
         let ws_error = if enable_wall_pid {
             match (micromouse.ls_wall, micromouse.rs_wall) {
-                (Wall::Present, Wall::Present) => Some(micromouse.rs as i16 - micromouse.ls as i16),
-                (Wall::Present, Wall::Absent) => Some((50 - micromouse.ls as i16) * 2),
-                (Wall::Absent, Wall::Present) => Some((micromouse.rs as i16 - 50) * 2),
+                (Wall::Present, Wall::Present) => Some((ctx.ls_ref - micromouse.ls as i16) * 2),
+                (Wall::Present, Wall::Absent) => Some((ctx.ls_ref - micromouse.ls as i16) * 2),
+                (Wall::Absent, Wall::Present) => Some((micromouse.rs as i16 - ctx.rs_ref) * 2),
                 (_, _) => None,
             }
         } else {
             None
         };
-        if let Some(ws_error) = ws_error {
+
+        let fb_theta = if let Some(ws_error) = ws_error {
+            /*
             if (ws_error.abs() as f32) < ctx.config.search_ctrl_cfg.wall_pid.dead_zone {
                 let mut ods = ctx.ods.lock().unwrap();
                 if target.theta.sin().abs() > 0.5 {
@@ -78,12 +80,13 @@ fn go(
                     ods.micromouse.theta = target.theta;
                     micromouse.theta = target.theta;
                 }
-            }
-        }
-        let target_theta = target.theta + ctx.wall_pid.update(ws_error.unwrap_or(0) as f32);
+            }*/
+            ctx.wall_pid.update(ws_error as f32 / 1000.0)
+        } else {
+            ctx.theta_pid.update(target.theta - micromouse.theta)
+        };
 
         // Angle feedback
-        let fb_theta = ctx.theta_pid.update(target_theta - micromouse.theta);
         let fb_omega = ctx.omega_pid.update(target.omega - micromouse.omega);
 
         // Position feedback
@@ -162,10 +165,27 @@ pub(super) fn reset_controller(ctx: &mut ControlContext) {
     ctx.pos_pid = pid::Pid::new(&ctx.config.search_ctrl_cfg.pos_pid);
     ctx.wall_pid = pid::Pid::new(&ctx.config.search_ctrl_cfg.wall_pid);
 
+    ctx.ws_ena = true;
+    let mut ls: i32 = 0;
+    let mut rs: i32 = 0;
+    control_thread::measure(ctx).unwrap();
+    for _ in 0..100 {
+        control_thread::measure(ctx).unwrap();
+        {
+            let ods = ctx.ods.lock().unwrap();
+
+            ls += ods.wall_sensor.ls.unwrap() as i32;
+            rs += ods.wall_sensor.rs.unwrap() as i32;
+        }
+    }
+    ctx.ls_ref = (ls / 100) as i16;
+    ctx.rs_ref = (rs / 100) as i16;
+
     control_thread::reset_micromouse_state(ctx);
     motor::set_l(0.0);
     motor::set_r(0.0);
     motor::enable(true);
+    timer_interrupt::sync_ms();
 }
 
 pub(super) fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<()> {
@@ -175,7 +195,7 @@ pub(super) fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result
         distance,
         ctx.config.search_ctrl_cfg.vel_fwd,
         Some(distance - (mm_const::BLOCK_LENGTH - 0.07)),
-        false,
+        true,
     )
 }
 
