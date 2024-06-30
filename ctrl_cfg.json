@@ -3,10 +3,10 @@
 		"led_rise_time": 40,
 		"rs_reference": 415,
 		"ls_reference": 332,
-		"rs_threshold": 18,
-		"rf_threshold": 45,
-		"lf_threshold": 45,
-		"ls_threshold": 18,
+		"rs_threshold": 14,
+		"rf_threshold": 40,
+		"lf_threshold": 40,
+		"ls_threshold": 14,
 		"ls_correction_table": [
 			[
 				0, 0
@@ -90,7 +90,7 @@
 		},
 		"wall_pid": {
 			"p": 30,
-			"i": 0,
+			"i": 0.5,
 			"d": 0,
 			"i_limit": 2.0,
 			"dead_zone": 0

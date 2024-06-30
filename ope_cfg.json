@@ -1,17 +1,15 @@
 {
-    "mode": "Search",
+    "mode": "Test",
     "search_config": {
         "goal_x" : 2,
-        "goal_y" : 2
+        "goal_y" : 2,
+        "log_interval": 3
     },
 	"test_config": {
 		"test_pattern": [
             "ResetController",
             {"StartLog": 1},
-            {"SStart": 0.063},
             "SForward",
-            "SForward",
-            "SStop",
             "StopLog"
         ]
 	}

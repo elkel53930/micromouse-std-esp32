@@ -46,6 +46,7 @@ pub enum Event {
     GoDone,
     Go,
     Pivot,
+    PositionReset,
     Stop,
 }
 
