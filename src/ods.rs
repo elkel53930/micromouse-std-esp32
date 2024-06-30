@@ -41,12 +41,13 @@ pub struct OdsWallSensor {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum Event {
-    None,
+    N,
     CommandRequest,
     GoDone,
     Go,
     Pivot,
     PositionReset,
+    Speed(f32),
     Stop,
 }
 
@@ -112,7 +113,7 @@ impl Default for MicromouseState {
             target_theta: std::f32::consts::PI / 2.0,
             target_omega: 0.0,
             ws_error: 0,
-            event: Event::None,
+            event: Event::N,
             fb_ws: 0,
             fb_theta: 0.0,
         }

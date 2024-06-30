@@ -39,30 +39,22 @@ fn make_target_from_ods(ctx: &ControlContext) -> mm_traj::State {
 
 fn go(
     ctx: &mut ControlContext,
-    distance: f32,
-    final_velocity: f32,
-    notify_distance: Option<f32>,
+    _distance: f32,
+    _final_velocity: f32,
+    _notify_distance: Option<f32>,
     enable_wall_pid: bool,
 ) -> anyhow::Result<()> {
-    let mut need_request = notify_distance.is_some(); // if notify_distance is Some, then need_request is true
     let target = make_target_from_ods(ctx);
-    let mut use_wall_pid = enable_wall_pid;
-    let start_position = mm_const::BLOCK_LENGTH - distance;
 
-    let mut straight = mm_traj::Straight::new(target, distance, final_velocity);
     let mut event = ods::Event::Go;
-    for _ in 0..450 {
+    for i in 0..1700 {
         led::on(Red)?;
         control_thread::measure(ctx)?;
-        let mut micromouse = control_thread::update(ctx);
+        let micromouse = control_thread::update(ctx);
         control_thread::update_target(ctx, &target);
 
-        let (oy, ox) = straight.origin();
-        let current_position =
-            ((micromouse.x - ox).powi(2) + (micromouse.y - oy).powi(2)).sqrt() + start_position;
-
         // Set target theta by wall sensor
-        let ws_error = if use_wall_pid {
+        let ws_error = if enable_wall_pid {
             match (micromouse.ls_wall, micromouse.rs_wall) {
                 (Wall::Present, Wall::Present) => {
                     let l_error = ctx.ls_ref - micromouse.ls as i16;
@@ -77,78 +69,57 @@ fn go(
             None
         };
 
-        let mut fb_ws = 0;
         let fb_theta = if let Some(ws_error) = ws_error {
-            if (ws_error.abs() as f32) < 3.0 {
-                ctx.position_reset_count += 1;
-
-                let mut ods = ctx.ods.lock().unwrap();
-                if ctx.position_reset_count >= 100 {
-                    led::on(Green)?;
-                    event = ods::Event::PositionReset;
-                    if target.theta.sin().abs() > 0.5 {
-                        // +-Y direction
-                        ods.micromouse.x = target.x;
-                        micromouse.x = target.x;
-                        ods.micromouse.theta = target.theta;
-                        micromouse.theta = target.theta;
-                    } else {
-                        // +-X direction
-                        ods.micromouse.y = target.y;
-                        micromouse.y = target.y;
-                        ods.micromouse.theta = target.theta;
-                        micromouse.theta = target.theta;
-                    }
-                    ctx.position_reset_count = 0;
-                }
-            } else {
-                ctx.position_reset_count = 0;
-            }
-            fb_ws = 1;
             let ws_error = ws_error.max(-40).min(40);
             ctx.wall_pid.update(ws_error as f32 / 1000.0)
         } else {
             ctx.position_reset_count = 0;
-            ctx.theta_pid.update(target.theta - micromouse.theta)
+            ctx.theta_pid
+                .update(std::f32::consts::PI / 2.0 - micromouse.theta)
         };
 
         // Angle feedback
-        let fb_omega = ctx.omega_pid.update(target.omega - micromouse.omega);
+        let fb_omega = ctx.omega_pid.update(0.0 - micromouse.omega);
 
-        // Position feedback
-        let diff_pos = calc_diff(micromouse.x, micromouse.y, target.x, target.y, target.theta);
-        let target_v = ctx.pos_pid.update(diff_pos);
         // Velocity feedback
-        let fb_v = 0.5; //ctx.v_pid.update(target_v - micromouse.v);
+        let fb_v = if i < 100 {
+            event = ods::Event::Speed(0.35);
+            0.35
+        } else if i < 1100 {
+            event = ods::Event::Speed(0.45);
+            0.45
+        } else if i < 1300 {
+            event = ods::Event::Speed(0.35);
+            0.35
+        } else if i < 1400 {
+            event = ods::Event::Speed(-0.15);
+            -0.15
+        } else {
+            event = ods::Event::Speed(0.0);
+            0.0
+        };
 
         // Set duty
         let duty_r = calc_duty(&micromouse, fb_v + fb_theta + fb_omega);
         let duty_l = calc_duty(&micromouse, fb_v - fb_theta - fb_omega);
         control_thread::set_motor_duty(ctx, duty_l, duty_r);
 
-        if need_request == true {
-            if current_position > notify_distance.unwrap() + start_position {
-                ctx.response_tx.send(Response::CommandRequest).unwrap();
-                event = ods::Event::CommandRequest;
-                need_request = false;
-            }
-        }
-
         {
             let mut ods = ctx.ods.lock().unwrap();
             ods.micromouse.event = event;
             ods.micromouse.ws_error = ws_error.unwrap_or(0);
-            ods.micromouse.fb_ws = fb_ws;
             ods.micromouse.fb_theta = fb_theta;
         }
 
         ctx.log();
         timer_interrupt::sync_ms();
-        event = ods::Event::None;
+        event = ods::Event::N;
         led::off(Red)?;
         led::off(Green)?;
     }
     control_thread::set_motor_duty(ctx, 0.0, 0.0);
+
+    ctx.response_tx.send(Response::CommandRequest).unwrap();
     Ok(())
 }
 
@@ -301,7 +272,7 @@ pub(super) fn pivot(ctx: &mut ControlContext, angle: f32, duration: f32) -> anyh
             let mut ods = ctx.ods.lock().unwrap();
             ods.micromouse.event = event;
         }
-        event = ods::Event::None;
+        event = ods::Event::N;
 
         ctx.log();
         led::off(Red)?;
