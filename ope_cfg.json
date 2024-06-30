@@ -1,14 +1,14 @@
 {
+    "mode": "Search",
+    "search_config": {
+        "goal_x" : 2,
+        "goal_y" : 2
+    },
 	"test_config": {
 		"test_pattern": [
             "ResetController",
-            {"StartLog": 2},
+            {"StartLog": 1},
             {"SStart": 0.063},
-            "SForward",
-            "SForward",
-            "SForward",
-            "SForward",
-            "SForward",
             "SForward",
             "SForward",
             "SStop",

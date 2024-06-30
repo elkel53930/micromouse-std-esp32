@@ -48,7 +48,7 @@ fn go(
     while let Some(target) = straight.next() {
         crate::led::on(crate::led::LedColor::Red)?;
         control_thread::measure(ctx)?;
-        let micromouse = control_thread::update(ctx);
+        let mut micromouse = control_thread::update(ctx);
         control_thread::update_target(ctx, &target);
 
         // Set target theta by wall sensor
@@ -67,16 +67,16 @@ fn go(
             None
         };
 
+        let mut fb_ws = 0;
         let fb_theta = if let Some(ws_error) = ws_error {
-            /*
-            if (ws_error.abs() as f32) < ctx.config.search_ctrl_cfg.wall_pid.dead_zone {
+            if (ws_error.abs() as f32) < 4.0 {
                 let mut ods = ctx.ods.lock().unwrap();
                 if target.theta.sin().abs() > 0.5 {
+                    // +-X direction
                     ods.micromouse.y = target.y;
                     micromouse.y = target.y;
                     ods.micromouse.theta = target.theta;
                     micromouse.theta = target.theta;
-                    // +-X direction
                 } else {
                     // +-Y direction
                     ods.micromouse.x = target.x;
@@ -84,7 +84,8 @@ fn go(
                     ods.micromouse.theta = target.theta;
                     micromouse.theta = target.theta;
                 }
-            }*/
+            }
+            fb_ws = 1;
             ctx.wall_pid.update(ws_error as f32 / 1000.0)
         } else {
             ctx.theta_pid.update(target.theta - micromouse.theta)
@@ -121,7 +122,8 @@ fn go(
             let mut ods = ctx.ods.lock().unwrap();
             ods.micromouse.event = event;
             ods.micromouse.ws_error = ws_error.unwrap_or(0);
-            ods.micromouse.diff_pos = diff_pos;
+            ods.micromouse.fb_ws = fb_ws;
+            ods.micromouse.fb_theta = fb_theta;
         }
 
         ctx.log();
@@ -132,7 +134,11 @@ fn go(
     Ok(())
 }
 
-pub(super) fn stop(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<()> {
+pub(super) fn stop(
+    ctx: &mut ControlContext,
+    distance: f32,
+    command_request: bool,
+) -> anyhow::Result<()> {
     // decelerate
     go(ctx, distance, 0.0, None, false)?;
     let target = make_target_from_ods(ctx);
@@ -157,7 +163,9 @@ pub(super) fn stop(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<()
     }
     control_thread::set_motor_duty(ctx, 0.0, 0.0);
 
-    ctx.response_tx.send(Response::CommandRequest).unwrap();
+    if command_request {
+        ctx.response_tx.send(Response::CommandRequest).unwrap();
+    }
 
     Ok(())
 }
@@ -178,12 +186,14 @@ pub(super) fn reset_controller(ctx: &mut ControlContext) {
         {
             let ods = ctx.ods.lock().unwrap();
 
-            ls += ods.wall_sensor.ls.unwrap() as i32;
-            rs += ods.wall_sensor.rs.unwrap() as i32;
+            ls += ods.wall_sensor.ls_raw.unwrap() as i32;
+            rs += ods.wall_sensor.rs_raw.unwrap() as i32;
         }
     }
     ctx.ls_ref = (ls / 100) as i16;
     ctx.rs_ref = (rs / 100) as i16;
+
+    ctx.log_msg(format!("ls_ref: {}, rs_ref: {}", ctx.ls_ref, ctx.rs_ref));
 
     control_thread::reset_micromouse_state(ctx);
     motor::set_l(0.0);
@@ -198,7 +208,7 @@ pub(super) fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result
         ctx,
         distance,
         ctx.config.search_ctrl_cfg.vel_fwd,
-        Some(distance - (mm_const::BLOCK_LENGTH - 0.07)),
+        Some(distance - (mm_const::BLOCK_LENGTH - mm_const::JUDGE_POSITION)),
         true,
     )
 }
@@ -223,19 +233,19 @@ pub(super) fn test(ctx: &mut ControlContext) -> anyhow::Result<()> {
 }
 
 pub(super) fn turn_left(ctx: &mut ControlContext) -> anyhow::Result<()> {
-    stop(ctx, mm_const::BLOCK_LENGTH / 2.0)?;
+    stop(ctx, mm_const::BLOCK_LENGTH / 2.0, false)?;
     pivot(ctx, std::f32::consts::PI / 2.0, 0.35)?;
     forward(ctx, mm_const::BLOCK_LENGTH / 2.0)
 }
 
 pub(super) fn turn_right(ctx: &mut ControlContext) -> anyhow::Result<()> {
-    stop(ctx, mm_const::BLOCK_LENGTH / 2.0)?;
+    stop(ctx, mm_const::BLOCK_LENGTH / 2.0, false)?;
     pivot(ctx, -std::f32::consts::PI / 2.0, 0.35)?;
     forward(ctx, mm_const::BLOCK_LENGTH / 2.0)
 }
 
 pub(super) fn turn_back(ctx: &mut ControlContext) -> anyhow::Result<()> {
-    stop(ctx, mm_const::BLOCK_LENGTH / 2.0)?;
+    stop(ctx, mm_const::BLOCK_LENGTH / 2.0, false)?;
     pivot(ctx, std::f32::consts::PI, 0.7)?;
     forward(ctx, mm_const::BLOCK_LENGTH / 2.0)
 }

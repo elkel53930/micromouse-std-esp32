@@ -2,11 +2,13 @@ use crate::led::LedColor::Red;
 use crate::led_thread::Command;
 use crate::ods;
 use std::fs::File;
+use std::io::Write;
 use std::sync::mpsc::{self, Sender};
 use std::sync::{Arc, Mutex};
 
 pub const LOG_SIZE_IN_BYTE: usize = 200_000;
 pub const LOG_LEN: usize = LOG_SIZE_IN_BYTE / std::mem::size_of::<crate::ods::MicromouseState>();
+pub const LOG_MSG_LEN: usize = 100;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LogCommand {
@@ -51,6 +53,12 @@ pub fn init(
 
                 ods.log.clear(); // clear() does not release heap memory.
                 log::info!("Saved");
+
+                let mut file = File::create("/sf/log_msg.txt")?;
+                for msg in ods.log_msg.iter() {
+                    writeln!(file, "{}", msg)?;
+                }
+
                 led_tx.send((Red, Some("0"))).unwrap();
             } else {
                 log::warn!("Unknown command: {:?}", command);

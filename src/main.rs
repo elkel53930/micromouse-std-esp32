@@ -34,12 +34,33 @@ pub mod timer_interrupt;
 mod ui;
 mod vac_fan;
 mod wall_sensor;
+pub use mm_maze::{adachi, maze, path_finder::PathFinder};
 
 #[allow(unused_imports)]
 use led::LedColor::{Blue, Green, Red};
 
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Copy)]
+enum OperationMode {
+    Search,
+    Test,
+}
+
+impl Default for OperationMode {
+    fn default() -> Self {
+        OperationMode::Search
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+struct SearchConfig {
+    goal_x: usize,
+    goal_y: usize,
+}
+
 #[derive(Debug, Serialize, Deserialize, Default)]
 struct OperationThreadConfig {
+    mode: OperationMode,
+    search_config: SearchConfig,
     test_config: TestConfig,
 }
 
@@ -189,18 +210,110 @@ fn app_main(ctx: &OperationContext, config: OperationThreadConfig) -> anyhow::Re
         uprintln!("Gyro offset: {}", offset);
 
         ui::countdown(&ctx);
+        if config.mode == OperationMode::Search {
+            search_run(&ctx, config)?;
+        } else {
+            test_run(&ctx, config)?;
+        }
+    }
+    return console.run(&ctx);
+}
 
-        for command in config.test_config.test_pattern.iter() {
-            log::info!("Sending command: {:?}", command);
-            ctx.command_tx.send(*command)?;
-            let response = ctx.response_rx.recv()?; // Wait for CommandRequest
-            if response != control_thread::Response::CommandRequest {
-                return Err(anyhow::anyhow!("Unexpected response: {:?}", response));
+fn search_run(ctx: &OperationContext, config: OperationThreadConfig) -> anyhow::Result<()> {
+    let mut maze = maze::Maze::new(16, 16);
+    maze.set_goal(maze::Position::new(
+        config.search_config.goal_x,
+        config.search_config.goal_y,
+    ));
+    let mut solver = adachi::Adachi::new(maze);
+
+    log::info!(
+        "The goal is X:{}, Y:{}",
+        solver.get_goal().x,
+        solver.get_goal().y
+    );
+
+    ctx.command_tx
+        .send(control_thread::Command::ResetController)?;
+    ctx.response_rx.recv()?; // Wait for CommandRequest
+    ctx.command_tx.send(control_thread::Command::SStart(
+        mm_const::BLOCK_LENGTH - mm_const::INITIAL_POSITION,
+    ))?;
+    let mut loc = maze::Location::default();
+    loc.forward();
+    solver.set_location(loc);
+    ctx.response_rx.recv()?; // Wait for CommandRequest
+
+    loop {
+        let front;
+        let left;
+        let right;
+        {
+            let ods = ctx.ods.lock().unwrap();
+            front = ods.wall_sensor.lf.unwrap();
+            left = ods.wall_sensor.ls.unwrap();
+            right = ods.wall_sensor.rs.unwrap();
+            let ls = ods.wall_sensor.ls_raw.unwrap();
+            let rs = ods.wall_sensor.rs_raw.unwrap();
+            let lf = ods.wall_sensor.lf_raw.unwrap();
+            let rf = ods.wall_sensor.rf_raw.unwrap();
+            log::info!("LF: {}, LS: {}, RS: {}, RF: {}", lf, ls, rs, rf);
+        }
+
+        let dir = solver.navigate(front, left, right, solver.get_goal());
+        if let Err(e) = dir {
+            log::warn!("{:?}", e);
+            ctx.command_tx.send(control_thread::Command::SStop)?;
+            ctx.response_rx.recv()?; // Wait for CommandRequest
+            return Ok(());
+        }
+
+        // Move to the next location
+        let dir = dir.unwrap();
+
+        match dir {
+            maze::Direction::Forward => {
+                ctx.command_tx.send(control_thread::Command::SForward)?;
+            }
+            maze::Direction::Left => {
+                ctx.command_tx.send(control_thread::Command::SLeft)?;
+            }
+            maze::Direction::Right => {
+                ctx.command_tx.send(control_thread::Command::SRight)?;
+            }
+            maze::Direction::Backward => {
+                ctx.command_tx.send(control_thread::Command::SReturn)?;
             }
         }
-        return console.run(&ctx);
-    } else {
-        // HoldR or TimeOut
-        return console.run(&ctx);
+
+        let mut loc = solver.get_location();
+        loc.dir = loc.dir.turn(dir);
+        loc.forward();
+        solver.set_location(loc);
+
+        // Check if the goal is reached
+        if loc.pos == solver.get_goal() {
+            log::info!("Goal reached");
+            ctx.command_tx.send(control_thread::Command::SStop)?;
+            ctx.response_rx.recv()?; // Wait for CommandRequest
+
+            break;
+        }
+        ctx.response_rx.recv()?; // Wait for CommandRequest
+        log::info!("Command Requested");
     }
+
+    Ok(())
+}
+
+fn test_run(ctx: &OperationContext, config: OperationThreadConfig) -> anyhow::Result<()> {
+    for command in config.test_config.test_pattern.iter() {
+        log::info!("Sending command: {:?}", command);
+        ctx.command_tx.send(*command)?;
+        let response = ctx.response_rx.recv()?; // Wait for CommandRequest
+        if response != control_thread::Response::CommandRequest {
+            return Err(anyhow::anyhow!("Unexpected response: {:?}", response));
+        }
+    }
+    Ok(())
 }

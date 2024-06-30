@@ -184,6 +184,14 @@ impl ControlContext {
         }
     }
 
+    pub fn log_msg(&mut self, msg: String) {
+        let mut ods = self.ods.lock().unwrap();
+        ods.log_msg.push(msg);
+        while ods.log_msg.len() >= log_thread::LOG_MSG_LEN {
+            ods.log_msg.remove(0);
+        }
+    }
+
     pub fn stop_log(&mut self) {
         self.log_info.on_logging = false;
         let _ = self.log_tx.send(log_thread::LogCommand::Save);
@@ -399,10 +407,6 @@ fn update(ctx: &mut ControlContext) -> MicromouseState {
     ods.micromouse.rf_wall = ods.wall_sensor.rf.unwrap_or(Wall::Absent);
     ods.micromouse.rs_wall = ods.wall_sensor.rs.unwrap_or(Wall::Absent);
 
-    ods.micromouse.v_integ = ctx.v_pid.get_integral();
-    ods.micromouse.pos_integ = ctx.pos_pid.get_integral();
-    ods.micromouse.theta_integ = ctx.theta_pid.get_integral();
-    ods.micromouse.omega_integ = ctx.omega_pid.get_integral();
     ods.micromouse.event = ods::Event::None;
 
     ods.micromouse.clone()
@@ -516,7 +520,7 @@ pub fn init(
                         motor_control::forward(&mut ctx, mm_const::BLOCK_LENGTH).unwrap();
                     }
                     Command::SStop => {
-                        motor_control::stop(&mut ctx, mm_const::BLOCK_LENGTH / 2.0).unwrap();
+                        motor_control::stop(&mut ctx, mm_const::BLOCK_LENGTH / 2.0, true).unwrap();
                     }
                     Command::SRight => turn_right(&mut ctx).unwrap(),
                     Command::SLeft => turn_left(&mut ctx).unwrap(),

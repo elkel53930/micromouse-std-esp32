@@ -70,10 +70,6 @@ pub struct MicromouseState {
     pub lf_wall: Wall,
     pub rf_wall: Wall,
     pub rs_wall: Wall,
-    pub v_integ: f32,     // Velocity integral
-    pub pos_integ: f32,   // Position integral
-    pub theta_integ: f32, // Heading integral
-    pub omega_integ: f32, // Angular velocity integral
     pub target_x: f32,
     pub target_y: f32,
     pub target_v: f32,
@@ -82,7 +78,8 @@ pub struct MicromouseState {
     pub target_omega: f32,
     pub ws_error: i16,
     pub event: Event,
-    pub diff_pos: f32,
+    pub fb_ws: u8,
+    pub fb_theta: f32,
 }
 
 impl Default for MicromouseState {
@@ -107,10 +104,6 @@ impl Default for MicromouseState {
             lf_wall: Wall::Absent,
             rf_wall: Wall::Absent,
             rs_wall: Wall::Absent,
-            v_integ: 0.0,
-            pos_integ: 0.0,
-            theta_integ: 0.0,
-            omega_integ: 0.0,
             target_x: mm_const::BLOCK_LENGTH / 2.0,
             target_y: mm_const::INITIAL_POSITION,
             target_v: 0.0,
@@ -119,7 +112,8 @@ impl Default for MicromouseState {
             target_omega: 0.0,
             ws_error: 0,
             event: Event::None,
-            diff_pos: 0.0,
+            fb_ws: 0,
+            fb_theta: 0.0,
         }
     }
 }
@@ -130,6 +124,7 @@ pub struct Ods {
     pub wall_sensor: OdsWallSensor,
     pub micromouse: MicromouseState,
     pub log: Vec<MicromouseState>,
+    pub log_msg: Vec<String>,
     pub maze: Maze,
 }
 
@@ -141,6 +136,7 @@ impl Ods {
             wall_sensor: OdsWallSensor::default(),
             micromouse: MicromouseState::default(),
             log: Vec::with_capacity(log_thread::LOG_LEN),
+            log_msg: Vec::with_capacity(log_thread::LOG_MSG_LEN),
             maze: Maze::new(mm_const::MAZE_WIDTH, mm_const::MAZE_HEIGHT),
         }
     }
