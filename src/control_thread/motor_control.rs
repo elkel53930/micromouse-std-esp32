@@ -11,10 +11,10 @@ use crate::timer_interrupt;
 use mm_maze::maze::Wall;
 use mm_traj;
 
-fn calc_duty(_micromouse: &MicromouseState, voltage: f32) -> f32 {
+fn calc_duty(micromouse: &MicromouseState, voltage: f32) -> f32 {
     // battery voltage
-    let vb = 7.0; //micromouse.v_batt;
-                  // voltage[V] -> duty[%]
+    let vb = micromouse.v_batt;
+    // voltage[V] -> duty[%]
     (voltage / vb) * 100.0
 }
 
@@ -47,7 +47,11 @@ fn go(
     let target = make_target_from_ods(ctx);
 
     let mut event = ods::Event::Go;
-    for i in 0..1700 {
+    let mut i = 0;
+    let mut brake = false;
+    let mut brake_count = 0;
+    let mut loop_condition = true;
+    while loop_condition {
         led::on(Red)?;
         control_thread::measure(ctx)?;
         let micromouse = control_thread::update(ctx);
@@ -82,21 +86,29 @@ fn go(
         let fb_omega = ctx.omega_pid.update(0.0 - micromouse.omega);
 
         // Velocity feedback
-        let fb_v = if i < 100 {
-            event = ods::Event::Speed(0.35);
-            0.35
-        } else if i < 1100 {
-            event = ods::Event::Speed(0.45);
-            0.45
-        } else if i < 1300 {
-            event = ods::Event::Speed(0.35);
-            0.35
-        } else if i < 1400 {
-            event = ods::Event::Speed(-0.15);
-            -0.15
-        } else {
+        let position = 0.225;
+        let fb_v = if brake {
+            brake_count += 1;
+            if brake_count == 200 {
+                loop_condition = false;
+            }
             event = ods::Event::Speed(0.0);
             0.0
+        } else {
+            if i < 100 {
+                let v = i as f32 * 0.003;
+                i += 1;
+                event = ods::Event::Speed(v);
+                v
+            } else {
+                let v = (position - micromouse.y) * 10.0;
+                if micromouse.y > position {
+                    brake = true;
+                }
+                let v = v.min(0.35).max(0.15);
+                event = ods::Event::Speed(v);
+                v
+            }
         };
 
         // Set duty

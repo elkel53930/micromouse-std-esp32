@@ -145,3 +145,38 @@ impl MovingAverage {
         self.reset();
     }
 }
+
+pub struct MovingAverageInt {
+    window_size: usize,
+    values: Vec<i32>,
+    sum: i32,
+}
+
+impl MovingAverageInt {
+    pub fn new(window_size: usize) -> Self {
+        MovingAverageInt {
+            window_size,
+            values: Vec::with_capacity(window_size),
+            sum: 0,
+        }
+    }
+
+    pub fn update(&mut self, value: i32) -> i32 {
+        if self.values.len() == self.window_size {
+            self.sum -= self.values.remove(0);
+        }
+        self.values.push(value);
+        self.sum += value;
+        self.sum / self.values.len() as i32
+    }
+
+    pub fn reset(&mut self) {
+        self.values.clear();
+        self.sum = 0;
+    }
+
+    pub fn set_window_size(&mut self, window_size: usize) {
+        self.window_size = window_size;
+        self.reset();
+    }
+}

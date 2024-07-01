@@ -131,6 +131,7 @@ struct ControlContext {
     wall_pid: pid::Pid,
 
     v_ave: misc::MovingAverage,
+    batt_ave: misc::MovingAverageInt,
 
     position_reset_count: u8,
 }
@@ -160,6 +161,7 @@ impl ControlContext {
             pos_pid: pid::Pid::empty(),
             wall_pid: pid::Pid::empty(),
             v_ave: misc::MovingAverage::new(20),
+            batt_ave: misc::MovingAverageInt::new(100),
             position_reset_count: 0,
         }
     }
@@ -235,7 +237,7 @@ pub enum Response {
 }
 
 fn measure(ctx: &mut ControlContext) -> anyhow::Result<()> {
-    let batt = wall_sensor::read_batt()?;
+    let batt = ctx.batt_ave.update(wall_sensor::read_batt()?.into()) as u16;
     let batt_phy = correct_value(
         &ctx.config.battery_cfg.correction_table.as_slice(),
         batt as i16,
