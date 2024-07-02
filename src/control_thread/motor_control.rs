@@ -8,6 +8,7 @@ use crate::motor;
 use crate::ods::{self, MicromouseState};
 use crate::pid;
 use crate::timer_interrupt;
+use esp_idf_hal::task::current;
 use mm_maze::maze::Wall;
 use mm_traj;
 
@@ -37,6 +38,63 @@ fn make_target_from_ods(ctx: &ControlContext) -> mm_traj::State {
     }
 }
 
+pub(super) trait VoltageSequence {
+    fn next(&mut self, current_position: f32) -> Option<f32>;
+    fn reset(&mut self);
+}
+
+pub(super) struct StartSequence {
+    i: u32,
+    distance: f32,
+    base_voltage: f32,
+    slope: f32,
+    brake_count: u32,
+}
+
+impl StartSequence {
+    const STARTUP_TIME: u32 = 100;
+    pub fn new(distance: f32, base_voltage: f32) -> Self {
+        Self {
+            i: 0,
+            distance,
+            base_voltage,
+            slope: base_voltage / (Self::STARTUP_TIME as f32),
+            brake_count: 0,
+        }
+    }
+}
+
+impl VoltageSequence for StartSequence {
+    fn next(&mut self, current_position: f32) -> Option<f32> {
+        if self.brake_count != 0 {
+            self.brake_count += 1;
+            if self.brake_count == 200 {
+                None
+            } else {
+                Some(0.0)
+            }
+        } else {
+            if self.i < 100 {
+                let v = self.i as f32 * self.slope;
+                self.i += 1;
+                Some(v)
+            } else {
+                let v = (self.distance - current_position) * 10.0;
+                if current_position > self.distance {
+                    self.brake_count = 1;
+                }
+                let v = v.min(0.35).max(0.15);
+                Some(v)
+            }
+        }
+    }
+
+    fn reset(&mut self) {
+        self.i = 0;
+        self.brake_count = 0;
+    }
+}
+
 fn go(
     ctx: &mut ControlContext,
     _distance: f32,
@@ -47,14 +105,16 @@ fn go(
     let target = make_target_from_ods(ctx);
 
     let mut event = ods::Event::Go;
-    let mut i = 0;
-    let mut brake = false;
-    let mut brake_count = 0;
-    let mut loop_condition = true;
-    while loop_condition {
+    let mut seq = StartSequence::new(0.225, 0.3);
+    let mut current_position = {
+        let ods = ctx.ods.lock().unwrap();
+        ods.micromouse.y
+    };
+    while let Some(base_volt) = seq.next(current_position) {
         led::on(Red)?;
         control_thread::measure(ctx)?;
         let micromouse = control_thread::update(ctx);
+        current_position = micromouse.y;
         control_thread::update_target(ctx, &target);
 
         // Set target theta by wall sensor
@@ -85,35 +145,9 @@ fn go(
         // Angle feedback
         let fb_omega = ctx.omega_pid.update(0.0 - micromouse.omega);
 
-        // Velocity feedback
-        let position = 0.225;
-        let fb_v = if brake {
-            brake_count += 1;
-            if brake_count == 200 {
-                loop_condition = false;
-            }
-            event = ods::Event::Speed(0.0);
-            0.0
-        } else {
-            if i < 100 {
-                let v = i as f32 * 0.003;
-                i += 1;
-                event = ods::Event::Speed(v);
-                v
-            } else {
-                let v = (position - micromouse.y) * 10.0;
-                if micromouse.y > position {
-                    brake = true;
-                }
-                let v = v.min(0.35).max(0.15);
-                event = ods::Event::Speed(v);
-                v
-            }
-        };
-
         // Set duty
-        let duty_r = calc_duty(&micromouse, fb_v + fb_theta + fb_omega);
-        let duty_l = calc_duty(&micromouse, fb_v - fb_theta - fb_omega);
+        let duty_r = calc_duty(&micromouse, base_volt + fb_theta + fb_omega);
+        let duty_l = calc_duty(&micromouse, base_volt - fb_theta - fb_omega);
         control_thread::set_motor_duty(ctx, duty_l, duty_r);
 
         {
