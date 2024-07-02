@@ -519,7 +519,7 @@ pub fn init(
                     }
                     Command::SStart(distance) => {
                         ctx.set_ws_enable(true);
-                        motor_control::forward(&mut ctx, distance).unwrap();
+                        motor_control::start(&mut ctx, distance).unwrap();
                     }
                     Command::SForward => {
                         motor_control::forward(&mut ctx, mm_const::BLOCK_LENGTH).unwrap();

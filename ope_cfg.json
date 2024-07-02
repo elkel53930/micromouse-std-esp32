@@ -9,7 +9,12 @@
 		"test_pattern": [
             "ResetController",
             {"StartLog": 1},
+            {"SStart": 0.09},
             "SForward",
+            "SRight",
+            "SForward",
+            "SForward",
+            "SStop",
             "StopLog"
         ]
 	}
