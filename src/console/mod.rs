@@ -313,7 +313,7 @@ impl ConsoleCommand for CmdOdo {
         loop {
             let (micromouse, gyro) = {
                 let ods = ctx.ods.lock().unwrap();
-                (ods.micromouse, ods.imu.gyro_x_phy)
+                (ods.micromouse.clone(), ods.imu.gyro_x_phy)
             };
             uprintln!(
                 "x: {}[m], y: {}[m], theta: {}[rad], gyro: {}[rad/s], v_r: {}[m/s], v_l: {}[m/s]",

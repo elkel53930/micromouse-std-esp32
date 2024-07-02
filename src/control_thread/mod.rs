@@ -181,7 +181,7 @@ impl ControlContext {
         if self.log_info.counter >= self.log_info.interval {
             let mut ods = self.ods.lock().unwrap();
             self.log_info.counter = 0;
-            let micromouse = ods.micromouse;
+            let micromouse = ods.micromouse.clone();
             ods.log.push(micromouse);
             if ods.log.len() >= LOG_LEN {
                 self.log_info.is_full = true;

@@ -51,7 +51,7 @@ pub enum Event {
     Stop,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MicromouseState {
     pub time: u32,   // Time [ms]
     pub x: f32,      // X coordinate [m]
