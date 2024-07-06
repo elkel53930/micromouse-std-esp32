@@ -215,12 +215,20 @@ fn go(
 
         let fb_theta = if let Some(ws_error) = ws_error {
             let ws_error = ws_error.max(-40).min(40);
+            ctx.position_reset_count += 1;
             ctx.wall_pid.update(ws_error as f32 / 1000.0)
         } else {
             ctx.position_reset_count = 0;
             ctx.theta_pid
                 .update(std::f32::consts::PI / 2.0 - micromouse.theta)
         };
+
+        if ctx.position_reset_count > 500 {
+            let mut ods = ctx.ods.lock().unwrap();
+            ods.micromouse.x = mm_const::BLOCK_LENGTH / 2.0;
+            ods.micromouse.theta = std::f32::consts::PI / 2.0;
+            ctx.position_reset_count = 0;
+        }
 
         // Angle feedback
         let fb_omega = ctx.omega_pid.update(0.0 - micromouse.omega);

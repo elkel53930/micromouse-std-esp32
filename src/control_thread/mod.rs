@@ -135,7 +135,7 @@ struct ControlContext {
 
     req_id: u16,
 
-    position_reset_count: u8,
+    position_reset_count: u16,
 }
 
 impl ControlContext {
