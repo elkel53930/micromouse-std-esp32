@@ -80,6 +80,20 @@ pub struct OperationContext {
     pub log_tx: Sender<log_thread::LogCommand>,
 }
 
+impl OperationContext {
+    pub fn wait_response(&self) -> control_thread::Response {
+        let response = match self.response_rx.recv() {
+            Ok(r) => r,
+            Err(e) => {
+                log::error!("Error: {:?}", e);
+                panic!("Error: {:?}", e);
+            }
+        };
+        log::info!("Res : {:?}", response);
+        response
+    }
+}
+
 fn boot_count() -> u32 {
     let path = Path::new("/sf/boot_count");
 
@@ -206,7 +220,7 @@ fn app_main(ctx: &OperationContext, config: OperationThreadConfig) -> anyhow::Re
         ctx.led_tx.send((Red, Some("10")))?;
         uprintln!("Start gyro calibration");
         ctx.command_tx.send(Command::GyroCalibration)?;
-        ctx.response_rx.recv()?; // Wait for Done
+        ctx.wait_response(); // Wait for Done
         let offset = ctx.ods.lock().unwrap().imu.gyro_x_offset;
         uprintln!("Gyro offset: {}", offset);
 
@@ -238,17 +252,17 @@ fn search_run(ctx: &OperationContext, config: OperationThreadConfig) -> anyhow::
     );
 
     ctx.command_tx.send(Command::ResetController)?;
-    ctx.response_rx.recv()?; // Wait for CommandRequest    ctx.command_tx
+    ctx.wait_response(); // Wait for CommandRequest    ctx.command_tx
     ctx.command_tx
         .send(Command::StartLog(config.search_config.log_interval))?;
-    ctx.response_rx.recv()?; // Wait for CommandRequest
+    ctx.wait_response(); // Wait for CommandRequest
     ctx.command_tx.send(Command::SStart(
         mm_const::BLOCK_LENGTH - mm_const::INITIAL_POSITION,
     ))?;
     let mut loc = maze::Location::default();
     loc.forward();
     solver.set_location(loc);
-    ctx.response_rx.recv()?; // Wait for CommandRequest
+    ctx.wait_response(); // Wait for CommandRequest
 
     loop {
         let front;
@@ -269,16 +283,16 @@ fn search_run(ctx: &OperationContext, config: OperationThreadConfig) -> anyhow::
             let rs = ods.wall_sensor.rs_raw.unwrap();
             let lf = ods.wall_sensor.lf_raw.unwrap();
             let rf = ods.wall_sensor.rf_raw.unwrap();
-            log::info!("LF: {}, LS: {}, RS: {}, RF: {}", lf, ls, rs, rf);
+            log::info!("LS: {}, LF: {}, RF: {}, RS: {}", ls, lf, rf, rs);
         }
 
         let dir = solver.navigate(front, left, right, solver.get_goal());
         if let Err(e) = dir {
             log::warn!("{:?}", e);
             ctx.command_tx.send(Command::SStop)?;
-            ctx.response_rx.recv()?; // Wait for CommandRequest
+            ctx.wait_response(); // Wait for CommandRequest
             ctx.command_tx.send(Command::StopLog)?;
-            ctx.response_rx.recv()?; // Wait for CommandRequest
+            ctx.wait_response(); // Wait for CommandRequest
             return Ok(());
         }
 
@@ -309,16 +323,15 @@ fn search_run(ctx: &OperationContext, config: OperationThreadConfig) -> anyhow::
         if loc.pos == solver.get_goal() {
             log::info!("Goal reached");
             ctx.command_tx.send(Command::SStop)?;
-            ctx.response_rx.recv()?; // Wait for CommandRequest
+            ctx.wait_response(); // Wait for CommandRequest
 
             break;
         }
-        ctx.response_rx.recv()?; // Wait for CommandRequest
-        log::info!("Command Requested");
+        ctx.wait_response(); // Wait for CommandRequest
     }
 
     ctx.command_tx.send(Command::StopLog)?;
-    ctx.response_rx.recv()?; // Wait for CommandRequest
+    ctx.wait_response(); // Wait for CommandRequest
 
     Ok(())
 }
@@ -327,9 +340,12 @@ fn test_run(ctx: &OperationContext, config: OperationThreadConfig) -> anyhow::Re
     for command in config.test_config.test_pattern.iter() {
         log::info!("Sending command: {:?}", command);
         ctx.command_tx.send(*command)?;
-        let response = ctx.response_rx.recv()?; // Wait for CommandRequest
-        if response != control_thread::Response::CommandRequest {
-            return Err(anyhow::anyhow!("Unexpected response: {:?}", response));
+        let response = ctx.wait_response(); // Wait for CommandRequest
+        match response {
+            control_thread::Response::CommandRequest(_) => {}
+            _ => {
+                return Err(anyhow::anyhow!("Unexpected response: {:?}", response));
+            }
         }
     }
     Ok(())

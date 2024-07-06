@@ -133,6 +133,8 @@ struct ControlContext {
     v_ave: misc::MovingAverage,
     batt_ave: misc::MovingAverageInt,
 
+    req_id: u16,
+
     position_reset_count: u8,
 }
 
@@ -162,6 +164,7 @@ impl ControlContext {
             wall_pid: pid::Pid::empty(),
             v_ave: misc::MovingAverage::new(20),
             batt_ave: misc::MovingAverageInt::new(100),
+            req_id: 0,
             position_reset_count: 0,
         }
     }
@@ -191,6 +194,8 @@ impl ControlContext {
 
     pub fn log_msg(&mut self, msg: String) {
         let mut ods = self.ods.lock().unwrap();
+        let (min, sec, ms, us) = crate::timer_interrupt::get_time();
+        let msg = format!("[{:02}:{:02}:{:03}:{:03}] {}", min, sec, ms, us, msg);
         ods.log_msg.push(msg);
         while ods.log_msg.len() >= log_thread::LOG_MSG_LEN {
             ods.log_msg.remove(0);
@@ -204,6 +209,23 @@ impl ControlContext {
 
     pub fn set_ws_enable(&mut self, ena: bool) {
         self.ws_ena = ena;
+    }
+
+    pub fn reset_controllers(&mut self) {
+        self.v_pid.reset();
+        self.theta_pid.reset();
+        self.omega_pid.reset();
+        self.pos_pid.reset();
+        self.wall_pid.reset();
+    }
+
+    pub fn request_command(&mut self) {
+        self.response_tx
+            .send(Response::CommandRequest(self.req_id))
+            .unwrap();
+        self.log_msg(format!("Request command({})", self.req_id));
+        self.log_msg("Done".to_string());
+        self.req_id += 1;
     }
 }
 
@@ -233,7 +255,7 @@ impl Default for Command {
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Response {
     CalibrationDone(f32),
-    CommandRequest,
+    CommandRequest(u16),
 }
 
 fn measure(ctx: &mut ControlContext) -> anyhow::Result<()> {
@@ -504,18 +526,18 @@ pub fn init(
                     }
                     Command::StartLog(interval) => {
                         ctx.start_log(interval);
-                        ctx.response_tx.send(Response::CommandRequest).unwrap();
+                        ctx.request_command();
                     }
                     Command::StopLog => {
                         ctx.stop_log();
-                        ctx.response_tx.send(Response::CommandRequest).unwrap();
+                        ctx.request_command();
                     }
                     Command::SetActivateWallSensor(ena) => {
                         ctx.set_ws_enable(ena);
                     }
                     Command::ResetController => {
                         reset_controller(&mut ctx);
-                        ctx.response_tx.send(Response::CommandRequest).unwrap();
+                        ctx.request_command();
                     }
                     Command::SStart(distance) => {
                         ctx.set_ws_enable(true);
@@ -533,7 +555,7 @@ pub fn init(
                     Command::SPivot(angle) => {
                         motor_control::pivot(&mut ctx, angle, angle / std::f32::consts::PI / 2.0)
                             .unwrap();
-                        ctx.response_tx.send(Response::CommandRequest).unwrap();
+                        ctx.request_command();
                     }
                     Command::Test => {
                         motor_control::test(&mut ctx).unwrap();

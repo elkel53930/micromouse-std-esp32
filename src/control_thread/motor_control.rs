@@ -163,8 +163,6 @@ impl VoltageSequence for StopSequence {
 fn go(
     ctx: &mut ControlContext,
     sequence: &mut dyn VoltageSequence,
-    _distance: f32,
-    _final_velocity: f32,
     notify_distance: Option<f32>,
     enable_wall_pid: bool,
 ) -> anyhow::Result<()> {
@@ -177,7 +175,7 @@ fn go(
     };
     let mut flag = true;
     while flag {
-        let base_volt = match sequence.next(current_position) {
+        let target_v = match sequence.next(current_position) {
             SequenceResult::Continue(v) => v,
             SequenceResult::End(v) => {
                 flag = false;
@@ -188,10 +186,13 @@ fn go(
         let micromouse = control_thread::update(ctx);
         current_position = micromouse.y;
 
+        let fb_v = ctx.v_pid.update(target_v - micromouse.v);
+
         if need_request {
             let nd = notify_distance.unwrap();
             if current_position > nd {
-                ctx.response_tx.send(Response::CommandRequest).unwrap();
+                ctx.log_msg("RQ".to_string());
+                ctx.request_command();
                 need_request = false;
             }
         }
@@ -225,8 +226,8 @@ fn go(
         let fb_omega = ctx.omega_pid.update(0.0 - micromouse.omega);
 
         // Set duty
-        let duty_r = calc_duty(&micromouse, base_volt + fb_theta + fb_omega);
-        let duty_l = calc_duty(&micromouse, base_volt - fb_theta - fb_omega);
+        let duty_r = calc_duty(&micromouse, fb_v + fb_theta + fb_omega);
+        let duty_l = calc_duty(&micromouse, fb_v - fb_theta - fb_omega);
         control_thread::set_motor_duty(ctx, duty_l, duty_r);
 
         {
@@ -242,7 +243,6 @@ fn go(
     }
     control_thread::set_motor_duty(ctx, 0.0, 0.0);
 
-    ctx.response_tx.send(Response::CommandRequest).unwrap();
     Ok(())
 }
 
@@ -253,18 +253,20 @@ pub(super) fn stop(
 ) -> anyhow::Result<()> {
     led::on(Red)?;
     let mut seq = StopSequence::new(distance, ctx.config.search_ctrl_cfg.vel_fwd);
-    let nd = if command_request {
-        Some(distance - (mm_const::BLOCK_LENGTH - mm_const::JUDGE_POSITION))
-    } else {
-        None
-    };
-    go(ctx, &mut seq, distance, 0.0, nd, false)?;
+    go(ctx, &mut seq, None, false)?;
 
+    control_thread::measure(ctx)?;
+    control_thread::update(ctx);
+    if command_request {
+        ctx.request_command();
+    }
     control_thread::set_motor_duty(ctx, 0.0, 0.0);
 
-    if command_request {
-        ctx.response_tx.send(Response::CommandRequest).unwrap();
-    }
+    ctx.log();
+
+    ctx.reset_controllers();
+
+    timer_interrupt::sync_ms();
 
     led::off(Red)?;
     Ok(())
@@ -276,8 +278,6 @@ pub(super) fn start(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<(
     go(
         ctx,
         &mut seq,
-        distance,
-        0.0,
         Some(distance - (mm_const::BLOCK_LENGTH - mm_const::JUDGE_POSITION)),
         false,
     )?;
@@ -326,14 +326,8 @@ pub(super) fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result
     // constant speed
     led::on(Green)?;
     let mut seq = ConstSequence::new(distance, ctx.config.search_ctrl_cfg.vel_fwd);
-    go(
-        ctx,
-        &mut seq,
-        distance,
-        ctx.config.search_ctrl_cfg.vel_fwd,
-        Some(distance - (mm_const::BLOCK_LENGTH - mm_const::JUDGE_POSITION)),
-        true,
-    )?;
+    let nb = Some(distance - (mm_const::BLOCK_LENGTH - mm_const::JUDGE_POSITION));
+    go(ctx, &mut seq, nb, true)?;
     {
         let mut ods = ctx.ods.lock().unwrap();
         ods.micromouse.y -= mm_const::BLOCK_LENGTH;
@@ -343,47 +337,37 @@ pub(super) fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result
 }
 
 pub(super) fn test(ctx: &mut ControlContext) -> anyhow::Result<()> {
-    let target = mm_traj::State::default();
-    motor::enable(true);
-    for i in 0..1500 {
-        control_thread::measure(ctx)?;
-        let micromouse = control_thread::update(ctx);
-        control_thread::update_target(ctx, &target);
-
-        let base_duty = if i < 1000 { 1.0 } else { 0.0 };
-
-        let fb_theta = ctx
-            .theta_pid
-            .update(std::f32::consts::PI - micromouse.theta);
-        let fb_omega = ctx.omega_pid.update(0.0 - micromouse.omega);
-        let duty_r = calc_duty(&micromouse, base_duty + fb_theta + fb_omega);
-        let duty_l = calc_duty(&micromouse, base_duty - fb_theta - fb_omega);
-        control_thread::set_motor_duty(ctx, duty_l, duty_r);
-        ctx.log();
-        timer_interrupt::sync_ms();
-    }
-    motor::set_l(0.0);
-    motor::set_r(0.0);
-    motor::enable(false);
-    ctx.response_tx.send(Response::CommandRequest).unwrap();
-    Ok(())
+    pivot(ctx, std::f32::consts::PI / 2.0, 0.4)?;
+    pivot(ctx, std::f32::consts::PI / 2.0, 0.4)?;
+    pivot(ctx, std::f32::consts::PI / 2.0, 0.4)?;
+    pivot(ctx, std::f32::consts::PI / 2.0, 0.4)?;
+    pivot(ctx, std::f32::consts::PI / 2.0, 0.4)?;
+    pivot(ctx, std::f32::consts::PI / 2.0, 0.4)?;
+    pivot(ctx, std::f32::consts::PI / 2.0, 0.4)?;
+    pivot(ctx, std::f32::consts::PI / 2.0, 0.4)?;
+    pivot(ctx, std::f32::consts::PI / 2.0, 0.4)?;
+    pivot(ctx, std::f32::consts::PI / 2.0, 0.4)
 }
 
 pub(super) fn turn_left(ctx: &mut ControlContext) -> anyhow::Result<()> {
     stop(ctx, mm_const::BLOCK_LENGTH / 2.0, false)?;
-    pivot(ctx, std::f32::consts::PI / 2.0, 0.5)?;
+    pivot(ctx, std::f32::consts::PI / 2.0, 0.2)?;
+    nop(ctx, 0.1)?;
     forward(ctx, mm_const::BLOCK_LENGTH / 2.0)
 }
 
 pub(super) fn turn_right(ctx: &mut ControlContext) -> anyhow::Result<()> {
     stop(ctx, mm_const::BLOCK_LENGTH / 2.0, false)?;
-    pivot(ctx, -std::f32::consts::PI / 2.0, 0.5)?;
+    pivot(ctx, -std::f32::consts::PI / 2.0, 0.2)?;
+    nop(ctx, 0.1)?;
     forward(ctx, mm_const::BLOCK_LENGTH / 2.0)
 }
 
 pub(super) fn turn_back(ctx: &mut ControlContext) -> anyhow::Result<()> {
     stop(ctx, mm_const::BLOCK_LENGTH / 2.0, false)?;
-    pivot(ctx, std::f32::consts::PI, 0.7)?;
+    pivot(ctx, -std::f32::consts::PI / 2.0, 0.2)?;
+    pivot(ctx, -std::f32::consts::PI / 2.0, 0.2)?;
+    nop(ctx, 0.1)?;
     forward(ctx, mm_const::BLOCK_LENGTH / 1.0)
 }
 
@@ -392,10 +376,11 @@ pub(super) fn pivot(ctx: &mut ControlContext, angle: f32, duration: f32) -> anyh
         let ods = ctx.ods.lock().unwrap();
         ods.micromouse.theta
     };
-    let target_omega = angle / duration;
+    let mut target_omega = angle / duration;
+    let mut target_theta;
 
     let mut time = 0.0;
-    let total_duration = duration * 1.5;
+    let total_duration = duration * 2.0;
 
     let mut stop = false;
 
@@ -403,13 +388,14 @@ pub(super) fn pivot(ctx: &mut ControlContext, angle: f32, duration: f32) -> anyh
         control_thread::measure(ctx)?;
         let micromouse = control_thread::update(ctx);
 
-        let target_theta = if stop {
-            original_angle + angle
+        if stop {
+            target_omega = 0.0;
+            target_theta = original_angle + angle;
         } else {
-            if time <= duration {
+            if time >= duration {
                 stop = true;
             }
-            original_angle + target_omega * time
+            target_theta = original_angle + target_omega * time;
         };
 
         let fb_theta = ctx.theta_pid.update(target_theta - micromouse.theta);
@@ -433,6 +419,34 @@ pub(super) fn pivot(ctx: &mut ControlContext, angle: f32, duration: f32) -> anyh
         ods.micromouse.x = mm_const::BLOCK_LENGTH / 2.0;
         ods.micromouse.y = mm_const::BLOCK_LENGTH / 2.0;
     }
+
+    ctx.reset_controllers();
+
+    Ok(())
+}
+
+pub(super) fn nop(ctx: &mut ControlContext, duration: f32) -> anyhow::Result<()> {
+    let mut time = 0.0;
+    let total_duration = duration * 1.5;
+
+    while time < total_duration {
+        control_thread::measure(ctx)?;
+        control_thread::update(ctx);
+        control_thread::set_motor_duty(ctx, 0.0, 0.0);
+        ctx.log();
+        time += mm_const::DT;
+        timer_interrupt::sync_ms();
+    }
+
+    {
+        // Reset position
+        let mut ods = ctx.ods.lock().unwrap();
+        ods.micromouse.theta = std::f32::consts::PI / 2.0;
+        ods.micromouse.x = mm_const::BLOCK_LENGTH / 2.0;
+        ods.micromouse.y = mm_const::BLOCK_LENGTH / 2.0;
+    }
+
+    ctx.reset_controllers();
 
     Ok(())
 }
