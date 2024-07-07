@@ -256,9 +256,8 @@ fn search_run(ctx: &OperationContext, config: OperationThreadConfig) -> anyhow::
     ctx.command_tx
         .send(Command::StartLog(config.search_config.log_interval))?;
     ctx.wait_response(); // Wait for CommandRequest
-    ctx.command_tx.send(Command::SStart(
-        mm_const::BLOCK_LENGTH - mm_const::INITIAL_POSITION,
-    ))?;
+    ctx.command_tx
+        .send(Command::SStart(mm_const::BLOCK_LENGTH))?;
     let mut loc = maze::Location::default();
     loc.forward();
     solver.set_location(loc);

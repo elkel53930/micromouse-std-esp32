@@ -205,8 +205,8 @@ fn go(
                     let r_error = micromouse.rs as i16 - ctx.rs_ref;
                     Some(r_error + l_error)
                 }
-                // (Wall::Present, Wall::Absent) => Some((ctx.ls_ref - micromouse.ls as i16) * 2),
-                // (Wall::Absent, Wall::Present) => Some((micromouse.rs as i16 - ctx.rs_ref) * 2),
+                (Wall::Present, Wall::Absent) => Some(ctx.ls_ref - micromouse.ls as i16),
+                (Wall::Absent, Wall::Present) => Some(micromouse.rs as i16 - ctx.rs_ref),
                 (_, _) => None,
             }
         } else {
@@ -361,14 +361,14 @@ pub(super) fn turn_left(ctx: &mut ControlContext) -> anyhow::Result<()> {
     stop(ctx, mm_const::BLOCK_LENGTH / 2.0, false)?;
     pivot(ctx, std::f32::consts::PI / 2.0, 0.2)?;
     nop(ctx, 0.1)?;
-    forward(ctx, mm_const::BLOCK_LENGTH / 2.0)
+    forward(ctx, mm_const::BLOCK_LENGTH)
 }
 
 pub(super) fn turn_right(ctx: &mut ControlContext) -> anyhow::Result<()> {
     stop(ctx, mm_const::BLOCK_LENGTH / 2.0, false)?;
     pivot(ctx, -std::f32::consts::PI / 2.0, 0.2)?;
     nop(ctx, 0.1)?;
-    forward(ctx, mm_const::BLOCK_LENGTH / 2.0)
+    forward(ctx, mm_const::BLOCK_LENGTH)
 }
 
 pub(super) fn turn_back(ctx: &mut ControlContext) -> anyhow::Result<()> {
@@ -376,7 +376,7 @@ pub(super) fn turn_back(ctx: &mut ControlContext) -> anyhow::Result<()> {
     pivot(ctx, -std::f32::consts::PI / 2.0, 0.2)?;
     pivot(ctx, -std::f32::consts::PI / 2.0, 0.2)?;
     nop(ctx, 0.1)?;
-    forward(ctx, mm_const::BLOCK_LENGTH / 1.0)
+    forward(ctx, mm_const::BLOCK_LENGTH)
 }
 
 pub(super) fn pivot(ctx: &mut ControlContext, angle: f32, duration: f32) -> anyhow::Result<()> {

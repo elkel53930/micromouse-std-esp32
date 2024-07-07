@@ -3,10 +3,10 @@
 		"led_rise_time": 40,
 		"rs_reference": 415,
 		"ls_reference": 332,
-		"rs_threshold": 22,
+		"rs_threshold": 18,
 		"rf_threshold": 35,
 		"lf_threshold": 35,
-		"ls_threshold": 30,
+		"ls_threshold": 18,
 		"ls_correction_table": [
 			[
 				0, 0
