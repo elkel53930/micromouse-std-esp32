@@ -3,10 +3,10 @@
 		"led_rise_time": 40,
 		"rs_reference": 415,
 		"ls_reference": 332,
-		"rs_threshold": 25,
-		"rf_threshold": 20,
-		"lf_threshold": 20,
-		"ls_threshold": 25,
+		"rs_threshold": 22,
+		"rf_threshold": 35,
+		"lf_threshold": 35,
+		"ls_threshold": 30,
 		"ls_correction_table": [
 			[
 				0, 0
@@ -59,7 +59,7 @@
 		]
 	},
 	"search_ctrl_cfg": {
-		"vel_fwd": 0.4,
+		"vel_fwd": 0.35,
 		"theta_pid": {
 			"p": 3.0,
 			"i": 0.5,

@@ -43,8 +43,6 @@ pub fn hold_ws(ctx: &OperationContext, timeout: Option<u16>) -> UserOperation {
     ctx.command_tx
         .send(control_thread::Command::SetActivateWallSensor(false))
         .unwrap();
-
-    log::info!("hold_ws: {:?}", result);
     result
 }
 

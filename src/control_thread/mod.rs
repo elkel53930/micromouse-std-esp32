@@ -220,10 +220,10 @@ impl ControlContext {
     }
 
     pub fn request_command(&mut self) {
+        self.log_msg(format!("Req cmd({})", self.req_id));
         self.response_tx
             .send(Response::CommandRequest(self.req_id))
             .unwrap();
-        self.log_msg(format!("Request command({})", self.req_id));
         self.log_msg("Done".to_string());
         self.req_id += 1;
     }
