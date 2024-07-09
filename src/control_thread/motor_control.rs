@@ -173,20 +173,15 @@ fn go(
                 v
             }
         };
+        {
+            let mut ods = ctx.ods.lock().unwrap();
+            ods.micromouse.target_v = target_v;
+        }
         control_thread::measure(ctx)?;
         let micromouse = control_thread::update(ctx);
         current_position = micromouse.y;
 
         let fb_v = ctx.v_pid.update(target_v - micromouse.v);
-
-        if need_request {
-            let nd = notify_distance.unwrap();
-            if current_position > nd {
-                ctx.log_msg("RQ".to_string());
-                ctx.request_command();
-                need_request = false;
-            }
-        }
 
         // Set target theta by wall sensor
         let ws_error = if enable_wall_pid {
@@ -230,6 +225,15 @@ fn go(
         control_thread::set_motor_duty(ctx, duty_l, duty_r);
 
         ctx.log();
+
+        if need_request {
+            let nd = notify_distance.unwrap();
+            if current_position > nd {
+                ctx.request_command();
+                need_request = false;
+            }
+        }
+
         timer_interrupt::sync_ms();
     }
     control_thread::set_motor_duty(ctx, 0.0, 0.0);

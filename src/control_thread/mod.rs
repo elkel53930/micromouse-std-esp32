@@ -223,7 +223,6 @@ impl ControlContext {
         self.response_tx
             .send(Response::CommandRequest(self.req_id))
             .unwrap();
-        self.log_msg("Done".to_string());
         self.req_id += 1;
     }
 }
@@ -512,40 +511,68 @@ pub fn init(
                         gyro_calibration(&mut ctx);
                     }
                     Command::StartLog(interval) => {
+                        ctx.log_msg("StartLog".to_string());
                         ctx.start_log(interval);
+                        ctx.log_msg("StartLog done".to_string());
                         ctx.request_command();
                     }
                     Command::StopLog => {
+                        ctx.log_msg("StopLog".to_string());
                         ctx.stop_log();
+                        ctx.log_msg("StopLog done".to_string());
                         ctx.request_command();
                     }
                     Command::SetActivateWallSensor(ena) => {
                         ctx.set_ws_enable(ena);
                     }
                     Command::ResetController => {
+                        ctx.log_msg("ResetController".to_string());
                         reset_controller(&mut ctx);
+                        ctx.log_msg("ResetController done".to_string());
                         ctx.request_command();
                     }
                     Command::SStart(distance) => {
+                        ctx.log_msg(format!("SStart({})", distance));
                         ctx.set_ws_enable(true);
                         motor_control::start(&mut ctx, distance).unwrap();
+                        ctx.log_msg("SStart done".to_string());
                     }
                     Command::SForward => {
+                        ctx.log_msg("SForward".to_string());
                         motor_control::forward(&mut ctx, mm_const::BLOCK_LENGTH).unwrap();
+                        ctx.log_msg("SForward done".to_string());
                     }
                     Command::SStop => {
+                        ctx.log_msg("SStop".to_string());
                         motor_control::stop(&mut ctx, mm_const::BLOCK_LENGTH / 2.0, true).unwrap();
+                        ctx.log_msg("SStop done".to_string());
                     }
-                    Command::SRight => turn_right(&mut ctx).unwrap(),
-                    Command::SLeft => turn_left(&mut ctx).unwrap(),
-                    Command::SReturn => turn_back(&mut ctx).unwrap(),
+                    Command::SRight => {
+                        ctx.log_msg("SRight".to_string());
+                        turn_right(&mut ctx).unwrap();
+                        ctx.log_msg("SRight done".to_string());
+                    }
+                    Command::SLeft => {
+                        ctx.log_msg("SLeft".to_string());
+                        turn_left(&mut ctx).unwrap();
+                        ctx.log_msg("SLeft done".to_string());
+                    }
+                    Command::SReturn => {
+                        ctx.log_msg("SReturn".to_string());
+                        turn_back(&mut ctx).unwrap();
+                        ctx.log_msg("SReturn done".to_string());
+                    }
                     Command::SPivot(angle) => {
+                        ctx.log_msg(format!("SPivot({})", angle));
                         motor_control::pivot(&mut ctx, angle, angle / std::f32::consts::PI / 2.0)
                             .unwrap();
+                        ctx.log_msg("SPivot done".to_string());
                         ctx.request_command();
                     }
                     Command::Test => {
+                        ctx.log_msg("Test".to_string());
                         motor_control::test(&mut ctx).unwrap();
+                        ctx.log_msg("Test done".to_string());
                     }
                 },
                 Err(mpsc::TryRecvError::Empty) => {}
