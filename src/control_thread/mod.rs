@@ -13,7 +13,6 @@ use crate::pid;
 use crate::timer_interrupt::{sync_ms, wait_us};
 use crate::wall_sensor;
 use mm_maze::maze::Wall;
-use mm_traj;
 use motor_control::reset_controller;
 use motor_control::turn_back;
 use motor_control::turn_left;
@@ -434,19 +433,7 @@ fn update(ctx: &mut ControlContext) -> MicromouseState {
     ods.micromouse.rf_wall = ods.wall_sensor.rf.unwrap_or(Wall::Absent);
     ods.micromouse.rs_wall = ods.wall_sensor.rs.unwrap_or(Wall::Absent);
 
-    ods.micromouse.event = ods::Event::N;
-
     ods.micromouse.clone()
-}
-
-fn update_target(ctx: &mut ControlContext, target: &mm_traj::State) {
-    let mut ods = ctx.ods.lock().unwrap();
-    ods.micromouse.target_x = target.x;
-    ods.micromouse.target_y = target.y;
-    ods.micromouse.target_v = target.v;
-    ods.micromouse.target_a = target.a;
-    ods.micromouse.target_theta = target.theta;
-    ods.micromouse.target_omega = target.omega;
 }
 
 fn set_motor_duty(ctx: &ControlContext, duty_l: f32, duty_r: f32) {

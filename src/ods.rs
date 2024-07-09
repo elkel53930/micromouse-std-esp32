@@ -39,18 +39,6 @@ pub struct OdsWallSensor {
     pub batt_phy: f32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-pub enum Event {
-    N,
-    CommandRequest,
-    GoDone,
-    Go,
-    Pivot,
-    PositionReset,
-    Speed(f32),
-    Stop,
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MicromouseState {
     pub time: u32,   // Time [ms]
@@ -72,16 +60,6 @@ pub struct MicromouseState {
     pub lf_wall: Wall,
     pub rf_wall: Wall,
     pub rs_wall: Wall,
-    pub target_x: f32,
-    pub target_y: f32,
-    pub target_v: f32,
-    pub target_a: f32,
-    pub target_theta: f32,
-    pub target_omega: f32,
-    pub ws_error: i16,
-    pub event: Event,
-    pub fb_ws: u8,
-    pub fb_theta: f32,
 }
 
 impl Default for MicromouseState {
@@ -106,16 +84,6 @@ impl Default for MicromouseState {
             lf_wall: Wall::Absent,
             rf_wall: Wall::Absent,
             rs_wall: Wall::Absent,
-            target_x: mm_const::BLOCK_LENGTH / 2.0,
-            target_y: mm_const::INITIAL_POSITION,
-            target_v: 0.0,
-            target_a: 0.0,
-            target_theta: std::f32::consts::PI / 2.0,
-            target_omega: 0.0,
-            ws_error: 0,
-            event: Event::N,
-            fb_ws: 0,
-            fb_theta: 0.0,
         }
     }
 }

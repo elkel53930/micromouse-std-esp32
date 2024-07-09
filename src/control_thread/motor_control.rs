@@ -1,28 +1,20 @@
-use crate::control_thread::{self, ControlContext, Response};
+use crate::control_thread::{self, ControlContext};
 use crate::led::{
     self,
     LedColor::{Green, Red},
 };
 use crate::mm_const;
 use crate::motor;
-use crate::ods::{self, MicromouseState};
+use crate::ods::MicromouseState;
 use crate::pid;
 use crate::timer_interrupt;
 use mm_maze::maze::Wall;
-use mm_traj;
 
 fn calc_duty(micromouse: &MicromouseState, voltage: f32) -> f32 {
     // battery voltage
     let vb = micromouse.v_batt;
     // voltage[V] -> duty[%]
     (voltage / vb) * 100.0
-}
-
-fn calc_diff(xa: f32, ya: f32, xb: f32, yb: f32, theta: f32) -> f32 {
-    let delta_x = xb - xa;
-    let delta_y = yb - ya;
-    let diff = delta_x * theta.cos() + delta_y * theta.sin();
-    diff
 }
 
 pub(super) enum SequenceResult {
@@ -168,7 +160,6 @@ fn go(
 ) -> anyhow::Result<()> {
     let mut need_request = notify_distance.is_some();
 
-    let mut event = ods::Event::Go;
     let mut current_position = {
         let ods = ctx.ods.lock().unwrap();
         ods.micromouse.y
@@ -238,16 +229,8 @@ fn go(
         let duty_l = calc_duty(&micromouse, fb_v - fb_theta - fb_omega);
         control_thread::set_motor_duty(ctx, duty_l, duty_r);
 
-        {
-            let mut ods = ctx.ods.lock().unwrap();
-            ods.micromouse.event = event;
-            ods.micromouse.ws_error = ws_error.unwrap_or(0);
-            ods.micromouse.fb_theta = fb_theta;
-        }
-
         ctx.log();
         timer_interrupt::sync_ms();
-        event = ods::Event::N;
     }
     control_thread::set_motor_duty(ctx, 0.0, 0.0);
 
@@ -359,6 +342,7 @@ pub(super) fn test(ctx: &mut ControlContext) -> anyhow::Result<()> {
 
 pub(super) fn turn_left(ctx: &mut ControlContext) -> anyhow::Result<()> {
     stop(ctx, mm_const::BLOCK_LENGTH / 2.0, false)?;
+    nop(ctx, 0.1)?;
     pivot(ctx, std::f32::consts::PI / 2.0, 0.2)?;
     nop(ctx, 0.1)?;
     forward(ctx, mm_const::BLOCK_LENGTH)
@@ -366,6 +350,7 @@ pub(super) fn turn_left(ctx: &mut ControlContext) -> anyhow::Result<()> {
 
 pub(super) fn turn_right(ctx: &mut ControlContext) -> anyhow::Result<()> {
     stop(ctx, mm_const::BLOCK_LENGTH / 2.0, false)?;
+    nop(ctx, 0.1)?;
     pivot(ctx, -std::f32::consts::PI / 2.0, 0.2)?;
     nop(ctx, 0.1)?;
     forward(ctx, mm_const::BLOCK_LENGTH)
@@ -373,6 +358,7 @@ pub(super) fn turn_right(ctx: &mut ControlContext) -> anyhow::Result<()> {
 
 pub(super) fn turn_back(ctx: &mut ControlContext) -> anyhow::Result<()> {
     stop(ctx, mm_const::BLOCK_LENGTH / 2.0, false)?;
+    nop(ctx, 0.1)?;
     pivot(ctx, -std::f32::consts::PI / 2.0, 0.2)?;
     pivot(ctx, -std::f32::consts::PI / 2.0, 0.2)?;
     nop(ctx, 0.1)?;
@@ -437,10 +423,21 @@ pub(super) fn nop(ctx: &mut ControlContext, duration: f32) -> anyhow::Result<()>
     let mut time = 0.0;
     let total_duration = duration * 1.5;
 
+    let target_theta = std::f32::consts::PI / 2.0;
+    let target_omega = 0.0;
+
     while time < total_duration {
         control_thread::measure(ctx)?;
-        control_thread::update(ctx);
-        control_thread::set_motor_duty(ctx, 0.0, 0.0);
+        let micromouse = control_thread::update(ctx);
+
+        let fb_theta = ctx.theta_pid.update(target_theta - micromouse.theta);
+        let fb_omega = ctx.omega_pid.update(target_omega - micromouse.omega);
+
+        let fb_v = ctx.v_pid.update(0.0 - micromouse.v);
+
+        let duty_r = calc_duty(&micromouse, fb_v + fb_theta + fb_omega);
+        let duty_l = calc_duty(&micromouse, fb_v - fb_theta - fb_omega);
+        control_thread::set_motor_duty(ctx, duty_l, duty_r);
         ctx.log();
         time += mm_const::DT;
         timer_interrupt::sync_ms();
