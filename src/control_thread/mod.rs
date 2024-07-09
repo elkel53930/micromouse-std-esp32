@@ -10,6 +10,7 @@ use crate::mm_const;
 use crate::ods;
 use crate::ods::MicromouseState;
 use crate::pid;
+use crate::spin_mpsc::{self, SpinReceiver, SpinSender};
 use crate::timer_interrupt::{sync_ms, wait_us};
 use crate::wall_sensor;
 use mm_maze::maze::Wall;
@@ -112,8 +113,8 @@ struct ControlContext {
     log_tx: Sender<log_thread::LogCommand>,
     log_info: LogInfo,
 
-    response_tx: Sender<Response>,
-    command_rx: Receiver<Command>,
+    response_tx: SpinSender<Response>,
+    command_rx: SpinReceiver<Command>,
 
     config: ControlThreadConfig,
 
@@ -134,6 +135,8 @@ struct ControlContext {
 
     req_id: u16,
 
+    previous_time: u32,
+
     position_reset_count: u16,
 }
 
@@ -141,8 +144,8 @@ impl ControlContext {
     fn new(
         ods: Arc<Mutex<ods::Ods>>,
         log_tx: Sender<log_thread::LogCommand>,
-        response_tx: Sender<Response>,
-        command_rx: Receiver<Command>,
+        response_tx: SpinSender<Response>,
+        command_rx: SpinReceiver<Command>,
         config: ControlThreadConfig,
     ) -> Self {
         Self {
@@ -164,6 +167,7 @@ impl ControlContext {
             v_ave: misc::MovingAverage::new(20),
             batt_ave: misc::MovingAverageInt::new(100),
             req_id: 0,
+            previous_time: 0,
             position_reset_count: 0,
         }
     }
@@ -220,9 +224,7 @@ impl ControlContext {
 
     pub fn request_command(&mut self) {
         self.log_msg(format!("Req cmd({})", self.req_id));
-        self.response_tx
-            .send(Response::CommandRequest(self.req_id))
-            .unwrap();
+        self.response_tx.send(Response::CommandRequest(self.req_id));
         self.req_id += 1;
     }
 }
@@ -395,6 +397,16 @@ fn reset_micromouse_state(ctx: &mut ControlContext) {
 
 fn update(ctx: &mut ControlContext) -> MicromouseState {
     let mut ods = ctx.ods.lock().unwrap();
+    let current_time = crate::timer_interrupt::get_ms();
+    let delta_step = if ctx.previous_time == 0 {
+        1.0
+    } else {
+        (current_time - ctx.previous_time) as f32
+    };
+
+    ctx.previous_time = current_time;
+
+    let dt = mm_const::DT as f32 * delta_step as f32;
 
     let enc_r_diff = ods.encoder.r_diff as f32;
     let enc_l_diff = ods.encoder.l_diff as f32;
@@ -402,21 +414,23 @@ fn update(ctx: &mut ControlContext) -> MicromouseState {
     let v_r = enc_r_diff / ctx.config.mech_param.gear_ratio
         * ctx.config.mech_param.wheel_diameter
         * std::f32::consts::PI
-        / 16384.0;
+        / 16384.0
+        / delta_step;
     let v_l = enc_l_diff / ctx.config.mech_param.gear_ratio
         * ctx.config.mech_param.wheel_diameter
         * std::f32::consts::PI
-        / 16384.0;
+        / 16384.0
+        / delta_step;
 
     let velocity = (v_r + v_l) / 2.0;
 
     let gyro = ods.imu.gyro_x_phy;
     let ave_velo = ctx.v_ave.update(velocity); // moving average
-    ods.micromouse.theta += gyro * mm_const::DT;
+    ods.micromouse.theta += gyro * dt;
     ods.micromouse.v = ave_velo;
     // Odometry is calculated by integrating the non-averaged velocity
-    ods.micromouse.x += velocity * ods.micromouse.theta.cos() * mm_const::DT;
-    ods.micromouse.y += velocity * ods.micromouse.theta.sin() * mm_const::DT;
+    ods.micromouse.x += velocity * ods.micromouse.theta.cos() * dt;
+    ods.micromouse.y += velocity * ods.micromouse.theta.sin() * dt;
     ods.micromouse.v_l = v_l;
     ods.micromouse.v_r = v_r;
     ods.micromouse.v_batt = ods.wall_sensor.batt_phy;
@@ -431,6 +445,8 @@ fn update(ctx: &mut ControlContext) -> MicromouseState {
     ods.micromouse.lf_wall = ods.wall_sensor.lf.unwrap_or(Wall::Absent);
     ods.micromouse.rf_wall = ods.wall_sensor.rf.unwrap_or(Wall::Absent);
     ods.micromouse.rs_wall = ods.wall_sensor.rs.unwrap_or(Wall::Absent);
+
+    ods.micromouse.delta_step = delta_step;
 
     ods.micromouse.clone()
 }
@@ -456,19 +472,21 @@ fn gyro_calibration(ctx: &mut ControlContext) {
     }
 
     ctx.ods.lock().unwrap().imu.gyro_x_offset = gyro_offset / 1000.0;
-    ctx.response_tx
-        .send(Response::CalibrationDone(gyro_offset))
-        .unwrap();
+    ctx.response_tx.send(Response::CalibrationDone(gyro_offset));
     led::off(Blue).unwrap();
 }
 
 pub fn init(
     ods: &Arc<Mutex<ods::Ods>>,
     log_tx: Sender<log_thread::LogCommand>,
-) -> anyhow::Result<(Sender<Command>, Receiver<Response>, anyhow::Result<()>)> {
+) -> anyhow::Result<(
+    SpinSender<Command>,
+    SpinReceiver<Response>,
+    anyhow::Result<()>,
+)> {
     // Message queues
-    let (tx_for_ope, rx): (Sender<Command>, Receiver<Command>) = mpsc::channel();
-    let (tx, rx_for_ope): (Sender<Response>, Receiver<Response>) = mpsc::channel();
+    let (tx_for_ope, rx): (SpinSender<Command>, SpinReceiver<Command>) = spin_mpsc::channel();
+    let (tx, rx_for_ope): (SpinSender<Response>, SpinReceiver<Response>) = spin_mpsc::channel();
     let mut config_success = Ok(());
 
     fn read() -> anyhow::Result<ControlThreadConfig> {
@@ -506,7 +524,7 @@ pub fn init(
         wall_sensor::off()?;
         loop {
             match ctx.command_rx.try_recv() {
-                Ok(cmd) => match cmd {
+                Some(cmd) => match cmd {
                     Command::GyroCalibration => {
                         gyro_calibration(&mut ctx);
                     }
@@ -575,10 +593,7 @@ pub fn init(
                         ctx.log_msg("Test done".to_string());
                     }
                 },
-                Err(mpsc::TryRecvError::Empty) => {}
-                Err(mpsc::TryRecvError::Disconnected) => {
-                    log::warn!("command_rx disconnected.");
-                }
+                None => {}
             }
             measure(&mut ctx)?;
             update(&mut ctx);

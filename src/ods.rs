@@ -61,6 +61,7 @@ pub struct MicromouseState {
     pub lf_wall: Wall,
     pub rf_wall: Wall,
     pub rs_wall: Wall,
+    pub delta_step: f32,
 }
 
 impl Default for MicromouseState {
@@ -86,6 +87,7 @@ impl Default for MicromouseState {
             lf_wall: Wall::Absent,
             rf_wall: Wall::Absent,
             rs_wall: Wall::Absent,
+            delta_step: 0.0,
         }
     }
 }

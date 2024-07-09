@@ -220,8 +220,7 @@ impl ConsoleCommand for CmdSen {
 
         // Activate wall sensors
         ctx.command_tx
-            .send(control_thread::Command::SetActivateWallSensor(true))
-            .unwrap();
+            .send(control_thread::Command::SetActivateWallSensor(true));
 
         uprintln!("Press any key to exit.");
         FreeRtos::delay_ms(500);
@@ -275,8 +274,7 @@ impl ConsoleCommand for CmdSen {
 
         // Inactivate wall sensors
         ctx.command_tx
-            .send(control_thread::Command::SetActivateWallSensor(false))
-            .unwrap();
+            .send(control_thread::Command::SetActivateWallSensor(false));
 
         FreeRtos::delay_ms(500);
 
@@ -339,8 +337,7 @@ impl ConsoleCommand for CmdOdo {
 
         // Inactivate wall sensors
         ctx.command_tx
-            .send(control_thread::Command::SetActivateWallSensor(false))
-            .unwrap();
+            .send(control_thread::Command::SetActivateWallSensor(false));
 
         FreeRtos::delay_ms(500);
 
@@ -369,8 +366,8 @@ impl ConsoleCommand for CmdGoffset {
         uprintln!("Calibration...");
         uprintln!("Start gyro calibration");
         ctx.command_tx
-            .send(control_thread::Command::GyroCalibration)?;
-        let resp = ctx.response_rx.recv().unwrap();
+            .send(control_thread::Command::GyroCalibration);
+        let resp = ctx.response_rx.recv();
         match resp {
             control_thread::Response::CalibrationDone(offset) => {
                 uprintln!("Gyro offset: {}", offset);

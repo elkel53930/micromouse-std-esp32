@@ -12,8 +12,7 @@ pub enum UserOperation {
 
 pub fn hold_ws(ctx: &OperationContext, timeout: Option<u16>) -> UserOperation {
     ctx.command_tx
-        .send(control_thread::Command::SetActivateWallSensor(true))
-        .unwrap();
+        .send(control_thread::Command::SetActivateWallSensor(true));
     FreeRtos::delay_ms(10);
     ctx.led_tx.send((Blue, Some("01"))).unwrap();
     let mut result = UserOperation::TimeOut;
@@ -41,8 +40,7 @@ pub fn hold_ws(ctx: &OperationContext, timeout: Option<u16>) -> UserOperation {
     }
     ctx.led_tx.send((Blue, Some("0"))).unwrap();
     ctx.command_tx
-        .send(control_thread::Command::SetActivateWallSensor(false))
-        .unwrap();
+        .send(control_thread::Command::SetActivateWallSensor(false));
     result
 }
 

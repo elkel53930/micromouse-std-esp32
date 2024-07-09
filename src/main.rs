@@ -36,6 +36,8 @@ mod ui;
 mod vac_fan;
 mod wall_sensor;
 pub use mm_maze::{adachi, maze, path_finder::PathFinder};
+pub mod spin_mpsc;
+use spin_mpsc::{SpinReceiver, SpinSender};
 
 #[allow(unused_imports)]
 use led::LedColor::{Blue, Green, Red};
@@ -75,20 +77,14 @@ pub struct OperationContext {
     pub ods: Arc<Mutex<ods::Ods>>,
     pub led_tx: Sender<led_thread::Command>,
     pub vac_tx: Sender<vac_fan::Command>,
-    pub command_tx: Sender<Command>,
-    pub response_rx: Receiver<control_thread::Response>,
+    pub command_tx: SpinSender<Command>,
+    pub response_rx: SpinReceiver<control_thread::Response>,
     pub log_tx: Sender<log_thread::LogCommand>,
 }
 
 impl OperationContext {
     pub fn wait_response(&self) -> control_thread::Response {
-        let response = match self.response_rx.recv() {
-            Ok(r) => r,
-            Err(e) => {
-                log::error!("Error: {:?}", e);
-                panic!("Error: {:?}", e);
-            }
-        };
+        let response = self.response_rx.recv();
         log::info!("Res : {:?}", response);
         response
     }
@@ -123,8 +119,8 @@ fn main() -> anyhow::Result<()> {
     let mut ctx = OperationContext {
         ods: Arc::new(Mutex::new(ods::Ods::new())),
         led_tx: mpsc::channel().0,
-        command_tx: mpsc::channel().0,
-        response_rx: mpsc::channel().1,
+        command_tx: spin_mpsc::channel().0,
+        response_rx: spin_mpsc::channel().1,
         log_tx: mpsc::channel().0,
         vac_tx: mpsc::channel().0,
     };
@@ -219,7 +215,7 @@ fn app_main(ctx: &OperationContext, config: OperationThreadConfig) -> anyhow::Re
         // Calibrate the gyro
         ctx.led_tx.send((Red, Some("10")))?;
         uprintln!("Start gyro calibration");
-        ctx.command_tx.send(Command::GyroCalibration)?;
+        ctx.command_tx.send(Command::GyroCalibration);
         ctx.wait_response(); // Wait for Done
         let offset = ctx.ods.lock().unwrap().imu.gyro_x_offset;
         uprintln!("Gyro offset: {}", offset);
@@ -251,13 +247,12 @@ fn search_run(ctx: &OperationContext, config: OperationThreadConfig) -> anyhow::
         solver.get_goal().y
     );
 
-    ctx.command_tx.send(Command::ResetController)?;
+    ctx.command_tx.send(Command::ResetController);
     ctx.wait_response(); // Wait for CommandRequest    ctx.command_tx
     ctx.command_tx
-        .send(Command::StartLog(config.search_config.log_interval))?;
+        .send(Command::StartLog(config.search_config.log_interval));
     ctx.wait_response(); // Wait for CommandRequest
-    ctx.command_tx
-        .send(Command::SStart(mm_const::BLOCK_LENGTH))?;
+    ctx.command_tx.send(Command::SStart(mm_const::BLOCK_LENGTH));
     let mut loc = maze::Location::default();
     loc.forward();
     solver.set_location(loc);
@@ -288,9 +283,9 @@ fn search_run(ctx: &OperationContext, config: OperationThreadConfig) -> anyhow::
         let dir = solver.navigate(front, left, right, solver.get_goal());
         if let Err(e) = dir {
             log::warn!("{:?}", e);
-            ctx.command_tx.send(Command::SStop)?;
+            ctx.command_tx.send(Command::SStop);
             ctx.wait_response(); // Wait for CommandRequest
-            ctx.command_tx.send(Command::StopLog)?;
+            ctx.command_tx.send(Command::StopLog);
             ctx.wait_response(); // Wait for CommandRequest
             return Ok(());
         }
@@ -300,16 +295,16 @@ fn search_run(ctx: &OperationContext, config: OperationThreadConfig) -> anyhow::
 
         match dir {
             maze::Direction::Forward => {
-                ctx.command_tx.send(Command::SForward)?;
+                ctx.command_tx.send(Command::SForward);
             }
             maze::Direction::Left => {
-                ctx.command_tx.send(Command::SLeft)?;
+                ctx.command_tx.send(Command::SLeft);
             }
             maze::Direction::Right => {
-                ctx.command_tx.send(Command::SRight)?;
+                ctx.command_tx.send(Command::SRight);
             }
             maze::Direction::Backward => {
-                ctx.command_tx.send(Command::SReturn)?;
+                ctx.command_tx.send(Command::SReturn);
             }
         }
 
@@ -321,7 +316,7 @@ fn search_run(ctx: &OperationContext, config: OperationThreadConfig) -> anyhow::
         // Check if the goal is reached
         if loc.pos == solver.get_goal() {
             log::info!("Goal reached");
-            ctx.command_tx.send(Command::SStop)?;
+            ctx.command_tx.send(Command::SStop);
             ctx.wait_response(); // Wait for CommandRequest
 
             break;
@@ -329,7 +324,7 @@ fn search_run(ctx: &OperationContext, config: OperationThreadConfig) -> anyhow::
         ctx.wait_response(); // Wait for CommandRequest
     }
 
-    ctx.command_tx.send(Command::StopLog)?;
+    ctx.command_tx.send(Command::StopLog);
     ctx.wait_response(); // Wait for CommandRequest
 
     Ok(())
@@ -338,7 +333,7 @@ fn search_run(ctx: &OperationContext, config: OperationThreadConfig) -> anyhow::
 fn test_run(ctx: &OperationContext, config: OperationThreadConfig) -> anyhow::Result<()> {
     for command in config.test_config.test_pattern.iter() {
         log::info!("Sending command: {:?}", command);
-        ctx.command_tx.send(*command)?;
+        ctx.command_tx.send(*command);
         let response = ctx.wait_response(); // Wait for CommandRequest
         match response {
             control_thread::Response::CommandRequest(_) => {}
