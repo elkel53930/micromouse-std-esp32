@@ -95,5 +95,6 @@
 			"i_limit": 2.0,
 			"dead_zone": 0
 		}
-	}
+	},
+	"judge_position": 0.085
 }

@@ -273,7 +273,7 @@ pub(super) fn start(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<(
     go(
         ctx,
         &mut seq,
-        Some(distance - (mm_const::BLOCK_LENGTH - mm_const::JUDGE_POSITION)),
+        Some(distance - (mm_const::BLOCK_LENGTH - ctx.config.judge_position)),
         false,
     )?;
 
@@ -321,7 +321,7 @@ pub(super) fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result
     // constant speed
     led::on(Green)?;
     let mut seq = ConstSequence::new(distance, ctx.config.search_ctrl_cfg.vel_fwd);
-    let nb = Some(distance - (mm_const::BLOCK_LENGTH - mm_const::JUDGE_POSITION));
+    let nb = Some(distance - (mm_const::BLOCK_LENGTH - ctx.config.judge_position));
     go(ctx, &mut seq, nb, true)?;
     {
         let mut ods = ctx.ods.lock().unwrap();

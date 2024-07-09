@@ -21,7 +21,7 @@ use motor_control::turn_right;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::prelude::*;
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -71,6 +71,8 @@ struct ControlThreadConfig {
     battery_cfg: BatteryConfig,
 
     search_ctrl_cfg: SearchControlConfig,
+
+    judge_position: f32,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]

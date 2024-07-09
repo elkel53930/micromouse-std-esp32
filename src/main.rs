@@ -6,7 +6,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::Path;
 use std::sync::{
-    mpsc::{self, Receiver, Sender},
+    mpsc::{self, Sender},
     {Arc, Mutex},
 };
 
