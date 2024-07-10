@@ -249,9 +249,12 @@ fn search_run(ctx: &OperationContext, config: OperationThreadConfig) -> anyhow::
 
     ctx.command_tx.send(Command::ResetController);
     ctx.wait_response(); // Wait for CommandRequest    ctx.command_tx
-    ctx.command_tx
-        .send(Command::StartLog(config.search_config.log_interval));
-    ctx.wait_response(); // Wait for CommandRequest
+
+    if config.search_config.log_interval != 0 {
+        ctx.command_tx
+            .send(Command::StartLog(config.search_config.log_interval));
+        ctx.wait_response(); // Wait for CommandRequest
+    }
     ctx.command_tx.send(Command::SStart(mm_const::BLOCK_LENGTH));
     let mut loc = maze::Location::default();
     loc.forward();
@@ -324,9 +327,10 @@ fn search_run(ctx: &OperationContext, config: OperationThreadConfig) -> anyhow::
         ctx.wait_response(); // Wait for CommandRequest
     }
 
-    ctx.command_tx.send(Command::StopLog);
-    ctx.wait_response(); // Wait for CommandRequest
-
+    if config.search_config.log_interval != 0 {
+        ctx.command_tx.send(Command::StopLog);
+        ctx.wait_response(); // Wait for CommandRequest
+    }
     Ok(())
 }
 

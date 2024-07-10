@@ -36,6 +36,9 @@ struct WsConfig {
     lf_threshold: u16,
     ls_threshold: u16,
 
+    wall_edge_enable: bool,
+    wall_edge_position: f32,
+
     ls_correction_table: Vec<(u16, f32)>,
     rs_correction_table: Vec<(u16, f32)>,
 }
@@ -123,8 +126,8 @@ struct ControlContext {
     ws_ena: bool,
     ws_step: WsStep,
 
-    ls_ref: i16,
-    rs_ref: i16,
+    ls_ref: u16,
+    rs_ref: u16,
 
     theta_pid: pid::Pid,
     omega_pid: pid::Pid,

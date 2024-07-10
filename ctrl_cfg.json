@@ -7,6 +7,8 @@
 		"rf_threshold": 35,
 		"lf_threshold": 35,
 		"ls_threshold": 18,
+		"wall_edge_enable": false,
+		"wall_edge_position": 0.06,
 		"ls_correction_table": [
 			[
 				0, 0
@@ -43,7 +45,7 @@
 		]
 	},
 	"mech_param": {
-		"wheel_diameter": 13.8,
+		"wheel_diameter": 13.6,
 		"gear_ratio": 2.0
 	},
 	"battery_cfg": {
@@ -59,7 +61,7 @@
 		]
 	},
 	"search_ctrl_cfg": {
-		"vel_fwd": 0.35,
+		"vel_fwd": 0.4,
 		"theta_pid": {
 			"p": 3.0,
 			"i": 0.5,

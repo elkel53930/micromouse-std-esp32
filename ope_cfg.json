@@ -3,7 +3,7 @@
     "search_config": {
         "goal_x" : 3,
         "goal_y" : 3,
-        "log_interval": 1
+        "log_interval": 0
     },
 	"test_config": {
 		"test_pattern": [

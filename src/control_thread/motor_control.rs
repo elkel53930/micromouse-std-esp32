@@ -160,11 +160,18 @@ fn go(
 ) -> anyhow::Result<()> {
     let mut need_request = notify_distance.is_some();
 
-    let mut current_position = {
+    let mut current_position;
+    let mut enable_wall_edge_r;
+    let mut enable_wall_edge_l;
+
+    {
         let ods = ctx.ods.lock().unwrap();
-        ods.micromouse.y
+        current_position = ods.micromouse.y;
+        enable_wall_edge_l = ods.micromouse.ls_wall.to_bool() && ctx.config.ws_cfg.wall_edge_enable;
+        enable_wall_edge_r = ods.micromouse.rs_wall.to_bool() && ctx.config.ws_cfg.wall_edge_enable;
     };
     let mut flag = true;
+
     while flag {
         let target_v = match sequence.next(current_position) {
             SequenceResult::Continue(v) => v,
@@ -179,7 +186,20 @@ fn go(
         }
         control_thread::measure(ctx)?;
         let micromouse = control_thread::update(ctx);
+
         current_position = micromouse.y;
+
+        // Wall edge correction
+        if (enable_wall_edge_r) && (micromouse.y > 0.035) && (micromouse.rs < ctx.rs_ref / 3) {
+            enable_wall_edge_r = false;
+            enable_wall_edge_l = false;
+            current_position = ctx.config.ws_cfg.wall_edge_position;
+        }
+        if (enable_wall_edge_l) && (micromouse.y > 0.035) && (micromouse.ls < ctx.ls_ref / 3) {
+            enable_wall_edge_r = false;
+            enable_wall_edge_l = false;
+            current_position = ctx.config.ws_cfg.wall_edge_position;
+        }
 
         let fb_v = ctx.v_pid.update(target_v - micromouse.v);
 
@@ -187,12 +207,12 @@ fn go(
         let ws_error = if enable_wall_pid {
             match (micromouse.ls_wall, micromouse.rs_wall) {
                 (Wall::Present, Wall::Present) => {
-                    let l_error = ctx.ls_ref - micromouse.ls as i16;
-                    let r_error = micromouse.rs as i16 - ctx.rs_ref;
+                    let l_error = ctx.ls_ref as i16 - micromouse.ls as i16;
+                    let r_error = micromouse.rs as i16 - ctx.rs_ref as i16;
                     Some(r_error + l_error)
                 }
-                (Wall::Present, Wall::Absent) => Some(ctx.ls_ref - micromouse.ls as i16),
-                (Wall::Absent, Wall::Present) => Some(micromouse.rs as i16 - ctx.rs_ref),
+                (Wall::Present, Wall::Absent) => Some(ctx.ls_ref as i16 - micromouse.ls as i16),
+                (Wall::Absent, Wall::Present) => Some(micromouse.rs as i16 - ctx.rs_ref as i16),
                 (_, _) => None,
             }
         } else {
@@ -209,11 +229,16 @@ fn go(
                 .update(std::f32::consts::PI / 2.0 - micromouse.theta)
         };
 
-        if ctx.position_reset_count > 500 {
+        // Update MicromouseState
+        {
             let mut ods = ctx.ods.lock().unwrap();
-            ods.micromouse.x = mm_const::BLOCK_LENGTH / 2.0;
-            ods.micromouse.theta = std::f32::consts::PI / 2.0;
-            ctx.position_reset_count = 0;
+            ods.micromouse.y = current_position;
+
+            if ctx.position_reset_count > 500 {
+                ods.micromouse.x = mm_const::BLOCK_LENGTH / 2.0;
+                ods.micromouse.theta = std::f32::consts::PI / 2.0;
+                ctx.position_reset_count = 0;
+            }
         }
 
         // Angle feedback
@@ -305,8 +330,8 @@ pub(super) fn reset_controller(ctx: &mut ControlContext) {
             rs += ods.wall_sensor.rs_raw.unwrap() as i32;
         }
     }
-    ctx.ls_ref = (ls / 100) as i16;
-    ctx.rs_ref = (rs / 100) as i16;
+    ctx.ls_ref = (ls / 100) as u16;
+    ctx.rs_ref = (rs / 100) as u16;
 
     ctx.log_msg(format!("ls_ref: {}, rs_ref: {}", ctx.ls_ref, ctx.rs_ref));
 
