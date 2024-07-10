@@ -3,11 +3,11 @@
 		"led_rise_time": 40,
 		"rs_reference": 415,
 		"ls_reference": 332,
-		"rs_threshold": 18,
+		"rs_threshold": 15,
 		"rf_threshold": 35,
 		"lf_threshold": 35,
 		"ls_threshold": 18,
-		"wall_edge_enable": false,
+		"wall_edge_enable": true,
 		"wall_edge_position": 0.06,
 		"ls_correction_table": [
 			[
