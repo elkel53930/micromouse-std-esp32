@@ -152,11 +152,18 @@ impl VoltageSequence for StopSequence {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum FeedbackMode {
+    X,
+    Theta,
+}
+
 fn go(
     ctx: &mut ControlContext,
     sequence: &mut dyn VoltageSequence,
     notify_distance: Option<f32>,
     enable_wall_pid: bool,
+    feedback_mode: FeedbackMode,
 ) -> anyhow::Result<()> {
     let mut need_request = notify_distance.is_some();
 
@@ -227,8 +234,11 @@ fn go(
             ctx.wall_pid.update(ws_error as f32 / 1000.0)
         } else {
             ctx.position_reset_count = 0;
-            ctx.theta_pid
-                .update(std::f32::consts::PI / 2.0 - micromouse.theta)
+            let error = match feedback_mode {
+                FeedbackMode::X => mm_const::BLOCK_LENGTH / 2.0 - micromouse.x,
+                FeedbackMode::Theta => std::f32::consts::PI / 2.0 - micromouse.theta,
+            };
+            ctx.theta_pid.update(error)
         };
 
         // Update MicromouseState
@@ -275,7 +285,7 @@ pub(super) fn stop(
 ) -> anyhow::Result<()> {
     led::on(Red)?;
     let mut seq = StopSequence::new(distance, ctx.config.search_ctrl_cfg.vel_fwd);
-    go(ctx, &mut seq, None, false)?;
+    go(ctx, &mut seq, None, false, FeedbackMode::Theta)?;
 
     control_thread::measure(ctx)?;
     control_thread::update(ctx);
@@ -302,6 +312,7 @@ pub(super) fn start(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<(
         &mut seq,
         Some(distance - (mm_const::BLOCK_LENGTH - ctx.config.judge_position)),
         false,
+        FeedbackMode::X,
     )?;
 
     {
@@ -349,7 +360,7 @@ pub(super) fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result
     led::on(Green)?;
     let mut seq = ConstSequence::new(distance, ctx.config.search_ctrl_cfg.vel_fwd);
     let nb = Some(distance - (mm_const::BLOCK_LENGTH - ctx.config.judge_position));
-    go(ctx, &mut seq, nb, true)?;
+    go(ctx, &mut seq, nb, true, FeedbackMode::X)?;
     {
         let mut ods = ctx.ods.lock().unwrap();
         ods.micromouse.y -= mm_const::BLOCK_LENGTH;
