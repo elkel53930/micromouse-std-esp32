@@ -1,7 +1,7 @@
 use crate::control_thread::{self, ControlContext};
 use crate::led::{
     self,
-    LedColor::{Green, Red},
+    LedColor::{Blue, Green, Red},
 };
 use crate::mm_const;
 use crate::motor;
@@ -194,11 +194,13 @@ fn go(
             enable_wall_edge_r = false;
             enable_wall_edge_l = false;
             current_position = ctx.config.ws_cfg.wall_edge_position;
+            led::on(Blue)?;
         }
         if (enable_wall_edge_l) && (micromouse.y > 0.035) && (micromouse.ls < ctx.ls_ref / 3) {
             enable_wall_edge_r = false;
             enable_wall_edge_l = false;
             current_position = ctx.config.ws_cfg.wall_edge_position;
+            led::on(Blue)?;
         }
 
         let fb_v = ctx.v_pid.update(target_v - micromouse.v);
@@ -262,7 +264,7 @@ fn go(
         timer_interrupt::sync_ms();
     }
     control_thread::set_motor_duty(ctx, 0.0, 0.0);
-
+    led::off(Blue)?;
     Ok(())
 }
 
