@@ -10,6 +10,8 @@ use crate::pid;
 use crate::timer_interrupt;
 use mm_maze::maze::Wall;
 
+use super::TurnBackDirection;
+
 fn calc_duty(micromouse: &MicromouseState, voltage: f32) -> f32 {
     // battery voltage
     let vb = micromouse.v_batt;
@@ -401,8 +403,14 @@ pub(super) fn turn_right(ctx: &mut ControlContext) -> anyhow::Result<()> {
 pub(super) fn turn_back(ctx: &mut ControlContext) -> anyhow::Result<()> {
     stop(ctx, mm_const::BLOCK_LENGTH / 2.0, false)?;
     nop(ctx, 0.1)?;
-    pivot(ctx, -std::f32::consts::PI / 2.0, 0.2)?;
-    pivot(ctx, -std::f32::consts::PI / 2.0, 0.2)?;
+    let angle = if ctx.turn_back_direction == TurnBackDirection::Left {
+        std::f32::consts::PI / 2.0
+    } else {
+        -std::f32::consts::PI / 2.0
+    };
+    ctx.turn_back_direction = ctx.turn_back_direction.flip();
+    pivot(ctx, angle, 0.2)?;
+    pivot(ctx, angle, 0.2)?;
     nop(ctx, 0.1)?;
     forward(ctx, mm_const::BLOCK_LENGTH)
 }

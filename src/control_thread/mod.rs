@@ -106,9 +106,25 @@ impl LogInfo {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Copy)]
 enum WsStep {
     Side,
     Front,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Copy)]
+enum TurnBackDirection {
+    Left,
+    Right,
+}
+
+impl TurnBackDirection {
+    pub fn flip(&self) -> Self {
+        match self {
+            TurnBackDirection::Left => TurnBackDirection::Right,
+            TurnBackDirection::Right => TurnBackDirection::Left,
+        }
+    }
 }
 
 struct ControlContext {
@@ -143,6 +159,8 @@ struct ControlContext {
     previous_time: u32,
 
     position_reset_count: u16,
+
+    turn_back_direction: TurnBackDirection,
 }
 
 impl ControlContext {
@@ -174,6 +192,7 @@ impl ControlContext {
             req_id: 0,
             previous_time: 0,
             position_reset_count: 0,
+            turn_back_direction: TurnBackDirection::Left,
         }
     }
     pub fn start_log(&mut self, interval: u8) {
