@@ -1,6 +1,6 @@
 {
 	"ws_cfg": {
-		"led_rise_time": 40,
+		"led_rise_time": 80,
 		"rs_reference": 415,
 		"ls_reference": 332,
 		"rs_threshold": 15,
@@ -91,7 +91,7 @@
 			"dead_zone": 0
 		},
 		"wall_pid": {
-			"p": 10,
+			"p": 5,
 			"i": 0.2,
 			"d": 0,
 			"i_limit": 2.0,
