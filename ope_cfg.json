@@ -1,7 +1,7 @@
 {
     "mode": "Search",
     "search_config": {
-        "goal_x" : 3,
+        "goal_x" : 10,
         "goal_y" : 3,
         "log_interval": 0
     },
