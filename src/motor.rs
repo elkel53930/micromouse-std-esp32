@@ -6,8 +6,8 @@ use esp_idf_hal::peripherals::Peripherals;
 // So, we need to use the esp-idf-sys crate directly.
 use esp_idf_sys::{
     mcpwm_config_t, mcpwm_counter_type_t_MCPWM_UP_COUNTER, mcpwm_duty_type_t_MCPWM_DUTY_MODE_0,
-    mcpwm_generator_t_MCPWM_GEN_A, mcpwm_generator_t_MCPWM_GEN_B, mcpwm_gpio_init, mcpwm_init,
-    mcpwm_io_signals_t_MCPWM0A, mcpwm_io_signals_t_MCPWM0B, mcpwm_io_signals_t_MCPWM1A,
+    mcpwm_generator_t_MCPWM_GEN_A, mcpwm_generator_t_MCPWM_GEN_B, mcpwm_get_duty, mcpwm_gpio_init,
+    mcpwm_init, mcpwm_io_signals_t_MCPWM0A, mcpwm_io_signals_t_MCPWM0B, mcpwm_io_signals_t_MCPWM1A,
     mcpwm_io_signals_t_MCPWM1B, mcpwm_set_duty, mcpwm_timer_t_MCPWM_TIMER_0,
     mcpwm_timer_t_MCPWM_TIMER_1, mcpwm_unit_t_MCPWM_UNIT_0, mcpwm_unit_t_MCPWM_UNIT_1,
 };
@@ -178,5 +178,25 @@ pub fn enable(en: bool) {
         } else {
             SLEEP.as_mut().unwrap().set_low().unwrap();
         }
+    }
+}
+
+pub fn get_l() -> f32 {
+    unsafe {
+        mcpwm_get_duty(
+            mcpwm_unit_t_MCPWM_UNIT_0,
+            mcpwm_timer_t_MCPWM_TIMER_0,
+            mcpwm_generator_t_MCPWM_GEN_A,
+        )
+    }
+}
+
+pub fn get_r() -> f32 {
+    unsafe {
+        mcpwm_get_duty(
+            mcpwm_unit_t_MCPWM_UNIT_1,
+            mcpwm_timer_t_MCPWM_TIMER_1,
+            mcpwm_generator_t_MCPWM_GEN_A,
+        )
     }
 }

@@ -594,6 +594,11 @@ impl ConsoleCommand for CmdMot {
             crate::motor::enable(true);
         }
 
+        let act_duty_l = crate::motor::get_l();
+        let act_duty_r = crate::motor::get_r();
+
+        uprintln!("Left: {}%, Right: {}%", act_duty_l, act_duty_r);
+
         Ok(())
     }
 

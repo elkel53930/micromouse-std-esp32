@@ -7,7 +7,7 @@ use crate::mm_const;
 use crate::motor;
 use crate::ods::MicromouseState;
 use crate::pid;
-use crate::timer_interrupt;
+use crate::timer_interrupt::{self, sync_ms};
 use mm_maze::maze::Wall;
 
 use super::TurnBackDirection;
@@ -231,7 +231,7 @@ fn go(
         };
 
         let fb_theta = if let Some(ws_error) = ws_error {
-            let ws_error = ws_error.max(-40).min(40);
+            let ws_error = ws_error.max(-20).min(20);
             ctx.position_reset_count += 1;
             ctx.wall_pid.update(ws_error as f32 / 1000.0)
         } else {
@@ -335,7 +335,6 @@ pub(super) fn reset_controller(ctx: &mut ControlContext) {
     ctx.ws_ena = true;
     let mut ls: i32 = 0;
     let mut rs: i32 = 0;
-    control_thread::measure(ctx).unwrap();
     for _ in 0..100 {
         control_thread::measure(ctx).unwrap();
         {
@@ -344,6 +343,7 @@ pub(super) fn reset_controller(ctx: &mut ControlContext) {
             ls += ods.wall_sensor.ls_raw.unwrap() as i32;
             rs += ods.wall_sensor.rs_raw.unwrap() as i32;
         }
+        sync_ms();
     }
     ctx.ls_ref = (ls / 100) as u16;
     ctx.rs_ref = (rs / 100) as u16;
