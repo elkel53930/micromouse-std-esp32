@@ -8,7 +8,6 @@ use crate::motor;
 use crate::ods::MicromouseState;
 use crate::pid;
 use crate::timer_interrupt::{self, sync_ms};
-use mm_maze::maze::Wall;
 
 use super::TurnBackDirection;
 
@@ -172,12 +171,16 @@ fn go(
     let mut current_position;
     let mut enable_wall_edge_r;
     let mut enable_wall_edge_l;
+    let enalbe_wall_pid_r;
+    let enalbe_wall_pid_l;
 
     {
         let ods = ctx.ods.lock().unwrap();
         current_position = ods.micromouse.y;
         enable_wall_edge_l = ods.micromouse.ls_wall.to_bool() && ctx.config.ws_cfg.wall_edge_enable;
         enable_wall_edge_r = ods.micromouse.rs_wall.to_bool() && ctx.config.ws_cfg.wall_edge_enable;
+        enalbe_wall_pid_l = enable_wall_edge_l && enable_wall_pid;
+        enalbe_wall_pid_r = enable_wall_edge_r && enable_wall_pid;
     };
     let mut flag = true;
 
@@ -215,25 +218,21 @@ fn go(
         let fb_v = ctx.v_pid.update(target_v - micromouse.v);
 
         // Set target theta by wall sensor
-        let ws_error = if enable_wall_pid {
-            match (micromouse.ls_wall, micromouse.rs_wall) {
-                (Wall::Present, Wall::Present) => {
-                    let l_error = ctx.ls_ref as i16 - micromouse.ls as i16;
-                    let r_error = micromouse.rs as i16 - ctx.rs_ref as i16;
-                    Some(r_error + l_error)
-                }
-                (Wall::Present, Wall::Absent) => Some(ctx.ls_ref as i16 - micromouse.ls as i16),
-                (Wall::Absent, Wall::Present) => Some(micromouse.rs as i16 - ctx.rs_ref as i16),
-                (_, _) => None,
+        let ws_error = match (enalbe_wall_pid_l, enalbe_wall_pid_r) {
+            (true, true) => {
+                let l_error = ctx.ls_ref as i16 - micromouse.ls as i16;
+                let r_error = micromouse.rs as i16 - ctx.rs_ref as i16;
+                Some(r_error + l_error)
             }
-        } else {
-            None
+            (true, false) => Some(ctx.ls_ref as i16 - micromouse.ls as i16),
+            (false, true) => Some(micromouse.rs as i16 - ctx.rs_ref as i16),
+            (_, _) => None,
         };
 
         let fb_theta = if let Some(ws_error) = ws_error {
-            let ws_error = ws_error.max(-20).min(20);
+            let ws_error = ws_error.max(-200).min(200);
             ctx.position_reset_count += 1;
-            ctx.wall_pid.update(ws_error as f32 / 1000.0)
+            ctx.wall_pid.update(ws_error as f32 / 100.0)
         } else {
             ctx.position_reset_count = 0;
             let error = match feedback_mode {
@@ -247,6 +246,7 @@ fn go(
         {
             let mut ods = ctx.ods.lock().unwrap();
             ods.micromouse.y = current_position;
+            ods.micromouse.wall_error = ws_error.unwrap_or(0);
 
             if ctx.position_reset_count > 500 {
                 ods.micromouse.x = mm_const::BLOCK_LENGTH / 2.0;

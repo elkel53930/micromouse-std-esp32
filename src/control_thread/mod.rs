@@ -471,6 +471,7 @@ fn update(ctx: &mut ControlContext) -> MicromouseState {
     ods.micromouse.rs_wall = ods.wall_sensor.rs.unwrap_or(Wall::Absent);
 
     ods.micromouse.delta_step = delta_step;
+    ods.micromouse.wall_error = 0;
 
     ods.micromouse.clone()
 }

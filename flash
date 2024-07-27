@@ -4,7 +4,7 @@ set -e
 cargo fmt
 cargo build
 esptool.py erase_flash
-cargo espflash flash --partition-table partitions.csv --baud 3000000
+cargo espflash flash --partition-table partitions.csv --baud 921600
 echo "Waiting for the device to reboot"
 sleep 1
 ./script/ft ctrl_cfg.json ctrl_cfg.json
