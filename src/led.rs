@@ -1,9 +1,9 @@
-use esp_idf_hal::gpio::{Gpio19, Gpio20, Gpio21, Output, PinDriver};
+use esp_idf_hal::gpio::{Gpio17, Gpio19, Gpio21, Output, PinDriver};
 use esp_idf_hal::peripheral::Peripheral;
 use esp_idf_hal::peripherals::Peripherals;
 
-static mut LED_GREEN: Option<PinDriver<'_, Gpio19, Output>> = None;
-static mut LED_BLUE: Option<PinDriver<'_, Gpio20, Output>> = None;
+static mut LED_GREEN: Option<PinDriver<'_, Gpio17, Output>> = None;
+static mut LED_BLUE: Option<PinDriver<'_, Gpio19, Output>> = None;
 static mut LED_RED: Option<PinDriver<'_, Gpio21, Output>> = None;
 
 #[derive(Debug)]
@@ -16,10 +16,10 @@ pub enum LedColor {
 pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
     unsafe {
         LED_GREEN = Some(PinDriver::output(
-            peripherals.pins.gpio19.clone_unchecked(),
+            peripherals.pins.gpio17.clone_unchecked(),
         )?);
         LED_BLUE = Some(PinDriver::output(
-            peripherals.pins.gpio20.clone_unchecked(),
+            peripherals.pins.gpio19.clone_unchecked(),
         )?);
         LED_RED = Some(PinDriver::output(
             peripherals.pins.gpio21.clone_unchecked(),

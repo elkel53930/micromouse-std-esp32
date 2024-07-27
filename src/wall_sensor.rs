@@ -19,80 +19,28 @@ struct WallSensorHardware<'a> {
 
 static mut HARDWARE: Option<WallSensorHardware<'static>> = None;
 
-pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
-    unsafe {
-        let ad = AdcDriver::new(peripherals.adc1.clone_unchecked(), &Config::default())?;
-        let ls = AdcChannelDriver::new(peripherals.pins.gpio1.clone_unchecked())?;
-        let lf = AdcChannelDriver::new(peripherals.pins.gpio2.clone_unchecked())?;
-        let rf = AdcChannelDriver::new(peripherals.pins.gpio3.clone_unchecked())?;
-        let rs = AdcChannelDriver::new(peripherals.pins.gpio4.clone_unchecked())?;
-        let batt = AdcChannelDriver::new(peripherals.pins.gpio5.clone_unchecked())?;
-        let sel0 = PinDriver::output(peripherals.pins.gpio15.clone_unchecked())?;
-        let sel1 = PinDriver::output(peripherals.pins.gpio16.clone_unchecked())?;
-        let ena = PinDriver::output(peripherals.pins.gpio14.clone_unchecked())?;
-        HARDWARE = Some(WallSensorHardware {
-            ad: ad,
-            ls: ls,
-            lf: lf,
-            rf: rf,
-            rs: rs,
-            ena: ena,
-            sel0: sel0,
-            sel1: sel1,
-            batt: batt,
-        });
-    }
+pub fn init(_peripherals: &mut Peripherals) -> anyhow::Result<()> {
     Ok(())
 }
 
 pub fn read_ls() -> anyhow::Result<u16> {
-    #[allow(unused_mut)]
-    let mut result;
-    unsafe {
-        let hw = HARDWARE.as_mut().unwrap();
-        result = hw.ad.read(&mut hw.ls)?;
-    }
-    Ok(result)
+    Ok(0)
 }
 
 pub fn read_lf() -> anyhow::Result<u16> {
-    #[allow(unused_mut)]
-    let mut result;
-    unsafe {
-        let hw = HARDWARE.as_mut().unwrap();
-        result = hw.ad.read(&mut hw.lf)?;
-    }
-    Ok(result)
+    Ok(0)
 }
 
 pub fn read_rf() -> anyhow::Result<u16> {
-    #[allow(unused_mut)]
-    let mut result;
-    unsafe {
-        let hw = HARDWARE.as_mut().unwrap();
-        result = hw.ad.read(&mut hw.rf)?;
-    }
-    Ok(result)
+    Ok(0)
 }
 
 pub fn read_rs() -> anyhow::Result<u16> {
-    #[allow(unused_mut)]
-    let mut result;
-    unsafe {
-        let hw = HARDWARE.as_mut().unwrap();
-        result = hw.ad.read(&mut hw.rs)?;
-    }
-    Ok(result)
+    Ok(0)
 }
 
 pub fn read_batt() -> anyhow::Result<u16> {
-    #[allow(unused_mut)]
-    let mut result;
-    unsafe {
-        let hw = HARDWARE.as_mut().unwrap();
-        result = hw.ad.read(&mut hw.batt)?;
-    }
-    Ok(result)
+    Ok(0)
 }
 
 /*
@@ -103,48 +51,21 @@ pub fn read_batt() -> anyhow::Result<u16> {
       0    0   RS(D4)
 */
 pub fn on_ls() -> anyhow::Result<()> {
-    unsafe {
-        let hw = HARDWARE.as_mut().unwrap();
-        hw.sel0.set_high()?;
-        hw.sel1.set_low()?;
-        hw.ena.set_high()?;
-    }
     Ok(())
 }
 
 pub fn on_lf() -> anyhow::Result<()> {
-    unsafe {
-        let hw = HARDWARE.as_mut().unwrap();
-        hw.sel0.set_high()?;
-        hw.sel1.set_high()?;
-        hw.ena.set_high()?;
-    }
     Ok(())
 }
 
 pub fn on_rf() -> anyhow::Result<()> {
-    unsafe {
-        let hw = HARDWARE.as_mut().unwrap();
-        hw.sel0.set_low()?;
-        hw.sel1.set_high()?;
-        hw.ena.set_high()?;
-    }
     Ok(())
 }
 
 pub fn on_rs() -> anyhow::Result<()> {
-    unsafe {
-        let hw = HARDWARE.as_mut().unwrap();
-        hw.sel0.set_low()?;
-        hw.sel1.set_low()?;
-        hw.ena.set_high()?;
-    }
     Ok(())
 }
 
 pub fn off() -> anyhow::Result<()> {
-    unsafe {
-        HARDWARE.as_mut().unwrap().ena.set_low()?;
-    }
     Ok(())
 }

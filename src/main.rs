@@ -151,8 +151,12 @@ fn main() -> anyhow::Result<()> {
     fram_logger::set_log(log::LevelFilter::Info);
     fram_logger::set_panic_handler();
     fram_logger::move_fram_to_flash();
+
+    println!("imu::init()");
     imu::init(&mut peripherals)?;
+    println!("encoder::init()");
     encoder::init(&mut peripherals)?;
+    println!("timer_interrupt::init()");
     timer_interrupt::init(&mut peripherals)?;
 
     // Initialize control thread
@@ -161,16 +165,19 @@ fn main() -> anyhow::Result<()> {
         control_thread::init(&ctx.ods, log_tx.clone())?;
 
     // You can use println up to before uart:init.
-    FreeRtos::delay_ms(100);
+    FreeRtos::delay_ms(500);
     uart::init(&mut peripherals)?;
     // After uart:init, you can use uprintln.
+    uprint!("Hello, UART world!\n");
 
     let mut config_failure = false;
     if let Err(e) = config_success {
-        uprintln!("Config error: {:?}", e);
-        log::error!("Config error: {:?}", e);
+        uprintln!("Ope config error: {:?}", e);
+        log::error!("Ope config error: {:?}", e);
         config_failure = true;
     }
+
+    uprintln!("Read operation configurations");
 
     // Read config
     fn read() -> anyhow::Result<OperationThreadConfig> {
@@ -184,7 +191,7 @@ fn main() -> anyhow::Result<()> {
     let config = match read() {
         Ok(c) => c,
         Err(e) => {
-            uprintln!("❌Failed to read config: {:?}", e);
+            uprintln!("❌Failed to read ope config: {:?}", e);
             config_failure = true;
             OperationThreadConfig::default()
         }
@@ -209,24 +216,24 @@ fn app_main(ctx: &OperationContext, config: OperationThreadConfig) -> anyhow::Re
 
     let mut console = console::Console::new();
 
-    ctx.led_tx.send((Blue, Some("0")))?;
-    if ui::hold_ws(&ctx, Some(500)) == ui::UserOperation::HoldR {
-        ui::wait(&ctx, ui::UserOperation::HoldL);
-        // Calibrate the gyro
-        ctx.led_tx.send((Red, Some("10")))?;
-        uprintln!("Start gyro calibration");
-        ctx.command_tx.send(Command::GyroCalibration);
-        ctx.wait_response(); // Wait for Done
-        let offset = ctx.ods.lock().unwrap().imu.gyro_x_offset;
-        uprintln!("Gyro offset: {}", offset);
-
-        ui::countdown(&ctx);
-        if config.mode == OperationMode::Search {
-            search_run(&ctx, config)?;
-        } else {
-            test_run(&ctx, config)?;
-        }
-    }
+    //    ctx.led_tx.send((Blue, Some("0")))?;
+    //    if ui::hold_ws(&ctx, Some(500)) == ui::UserOperation::HoldR {
+    //        ui::wait(&ctx, ui::UserOperation::HoldL);
+    //        // Calibrate the gyro
+    //        ctx.led_tx.send((Red, Some("10")))?;
+    //        uprintln!("Start gyro calibration");
+    //        ctx.command_tx.send(Command::GyroCalibration);
+    //        ctx.wait_response(); // Wait for Done
+    //        let offset = ctx.ods.lock().unwrap().imu.gyro_x_offset;
+    //        uprintln!("Gyro offset: {}", offset);
+    //
+    //        ui::countdown(&ctx);
+    //        if config.mode == OperationMode::Search {
+    //            search_run(&ctx, config)?;
+    //        } else {
+    //            test_run(&ctx, config)?;
+    //        }
+    //    }
     return console.run(&ctx);
 }
 

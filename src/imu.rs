@@ -1,7 +1,7 @@
 use embedded_hal::spi::MODE_3;
 
 use esp_idf_hal::delay::FreeRtos;
-use esp_idf_hal::gpio::{Gpio9, Output, PinDriver};
+use esp_idf_hal::gpio::{Gpio8, Output, PinDriver};
 use esp_idf_hal::peripheral::Peripheral;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_hal::spi::{self, SpiDeviceDriver, SpiDriver, SpiDriverConfig};
@@ -9,7 +9,7 @@ use esp_idf_hal::units::FromValueType;
 
 struct ImuHardware<'a> {
     spi: SpiDeviceDriver<'static, SpiDriver<'static>>,
-    chip_select: PinDriver<'a, Gpio9, Output>,
+    chip_select: PinDriver<'a, Gpio8, Output>,
 }
 
 static mut HARDWARE: Option<ImuHardware<'static>> = None;
@@ -42,10 +42,10 @@ fn transfer(read: &mut [u8], write: &[u8]) -> anyhow::Result<()> {
 pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
     unsafe {
         let spi = peripherals.spi2.clone_unchecked();
-        let sclk = peripherals.pins.gpio8.clone_unchecked();
-        let sdo = peripherals.pins.gpio7.clone_unchecked();
-        let sdi = peripherals.pins.gpio6.clone_unchecked();
-        let cs = peripherals.pins.gpio9.clone_unchecked();
+        let sclk = peripherals.pins.gpio7.clone_unchecked();
+        let sdo = peripherals.pins.gpio6.clone_unchecked();
+        let sdi = peripherals.pins.gpio5.clone_unchecked();
+        let cs = peripherals.pins.gpio8.clone_unchecked();
         let config = spi::config::Config::new()
             .baudrate(5.MHz().into())
             .data_mode(MODE_3);
@@ -54,7 +54,7 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
             sclk,
             sdo,
             Some(sdi),
-            None as Option<Gpio9>,
+            None as Option<Gpio8>,
             &SpiDriverConfig::new(),
             &config,
         )?;

@@ -525,7 +525,7 @@ pub fn init(
     let config = match read() {
         Ok(c) => c,
         Err(e) => {
-            println!("❌Failed to read config: {:?}", e);
+            println!("❌Failed to read ctrl config: {:?}", e);
             config_success = Err(e);
             ControlThreadConfig::default()
         }
@@ -533,6 +533,7 @@ pub fn init(
 
     println!("{:?}", config);
 
+    println!("Clone ods.");
     let mut ctx = ControlContext::new(ods.clone(), log_tx, tx, rx, config);
 
     // Spawn the control thread
@@ -545,6 +546,7 @@ pub fn init(
     }
     .set()?;
 
+    println!("Spawn control thread.");
     std::thread::Builder::new().spawn(move || -> anyhow::Result<()> {
         wall_sensor::off()?;
         loop {
@@ -625,6 +627,8 @@ pub fn init(
             sync_ms()
         }
     })?;
+
+    println!("Spawn done.");
 
     Ok((tx_for_ope, rx_for_ope, config_success))
 }

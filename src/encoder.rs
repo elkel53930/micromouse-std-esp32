@@ -1,7 +1,7 @@
 use embedded_hal::spi::MODE_1;
 
 use esp_idf_hal::delay::FreeRtos;
-use esp_idf_hal::gpio::{Gpio10, Gpio46, Output, PinDriver};
+use esp_idf_hal::gpio::{Gpio12, Gpio46, Output, PinDriver};
 use esp_idf_hal::peripheral::Peripheral;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_hal::spi::{self, *};
@@ -9,7 +9,7 @@ use esp_idf_hal::units::FromValueType;
 
 static mut SPI: Option<SpiDeviceDriver<'static, SpiDriver<'static>>> = None;
 static mut CS_R: Option<PinDriver<'_, Gpio46, Output>> = None;
-static mut CS_L: Option<PinDriver<'_, Gpio10, Output>> = None;
+static mut CS_L: Option<PinDriver<'_, Gpio12, Output>> = None;
 
 // Transfer data to and from the encoder R
 fn transfer_r(read: &mut [u8], write: &[u8]) -> anyhow::Result<()> {
@@ -41,10 +41,10 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
     unsafe {
         let spi = peripherals.spi3.clone_unchecked();
         let sclk = peripherals.pins.gpio11.clone_unchecked();
-        let sda = peripherals.pins.gpio13.clone_unchecked();
-        let sdi = peripherals.pins.gpio12.clone_unchecked();
+        let sda = peripherals.pins.gpio9.clone_unchecked();
+        let sdi = peripherals.pins.gpio10.clone_unchecked();
         let cs_r = peripherals.pins.gpio46.clone_unchecked();
-        let cs_l = peripherals.pins.gpio10.clone_unchecked();
+        let cs_l = peripherals.pins.gpio12.clone_unchecked();
 
         let config = spi::config::Config::new()
             .baudrate(10.MHz().into())
@@ -54,7 +54,7 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
             sclk,
             sda,
             Some(sdi),
-            None as Option<Gpio10>,
+            None as Option<Gpio12>,
             &SpiDriverConfig::new(),
             &config,
         )?;

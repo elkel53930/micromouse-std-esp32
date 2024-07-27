@@ -1,4 +1,4 @@
-use esp_idf_hal::gpio::{Gpio38, Output, PinDriver};
+use esp_idf_hal::gpio::{Gpio33, Output, PinDriver};
 use esp_idf_hal::peripheral::Peripheral;
 use esp_idf_hal::peripherals::Peripherals;
 
@@ -14,12 +14,12 @@ use esp_idf_sys::{
 
 // SLEEP pin for motor drivers
 // This pin is shared between the three motor drivers
-static mut SLEEP: Option<PinDriver<'_, Gpio38, Output>> = None;
+static mut SLEEP: Option<PinDriver<'_, Gpio33, Output>> = None;
 
 pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
     unsafe {
         SLEEP = Some(PinDriver::output(
-            peripherals.pins.gpio38.clone_unchecked(),
+            peripherals.pins.gpio33.clone_unchecked(),
         )?);
         SLEEP.as_mut().unwrap().set_low()?;
     }
