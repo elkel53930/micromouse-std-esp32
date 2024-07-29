@@ -1,3 +1,4 @@
+use crate::buzzer;
 use crate::control_thread;
 use crate::led::LedColor::*;
 use crate::ods;
@@ -54,6 +55,7 @@ impl Console {
             Box::new(CmdPanic {}),
             Box::new(CmdMot {}),
             Box::new(CmdVac {}),
+            Box::new(CmdBuzz {}),
             Box::new(file::CmdFt {}),
             Box::new(file::CmdDl {}),
             Box::new(file::CmdShow {}),
@@ -648,5 +650,35 @@ impl ConsoleCommand for CmdVac {
 
     fn name(&self) -> &str {
         "vac"
+    }
+}
+
+struct CmdBuzz {}
+
+impl ConsoleCommand for CmdBuzz {
+    fn execute(&self, args: &[&str], ctx: &OperationContext) -> anyhow::Result<()> {
+        let freq = if args.len() == 1 {
+            args[0].parse::<i32>()?
+        } else if args.len() == 0 {
+            0
+        } else {
+            return Err(anyhow::anyhow!("Invalid argument"));
+        };
+
+        for scale in [buzzer::Scale::Do, buzzer::Scale::Re, buzzer::Scale::Mi, buzzer::Scale::Fa, buzzer::Scale::So, buzzer::Scale::La, buzzer::Scale::Si] {
+            for _ in 0..500{
+                buzzer::on(scale)?;
+                FreeRtos::delay_ms(1);
+            }
+        }
+        buzzer::off()?;
+
+        Ok(())
+    }
+
+    fn hint(&self) {}
+
+    fn name(&self) -> &str {
+        "buzz"
     }
 }

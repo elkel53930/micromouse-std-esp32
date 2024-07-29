@@ -38,6 +38,7 @@ mod wall_sensor;
 pub use mm_maze::{adachi, maze, path_finder::PathFinder};
 pub mod spin_mpsc;
 use spin_mpsc::{SpinReceiver, SpinSender};
+pub mod buzzer;
 
 #[allow(unused_imports)]
 use led::LedColor::{Blue, Green, Red};
@@ -151,6 +152,7 @@ fn main() -> anyhow::Result<()> {
     fram_logger::set_log(log::LevelFilter::Info);
     fram_logger::set_panic_handler();
     fram_logger::move_fram_to_flash();
+    buzzer::init(&mut peripherals)?;
 
     println!("imu::init()");
     imu::init(&mut peripherals)?;
