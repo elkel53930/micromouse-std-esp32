@@ -82,6 +82,8 @@ impl Console {
         log::info!("Console started.");
         uprintln!("Welcome to ExtraICE console!");
 
+        buzzer::sound("gba")?;
+
         loop {
             ctx.led_tx.send((Green, Some("10")))?;
             let mut buf = [0u8; 256];
@@ -657,21 +659,15 @@ struct CmdBuzz {}
 
 impl ConsoleCommand for CmdBuzz {
     fn execute(&self, args: &[&str], ctx: &OperationContext) -> anyhow::Result<()> {
-        let freq = if args.len() == 1 {
-            args[0].parse::<i32>()?
+        let melodu = if args.len() == 1 {
+            args[0]
         } else if args.len() == 0 {
-            0
+            "g_gC__D_EC__a_gC__C__C"
         } else {
             return Err(anyhow::anyhow!("Invalid argument"));
         };
 
-        for scale in [buzzer::Scale::Do, buzzer::Scale::Re, buzzer::Scale::Mi, buzzer::Scale::Fa, buzzer::Scale::So, buzzer::Scale::La, buzzer::Scale::Si] {
-            for _ in 0..500{
-                buzzer::on(scale)?;
-                FreeRtos::delay_ms(1);
-            }
-        }
-        buzzer::off()?;
+        buzzer::sound(melodu)?;
 
         Ok(())
     }

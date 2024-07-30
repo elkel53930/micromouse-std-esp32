@@ -1,3 +1,4 @@
+use crate::buzzer;
 use crate::timer_interrupt::get_time;
 use anyhow::Ok;
 use esp_idf_hal::delay::BLOCK;
@@ -156,6 +157,7 @@ fn fram_panic_handler(info: &PanicInfo) {
 
     loop {
         esp_idf_hal::delay::FreeRtos::delay_ms(1000);
+        buzzer::sound("c_c");
     }
 }
 
