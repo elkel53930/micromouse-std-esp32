@@ -85,7 +85,6 @@ impl Console {
         buzzer::sound("gba")?;
 
         loop {
-            ctx.led_tx.send((Green, Some("10")))?;
             let mut buf = [0u8; 256];
             let mut args = [""; 16];
             let mut arg_num = 0;

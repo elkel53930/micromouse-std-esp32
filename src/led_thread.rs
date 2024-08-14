@@ -7,10 +7,8 @@ pub type Command = (LedColor, Option<&'static str>);
 
 struct LedPattern {
     red_step: usize,
-    green_step: usize,
     blue_step: usize,
     red_pattern: Option<&'static str>,
-    green_pattern: Option<&'static str>,
     blue_pattern: Option<&'static str>,
 }
 
@@ -20,10 +18,8 @@ pub fn init() -> anyhow::Result<Sender<Command>> {
     thread::spawn(move || {
         let mut ctx: LedPattern = LedPattern {
             red_step: 0,
-            green_step: 0,
             blue_step: 0,
             red_pattern: None,
-            green_pattern: None,
             blue_pattern: None,
         };
         loop {
@@ -31,10 +27,6 @@ pub fn init() -> anyhow::Result<Sender<Command>> {
             loop {
                 match rx.try_recv() {
                     Ok(cmd) => match cmd.0 {
-                        LedColor::Green => {
-                            ctx.green_pattern = cmd.1;
-                            ctx.green_step = 0;
-                        }
                         LedColor::Blue => {
                             ctx.blue_pattern = cmd.1;
                             ctx.blue_step = 0;
@@ -53,8 +45,6 @@ pub fn init() -> anyhow::Result<Sender<Command>> {
 
             // Update the LEDs
             ctx.red_step = pattern_internal(ctx.red_pattern, ctx.red_step, LedColor::Red).unwrap();
-            ctx.green_step =
-                pattern_internal(ctx.green_pattern, ctx.green_step, LedColor::Green).unwrap();
             ctx.blue_step =
                 pattern_internal(ctx.blue_pattern, ctx.blue_step, LedColor::Blue).unwrap();
             FreeRtos::delay_ms(100);

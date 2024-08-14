@@ -53,8 +53,8 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
     unsafe {
         let i2c = i2c_master_init(
             peripherals.i2c0.clone_unchecked(),
-            peripherals.pins.gpio14.clone_unchecked().into(),
-            peripherals.pins.gpio13.clone_unchecked().into(),
+            peripherals.pins.gpio20.clone_unchecked().into(),
+            peripherals.pins.gpio19.clone_unchecked().into(),
             1000.kHz().into(),
         )?;
         I2C = Some(i2c);

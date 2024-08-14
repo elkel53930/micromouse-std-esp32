@@ -41,7 +41,7 @@ use spin_mpsc::{SpinReceiver, SpinSender};
 pub mod buzzer;
 
 #[allow(unused_imports)]
-use led::LedColor::{Blue, Green, Red};
+use led::LedColor::{Blue, Red};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Copy)]
 enum OperationMode {
@@ -242,7 +242,6 @@ fn app_main(ctx: &OperationContext, config: OperationThreadConfig) -> anyhow::Re
 fn search_run(ctx: &OperationContext, config: OperationThreadConfig) -> anyhow::Result<()> {
     ctx.led_tx.send((Red, None))?;
     ctx.led_tx.send((Blue, None))?;
-    ctx.led_tx.send((Green, None))?;
     let mut maze = maze::Maze::new(16, 16);
     maze.set_goal(maze::Position::new(
         config.search_config.goal_x,

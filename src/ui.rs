@@ -45,7 +45,6 @@ pub fn hold_ws(ctx: &OperationContext, timeout: Option<u16>) -> UserOperation {
 }
 
 pub fn wait(ctx: &OperationContext, expected: UserOperation) {
-    ctx.led_tx.send((Green, Some("01"))).unwrap();
     assert!(expected == UserOperation::HoldL || expected == UserOperation::HoldR);
     loop {
         let actual = hold_ws(ctx, None);
@@ -59,15 +58,11 @@ pub fn countdown(ctx: &OperationContext) {
     // Countdown
     ctx.led_tx.send((Red, Some("0"))).unwrap();
     ctx.led_tx.send((Blue, Some("0"))).unwrap();
-    ctx.led_tx.send((Green, Some("1"))).unwrap();
     FreeRtos::delay_ms(1000);
-    ctx.led_tx.send((Green, Some("0"))).unwrap();
     ctx.led_tx.send((Blue, Some("1"))).unwrap();
     FreeRtos::delay_ms(1000);
-    ctx.led_tx.send((Blue, Some("0"))).unwrap();
     ctx.led_tx.send((Red, Some("1"))).unwrap();
     FreeRtos::delay_ms(1000);
     ctx.led_tx.send((Red, None)).unwrap();
     ctx.led_tx.send((Blue, None)).unwrap();
-    ctx.led_tx.send((Green, None)).unwrap();
 }

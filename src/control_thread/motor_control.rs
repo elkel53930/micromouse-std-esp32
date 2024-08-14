@@ -1,7 +1,7 @@
 use crate::control_thread::{self, ControlContext};
 use crate::led::{
     self,
-    LedColor::{Blue, Green, Red},
+    LedColor::{Blue, Red},
 };
 use crate::mm_const;
 use crate::motor;
@@ -359,7 +359,6 @@ pub(super) fn reset_controller(ctx: &mut ControlContext) {
 
 pub(super) fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result<()> {
     // constant speed
-    led::on(Green)?;
     let mut seq = ConstSequence::new(distance, ctx.config.search_ctrl_cfg.vel_fwd);
     let nb = Some(distance - (mm_const::BLOCK_LENGTH - ctx.config.judge_position));
     go(ctx, &mut seq, nb, true, FeedbackMode::X)?;
@@ -367,7 +366,6 @@ pub(super) fn forward(ctx: &mut ControlContext, distance: f32) -> anyhow::Result
         let mut ods = ctx.ods.lock().unwrap();
         ods.micromouse.y -= mm_const::BLOCK_LENGTH;
     }
-    led::off(Green)?;
     Ok(())
 }
 
