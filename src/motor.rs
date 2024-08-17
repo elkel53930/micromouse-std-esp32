@@ -138,6 +138,7 @@ pub fn set_l(speed: f32) {
 }
 
 pub fn set_r(speed: f32) {
+    let speed = -speed;
     if speed < 0.0 {
         unsafe {
             mcpwm_set_duty(
