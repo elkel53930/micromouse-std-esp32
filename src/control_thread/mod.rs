@@ -71,7 +71,6 @@ struct ControlThreadConfig {
     ws_cfg: WsConfig,
     gyro_cfg: GyroConfig,
     mech_param: MechanicalParameter,
-    battery_cfg: BatteryConfig,
 
     search_ctrl_cfg: SearchControlConfig,
 
@@ -283,11 +282,8 @@ pub enum Response {
 }
 
 fn measure(ctx: &mut ControlContext) -> anyhow::Result<()> {
-    let batt = ctx.batt_ave.update(wall_sensor::read_batt()?.into()) as u16;
-    let batt_phy = correct_value(
-        &ctx.config.battery_cfg.correction_table.as_slice(),
-        batt as i16,
-    );
+    let batt = ctx.batt_ave.update(imu::read_batt()?.into()) as u16;
+    let batt_phy = (batt as f32) / 4096.0 * 3.0 * 2.0;
 
     if ctx.ws_ena {
         match ctx.ws_step {

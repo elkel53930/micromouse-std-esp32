@@ -42,18 +42,6 @@
 		"wheel_diameter": 13.6,
 		"gear_ratio": 2.0
 	},
-	"battery_cfg": {
-		"correction_table": [
-			[
-				355,
-				5.0
-			],
-			[
-				688,
-				9.0
-			]
-		]
-	},
 	"search_ctrl_cfg": {
 		"vel_fwd": 0.4,
 		"theta_pid": {

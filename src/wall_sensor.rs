@@ -5,20 +5,6 @@ use esp_idf_hal::gpio::{
 use esp_idf_hal::peripheral::Peripheral;
 use esp_idf_hal::peripherals::Peripherals;
 
-struct WallSensorHardware<'a> {
-    ad: AdcDriver<'a, ADC1>,
-    ls: AdcChannelDriver<'a, Gpio1, Atten11dB<ADC1>>,
-    lf: AdcChannelDriver<'a, Gpio2, Atten11dB<ADC1>>,
-    rf: AdcChannelDriver<'a, Gpio3, Atten11dB<ADC1>>,
-    rs: AdcChannelDriver<'a, Gpio4, Atten11dB<ADC1>>,
-    ena: PinDriver<'a, Gpio14, Output>,
-    sel0: PinDriver<'a, Gpio15, Output>,
-    sel1: PinDriver<'a, Gpio16, Output>,
-    batt: AdcChannelDriver<'a, Gpio5, Atten11dB<ADC1>>,
-}
-
-static mut HARDWARE: Option<WallSensorHardware<'static>> = None;
-
 pub fn init(_peripherals: &mut Peripherals) -> anyhow::Result<()> {
     Ok(())
 }
