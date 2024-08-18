@@ -34,7 +34,6 @@ mod spiflash;
 pub mod timer_interrupt;
 mod ui;
 mod vac_fan;
-mod wall_sensor;
 pub use mm_maze::{adachi, maze, path_finder::PathFinder};
 pub mod spin_mpsc;
 use spin_mpsc::{SpinReceiver, SpinSender};
@@ -147,7 +146,6 @@ fn main() -> anyhow::Result<()> {
 
     // Initialize peripherals
     motor::init(&mut peripherals)?;
-    wall_sensor::init(&mut peripherals)?;
     fram_logger::init(&mut peripherals)?;
     fram_logger::set_log(log::LevelFilter::Info);
     fram_logger::set_panic_handler();

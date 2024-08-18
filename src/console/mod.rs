@@ -141,6 +141,7 @@ impl Console {
             for cmd in self.commands.iter_mut() {
                 if cmd.name() == args[0] {
                     ctx.led_tx.send((Red, Some("1")))?;
+                    ctx.led_tx.send((Blue, None))?;
                     match cmd.execute(&args[1..arg_num], &mut ctx) {
                         Ok(_) => {}
                         Err(e) => {
