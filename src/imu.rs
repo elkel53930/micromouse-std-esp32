@@ -81,7 +81,7 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
         let en_rf = peripherals.pins.gpio1.clone_unchecked();
 
         let config = spi::config::Config::new()
-            .baudrate(5.MHz().into())
+            .baudrate(10.MHz().into())
             .data_mode(MODE_3);
         let spi = SpiDeviceDriver::new_single(
             spi,

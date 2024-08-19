@@ -1,6 +1,6 @@
 {
 	"ws_cfg": {
-		"led_rise_time": 80,
+		"led_rise_time": 30,
 		"rs_reference": 415,
 		"ls_reference": 332,
 		"rs_threshold": 100,

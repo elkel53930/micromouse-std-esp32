@@ -280,108 +280,71 @@ pub enum Response {
     CommandRequest(u16),
 }
 
+/*
+    imu::on_XX(), imu::off_XX(), imu::read_XX()を引数にとる
+*/
+/*
+fn measure_wall_sensor(
+    ctx: &mut ControlContext,
+    on: fn() -> anyhow::Result<()>,
+    off: fn() -> anyhow::Result<()>,
+    read: fn() -> anyhow::Result<u16>,
+) -> anyhow::Result<(u16, Wall)> {
+    let off_val = read()?;
+    on()?;
+    wait_us(ctx.config.ws_cfg.led_rise_time);
+    let on_val = read()?;
+    off()?;
+    let raw = on_val - off_val;
+    let val = raw > ctx.config.ws_cfg.ls_threshold;
+    let val = Wall::from_bool(val);
+    Ok((raw, val))
+}
+*/
+
+fn measure_wall_sensor(
+    ctx: &mut ControlContext,
+    on: fn() -> anyhow::Result<()>,
+    off: fn() -> anyhow::Result<()>,
+    read: fn() -> anyhow::Result<u16>,
+) -> anyhow::Result<(u16, Wall)> {
+    let off_val = read()?;
+    on()?;
+    wait_us(ctx.config.ws_cfg.led_rise_time);
+    let on_val = read()?;
+    off()?;
+    let val = if on_val < off_val {
+        0
+    } else {
+        on_val - off_val
+    };
+    Ok((val, Wall::Absent))
+}
+
 fn measure(ctx: &mut ControlContext) -> anyhow::Result<()> {
+    let start = crate::timer_interrupt::get_us();
     let batt = ctx.batt_ave.update(imu::read_batt()?.into()) as u16;
     let batt_phy = (batt as f32) / 4096.0 * 3.0 * 2.0;
 
     if ctx.ws_ena {
-        match ctx.ws_step {
-            WsStep::Side => {
-                imu::on_ls()?;
-                imu::on_rs()?;
-                led::on(Blue)?;
-                wait_us(ctx.config.ws_cfg.led_rise_time);
-                {
-                    let mut ods = ctx.ods.lock().unwrap();
-                    ods.wall_sensor.ls_raw = Some(imu::read_ls()?);
-                    ods.wall_sensor.rs_raw = Some(imu::read_rs()?);
-                    ods.wall_sensor.ls = Some(Wall::Absent);
-                    ods.wall_sensor.rs = Some(Wall::Absent);
-                }
-                imu::off_ls()?;
-                imu::off_rs()?;
-                led::off(Blue)?;
-                ctx.ws_step = WsStep::Front;
-            }
-            WsStep::Front => {
-                imu::on_lf()?;
-                imu::on_rf()?;
-                wait_us(ctx.config.ws_cfg.led_rise_time);
-                {
-                    let mut ods = ctx.ods.lock().unwrap();
-                    ods.wall_sensor.lf_raw = Some(imu::read_lf()?);
-                    ods.wall_sensor.rf_raw = Some(imu::read_rf()?);
-                    ods.wall_sensor.lf = Some(Wall::Absent);
-                    ods.wall_sensor.rf = Some(Wall::Absent);
-                }
-                imu::off_lf()?;
-                imu::off_rf()?;
-                ctx.ws_step = WsStep::Side;
-            }
+        let (ls_raw, ls) = measure_wall_sensor(ctx, imu::on_ls, imu::off_ls, imu::read_ls)?;
+        let (lf_raw, lf) = measure_wall_sensor(ctx, imu::on_lf, imu::off_lf, imu::read_lf)?;
+        let (rf_raw, rf) = measure_wall_sensor(ctx, imu::on_rf, imu::off_rf, imu::read_rf)?;
+        let (rs_raw, rs) = measure_wall_sensor(ctx, imu::on_rs, imu::off_rs, imu::read_rs)?;
+
+        {
+            let mut ods = ctx.ods.lock().unwrap();
+            ods.wall_sensor.batt_raw = batt;
+            ods.wall_sensor.batt_phy = batt_phy;
+            ods.wall_sensor.lf_raw = Some(lf_raw);
+            ods.wall_sensor.rf_raw = Some(rf_raw);
+            ods.wall_sensor.ls_raw = Some(ls_raw);
+            ods.wall_sensor.rs_raw = Some(rs_raw);
+            ods.wall_sensor.lf = Some(lf);
+            ods.wall_sensor.rf = Some(rf);
+            ods.wall_sensor.ls = Some(ls);
+            ods.wall_sensor.rs = Some(rs);
         }
-        /*
-        match ctx.ws_step {
-            WsStep::Side => {
-                let ls_off = imu::read_ls()?;
-                imu::on_ls()?;
-                wait_us(ctx.config.ws_cfg.led_rise_time);
-                let ls_on = imu::read_ls()?;
-                imu::off_ls()?;
-                let ls_raw = ls_on - ls_off;
-                let ls_raw =
-                    correct_value(ctx.config.ws_cfg.ls_correction_table.as_slice(), ls_raw) as u16;
-                let ls = ls_raw > ctx.config.ws_cfg.ls_threshold;
-                let ls = Some(Wall::from_bool(ls));
-
-                let rs_off = imu::read_rs()?;
-                imu::on_rs()?;
-                wait_us(ctx.config.ws_cfg.led_rise_time);
-                let rs_on = imu::read_rs()?;
-                imu::off_rs()?;
-                let rs_raw = rs_on - rs_off;
-                let rs_raw =
-                    correct_value(ctx.config.ws_cfg.ls_correction_table.as_slice(), rs_raw) as u16;
-                let rs = rs_raw > ctx.config.ws_cfg.rs_threshold;
-                let rs = Some(Wall::from_bool(rs));
-
-                {
-                    let mut ods = ctx.ods.lock().unwrap();
-                    ods.wall_sensor.ls_raw = Some(ls_raw);
-                    ods.wall_sensor.rs_raw = Some(rs_raw);
-                    ods.wall_sensor.ls = ls;
-                    ods.wall_sensor.rs = rs;
-                }
-                ctx.ws_step = WsStep::Front;
-            }
-            WsStep::Front => {
-                let lf_off = imu::read_lf()?;
-                imu::on_lf()?;
-                wait_us(ctx.config.ws_cfg.led_rise_time);
-                let lf_on = imu::read_lf()?;
-                imu::off_lf()?;
-                let lf_raw = lf_on - lf_off;
-                let lf = lf_raw > ctx.config.ws_cfg.lf_threshold;
-                let lf = Some(Wall::from_bool(lf));
-
-                let rf_off = imu::read_rf()?;
-                imu::on_rf()?;
-                wait_us(ctx.config.ws_cfg.led_rise_time);
-                let rf_on = imu::read_rf()?;
-                imu::off_rf()?;
-                let rf_raw = rf_on - rf_off;
-                let rf = rf_raw > ctx.config.ws_cfg.rf_threshold;
-                let rf = Some(Wall::from_bool(rf));
-
-                {
-                    let mut ods = ctx.ods.lock().unwrap();
-                    ods.wall_sensor.lf_raw = Some(lf_raw);
-                    ods.wall_sensor.rf_raw = Some(rf_raw);
-                    ods.wall_sensor.lf = lf;
-                    ods.wall_sensor.rf = rf;
-                }
-                ctx.ws_step = WsStep::Side;
-            }
-        } */
     } else {
         let mut ods = ctx.ods.lock().unwrap();
         ods.wall_sensor.batt_raw = batt;
@@ -437,6 +400,17 @@ fn measure(ctx: &mut ControlContext) -> anyhow::Result<()> {
         // Battery
         ods.wall_sensor.batt_raw = batt;
         ods.wall_sensor.batt_phy = batt_phy;
+    }
+
+    let end = crate::timer_interrupt::get_us();
+    let duration = if start > end {
+        1000 + end - start
+    } else {
+        end - start
+    };
+    {
+        let mut ods = ctx.ods.lock().unwrap();
+        ods.duration.measure = duration as u16;
     }
 
     Ok(())

@@ -94,6 +94,12 @@ impl Default for MicromouseState {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct DurationInfo {
+    pub measure: u16,
+    pub control: u16,
+}
+
 pub struct Ods {
     pub imu: OdsImu,
     pub encoder: OdsEncoder,
@@ -102,6 +108,7 @@ pub struct Ods {
     pub log: Vec<MicromouseState>,
     pub log_msg: Vec<String>,
     pub maze: Maze,
+    pub duration: DurationInfo,
 }
 
 impl Ods {
@@ -114,6 +121,7 @@ impl Ods {
             log: Vec::with_capacity(log_thread::LOG_LEN),
             log_msg: Vec::with_capacity(log_thread::LOG_MSG_LEN),
             maze: Maze::new(mm_const::MAZE_WIDTH, mm_const::MAZE_HEIGHT),
+            duration: DurationInfo::default(),
         }
     }
 }

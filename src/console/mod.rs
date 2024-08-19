@@ -240,6 +240,7 @@ impl ConsoleCommand for CmdSen {
         let mut gyro_x_raw;
         let mut l_raw;
         let mut r_raw;
+        let mut measure_duration;
         loop {
             {
                 let ods = ctx.ods.lock().unwrap();
@@ -251,9 +252,10 @@ impl ConsoleCommand for CmdSen {
                 gyro_x_raw = ods.imu.gyro_x_raw;
                 l_raw = ods.encoder.l;
                 r_raw = ods.encoder.r;
+                measure_duration = ods.duration.measure;
             }
             uprintln!(
-                "batt: {}, ls: {}, lf: {}, rf: {}, rs: {}, gyro: {}, enc_l: {}, enc_r: {}",
+                "batt: {}, ls: {}, lf: {}, rf: {}, rs: {}, gyro: {}, enc_l: {}, enc_r: {}, measure: {}us",
                 batt_raw,
                 ls_raw.unwrap(),
                 lf_raw.unwrap(),
@@ -261,7 +263,8 @@ impl ConsoleCommand for CmdSen {
                 rs_raw.unwrap(),
                 gyro_x_raw,
                 l_raw,
-                r_raw
+                r_raw,
+                measure_duration,
             );
             FreeRtos::delay_ms(100);
             match receive(&mut buffer) {
