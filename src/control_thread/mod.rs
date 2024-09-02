@@ -40,6 +40,8 @@ struct WsConfig {
 
     ls_correction_table: Vec<(u16, f32)>,
     rs_correction_table: Vec<(u16, f32)>,
+    lf_correction_table: Vec<(u16, f32)>,
+    rf_correction_table: Vec<(u16, f32)>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -331,6 +333,14 @@ fn measure(ctx: &mut ControlContext) -> anyhow::Result<()> {
         let (lf_raw, lf) = measure_wall_sensor(ctx, imu::on_lf, imu::off_lf, imu::read_lf)?;
         let (rf_raw, rf) = measure_wall_sensor(ctx, imu::on_rf, imu::off_rf, imu::read_rf)?;
         let (rs_raw, rs) = measure_wall_sensor(ctx, imu::on_rs, imu::off_rs, imu::read_rs)?;
+        let ls_dist =
+            -misc::correct_value(ctx.config.ws_cfg.ls_correction_table.as_slice(), ls_raw);
+        let rs_dist =
+            -misc::correct_value(ctx.config.ws_cfg.rs_correction_table.as_slice(), rs_raw);
+        let lf_dist =
+            -misc::correct_value(ctx.config.ws_cfg.lf_correction_table.as_slice(), lf_raw);
+        let rf_dist =
+            -misc::correct_value(ctx.config.ws_cfg.rf_correction_table.as_slice(), rf_raw);
 
         {
             let mut ods = ctx.ods.lock().unwrap();
@@ -340,6 +350,10 @@ fn measure(ctx: &mut ControlContext) -> anyhow::Result<()> {
             ods.wall_sensor.rf_raw = Some(rf_raw);
             ods.wall_sensor.ls_raw = Some(ls_raw);
             ods.wall_sensor.rs_raw = Some(rs_raw);
+            ods.wall_sensor.ls_dist = Some(ls_dist);
+            ods.wall_sensor.rs_dist = Some(rs_dist);
+            ods.wall_sensor.lf_dist = Some(lf_dist);
+            ods.wall_sensor.rf_dist = Some(rf_dist);
             ods.wall_sensor.lf = Some(lf);
             ods.wall_sensor.rf = Some(rf);
             ods.wall_sensor.ls = Some(ls);
@@ -387,7 +401,6 @@ fn measure(ctx: &mut ControlContext) -> anyhow::Result<()> {
         } else {
             temp
         } as i16;
-        ods.encoder.l_diff = -ods.encoder.l_diff;
         let temp = ods.encoder.r as i32 - ods.encoder.r_prev as i32;
         ods.encoder.r_diff = if temp > 8192 {
             temp - 16384
@@ -396,6 +409,7 @@ fn measure(ctx: &mut ControlContext) -> anyhow::Result<()> {
         } else {
             temp
         } as i16;
+        ods.encoder.r_diff = -ods.encoder.r_diff;
 
         // Battery
         ods.wall_sensor.batt_raw = batt;
@@ -583,6 +597,7 @@ pub fn init(
                     }
                     Command::SStart(distance) => {
                         ctx.log_msg(format!("SStart({})", distance));
+                        reset_controller(&mut ctx);
                         ctx.set_ws_enable(true);
                         motor_control::start(&mut ctx, distance).unwrap();
                         ctx.log_msg("SStart done".to_string());

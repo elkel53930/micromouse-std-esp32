@@ -150,10 +150,17 @@ fn fram_panic_handler(info: &PanicInfo) {
             location.file(),
             location.line()
         );
+        uprintln!(
+            "Panic occurred in file '{}' at line {}",
+            location.file(),
+            location.line()
+        );
     } else {
         fprintln!("Panic occurred but can't get location information...");
+        uprintln!("Panic occurred but can't get location information...");
     }
     fprintln!("{}", info);
+    uprintln!("{}", info);
 
     loop {
         esp_idf_hal::delay::FreeRtos::delay_ms(1000);

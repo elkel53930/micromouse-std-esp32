@@ -218,6 +218,7 @@ fn go(
         let fb_v = ctx.v_pid.update(target_v - micromouse.v);
 
         // Set target theta by wall sensor
+        /*
         let ws_error = match (enalbe_wall_pid_l, enalbe_wall_pid_r) {
             (true, true) => {
                 let l_error = ctx.ls_ref as i16 - micromouse.ls as i16;
@@ -228,7 +229,6 @@ fn go(
             (false, true) => Some(micromouse.rs as i16 - ctx.rs_ref as i16),
             (_, _) => None,
         };
-
         let fb_theta = if let Some(ws_error) = ws_error {
             let ws_error = ws_error.max(-200).min(200);
             ctx.position_reset_count += 1;
@@ -241,12 +241,17 @@ fn go(
             };
             ctx.theta_pid.update(error)
         };
+        */
+
+        let fb_theta = ctx
+            .theta_pid
+            .update(std::f32::consts::PI / 2.0 - micromouse.theta);
 
         // Update MicromouseState
         {
             let mut ods = ctx.ods.lock().unwrap();
             ods.micromouse.y = current_position;
-            ods.micromouse.wall_error = ws_error.unwrap_or(0);
+            ods.micromouse.wall_error = 0; // ws_error.unwrap_or(0);
 
             if ctx.position_reset_count > 500 {
                 ods.micromouse.x = mm_const::BLOCK_LENGTH / 2.0;

@@ -16,6 +16,7 @@ opt-level = 3
 [features]
 
 default = ["std", "hal", "esp-idf-sys/native"]
+# default = ["std", "hal", "esp-idf-sys/native", "buzz_silent"]
 
 
 pio = ["esp-idf-sys/pio"]
@@ -26,6 +27,7 @@ alloc = ["embedded-svc?/alloc", "esp-idf-hal?/alloc", "esp-idf-svc?/alloc"]
 nightly = ["embedded-svc?/nightly", "esp-idf-svc?/nightly"] # Future: "esp-idf-hal?/nightly"
 experimental = ["embedded-svc?/experimental", "esp-idf-svc?/experimental"]
 embassy = ["esp-idf-hal?/embassy-sync", "esp-idf-hal?/critical-section", "esp-idf-hal?/edge-executor", "esp-idf-svc?/embassy-time-driver", "esp-idf-svc?/embassy-time-isr-queue"]
+buzz_silent = []
 
 [dependencies]
 log = { version = "0.4.17", default-features = false }

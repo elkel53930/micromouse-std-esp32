@@ -1,5 +1,5 @@
 {
-    "mode": "Search",
+    "mode": "Test",
     "search_config": {
         "goal_x" : 3,
         "goal_y" : 3,
@@ -8,9 +8,8 @@
 	"test_config": {
 		"test_pattern": [
             "ResetController",
-            {"StartLog": 2},
+            {"StartLog": 1},
             {"SStart": 0.09},
-            "SForward",
             "SForward",
             "SForward",
             "SStop",

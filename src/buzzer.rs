@@ -7,6 +7,7 @@ use esp_idf_sys::ledc_set_freq;
 
 static mut DRIVER: Option<LedcDriver> = None;
 
+#[cfg(not(feature = "buzz_silent"))]
 pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
     let timer_driver = LedcTimerDriver::new(
         unsafe { peripherals.ledc.timer0.clone_unchecked() },
@@ -31,6 +32,7 @@ pub fn init(peripherals: &mut Peripherals) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(not(feature = "buzz_silent"))]
 fn play(frequency: Hertz, duration_ms: i32) -> anyhow::Result<()> {
     unsafe { ledc_set_freq(0, 0, frequency.into()) };
     for _ in 0..duration_ms {
@@ -47,6 +49,8 @@ fn play(frequency: Hertz, duration_ms: i32) -> anyhow::Result<()> {
     }
     Ok(())
 }
+
+#[cfg(not(feature = "buzz_silent"))]
 pub fn sound(melody: &str) -> anyhow::Result<()> {
     // 一文字ずつ取り出す
     for scale in melody.chars() {
@@ -101,6 +105,20 @@ pub fn sound(melody: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "buzz_silent")]
+pub fn init(_peripherals: &mut Peripherals) -> anyhow::Result<()> {
+    Ok(())
+}
+
+#[cfg(feature = "buzz_silent")]
+fn play(_frequency: Hertz, _duration_ms: i32) -> anyhow::Result<()> {
+    Ok(())
+}
+
+#[cfg(feature = "buzz_silent")]
+pub fn sound(_melody: &str) -> anyhow::Result<()> {
+    Ok(())
+}
 /*
     Melody
       boot gD

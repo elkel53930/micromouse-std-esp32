@@ -5,6 +5,7 @@ use crate::ods;
 use crate::uart::{self, read_line, receive};
 use crate::OperationContext;
 use esp_idf_hal::delay::FreeRtos;
+use std::ffi::CStr;
 use std::fs::File;
 use std::io::prelude::*;
 
@@ -45,6 +46,7 @@ impl Console {
         let commands: Vec<Box<dyn ConsoleCommand>> = vec![
             Box::new(CmdEcho {}),
             Box::new(CmdSen {}),
+            Box::new(CmdDist {}),
             Box::new(CmdOdo {}),
             Box::new(CmdGoffset {}),
             Box::new(CmdReset {}),
@@ -118,7 +120,13 @@ impl Console {
             }
 
             // parse command
-            log::info!("Command: {}", std::str::from_utf8(&buf).unwrap());
+            log::info!(
+                "Command: {}",
+                CStr::from_bytes_until_nul(&buf)
+                    .expect("[Invalid C string]")
+                    .to_str()
+                    .unwrap()
+            );
 
             let mut i = 0;
             let mut arg_start = 0;
@@ -167,8 +175,8 @@ impl Console {
                         return Ok(());
                     }
                     _ => {
-                        uprintln!("Command not found: '{}'", args[0]);
-                        log::info!("Command not found: '{}'", args[0]);
+                        uprintln!("Command not found: '{}'", args[0].to_string());
+                        log::info!("Command not found: '{}'", args[0].to_string());
                     }
                 }
             }
@@ -299,6 +307,76 @@ impl ConsoleCommand for CmdSen {
         "sen"
     }
 }
+struct CmdDist {}
+
+impl ConsoleCommand for CmdDist {
+    fn execute(&self, args: &[&str], ctx: &OperationContext) -> anyhow::Result<()> {
+        if args.len() != 0 {
+            return Err(anyhow::anyhow!("Invalid argument"));
+        }
+
+        // Activate wall sensors
+        ctx.command_tx
+            .send(control_thread::Command::SetActivateWallSensor(true));
+
+        uprintln!("Press any key to exit.");
+        FreeRtos::delay_ms(500);
+
+        // Print all sensor data until something is received from UART.
+        let mut buffer: [u8; 1] = [0];
+
+        let mut ls_dist;
+        let mut lf_dist;
+        let mut rf_dist;
+        let mut rs_dist;
+        loop {
+            {
+                let ods = ctx.ods.lock().unwrap();
+                ls_dist = ods.wall_sensor.ls_dist;
+                lf_dist = ods.wall_sensor.lf_dist;
+                rf_dist = ods.wall_sensor.rf_dist;
+                rs_dist = ods.wall_sensor.rs_dist;
+            }
+            uprintln!(
+                "ls: {:3}, lf: {:3}, rf: {:3}, rs: {:3}",
+                ls_dist.unwrap(),
+                lf_dist.unwrap(),
+                rf_dist.unwrap(),
+                rs_dist.unwrap(),
+            );
+            FreeRtos::delay_ms(100);
+            match receive(&mut buffer) {
+                Ok(size) => {
+                    if size != 0 {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    uprintln!("Error: {}", e);
+                }
+            }
+        }
+
+        // Inactivate wall sensors
+        ctx.command_tx
+            .send(control_thread::Command::SetActivateWallSensor(false));
+
+        FreeRtos::delay_ms(500);
+
+        println!("");
+
+        Ok(())
+    }
+
+    fn hint(&self) {
+        uprintln!("Show all sensor's values in mm.");
+        uprintln!("Usage: dist");
+    }
+
+    fn name(&self) -> &str {
+        "dist"
+    }
+}
 
 struct CmdOdo {}
 
@@ -321,13 +399,13 @@ impl ConsoleCommand for CmdOdo {
                 (ods.micromouse.clone(), ods.imu.gyro_x_phy)
             };
             uprintln!(
-                "x: {}[m], y: {}[m], theta: {}[rad], gyro: {}[rad/s], v_r: {}[m/s], v_l: {}[m/s]",
-                micromouse.x,
-                micromouse.y,
-                micromouse.theta,
-                gyro,
-                micromouse.v_r,
-                micromouse.v_l
+                "x: {:4}[mm], y: {:4}[mm], theta: {:1.3}[rot], gyro: {:2.3}[rot/s], v_r: {:3}[mm/s], v_l: {:3}[mm/s]",
+                (micromouse.x * 1000.0) as i32,
+                (micromouse.y * 1000.0) as i32,
+                micromouse.theta / (2.0 * std::f32::consts::PI),
+                gyro / (2.0 * std::f32::consts::PI),
+                (micromouse.v_r * 1000.0) as i32,
+                (micromouse.v_l * 1000.0) as i32
             );
             FreeRtos::delay_ms(100);
             match receive(&mut buffer) {
@@ -662,7 +740,7 @@ struct CmdBuzz {}
 
 impl ConsoleCommand for CmdBuzz {
     fn execute(&self, args: &[&str], ctx: &OperationContext) -> anyhow::Result<()> {
-        let melodu = if args.len() == 1 {
+        let melody = if args.len() == 1 {
             args[0]
         } else if args.len() == 0 {
             "g_gC__D_EC__a_gC__C__C"
@@ -670,7 +748,7 @@ impl ConsoleCommand for CmdBuzz {
             return Err(anyhow::anyhow!("Invalid argument"));
         };
 
-        buzzer::sound(melodu)?;
+        buzzer::sound(melody)?;
 
         Ok(())
     }

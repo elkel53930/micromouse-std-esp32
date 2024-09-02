@@ -3,27 +3,53 @@
 		"led_rise_time": 30,
 		"rs_reference": 415,
 		"ls_reference": 332,
-		"rs_threshold": 100,
-		"rf_threshold": 20,
-		"lf_threshold": 20,
-		"ls_threshold": 150,
-		"wall_edge_enable": true,
+		"rs_threshold": 200,
+		"rf_threshold": 200,
+		"lf_threshold": 200,
+		"ls_threshold": 200,
+		"wall_edge_enable": false,
 		"wall_edge_position": 0.06,
 		"ls_correction_table": [
-			[
-				0, 0
-			],
-			[
-				1000, 1000.0
-			]
+			[306, -65],
+			[411, -59],
+			[550, -53],
+			[750, -47],
+			[1065, -41],
+			[1530, -35],
+			[2230, -29],
+			[3244, -23]
 		],
 		"rs_correction_table": [
-			[
-				0, 0
-			],
-			[
-				790, 1000
-			]
+			[196, -65],
+			[250, -59],
+			[346, -53],
+			[476, -47],
+			[745, -41],
+			[1113, -35],
+			[1921, -29],
+			[2240, -23]
+		],
+		"lf_correction_table": [
+			[208, -115],
+			[225, -109],
+			[257, -103],
+			[292, -97],
+			[320, -91],
+			[410, -85],
+			[474, -79],
+			[592, -73],
+			[890, -67]
+		],
+		"rf_correction_table": [
+			[151, -115],
+			[181, -109],
+			[216, -103],
+			[269, -97],
+			[310, -91],
+			[416, -85],
+			[526, -79],
+			[685, -73],
+			[916, -67]
 		]
 	},
 	"gyro_cfg": {
@@ -39,13 +65,13 @@
 		]
 	},
 	"mech_param": {
-		"wheel_diameter": 13.6,
-		"gear_ratio": 2.0
+		"wheel_diameter": 14.0,
+		"gear_ratio": 1.0
 	},
 	"search_ctrl_cfg": {
 		"vel_fwd": 0.4,
 		"theta_pid": {
-			"p": 3.0,
+			"p": 5.0,
 			"i": 0.5,
 			"d": 0.1,
 			"i_limit": 2.0,

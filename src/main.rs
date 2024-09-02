@@ -212,28 +212,37 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn app_main(ctx: &OperationContext, config: OperationThreadConfig) -> anyhow::Result<()> {
+    // When battery voltage is under 3.5V, warn by buzzer
+    let batt_phy = ctx.ods.lock().unwrap().wall_sensor.batt_phy;
+    if batt_phy < 3.5 {
+        buzzer::sound("dcdc");
+        uprintln!("Battery voltage is {}V", batt_phy);
+    }
+
     uprintln!("Hold left to enter the console.");
 
     let mut console = console::Console::new();
 
-    //    ctx.led_tx.send((Blue, Some("0")))?;
-    //    if ui::hold_ws(&ctx, Some(500)) == ui::UserOperation::HoldR {
-    //        ui::wait(&ctx, ui::UserOperation::HoldL);
-    //        // Calibrate the gyro
-    //        ctx.led_tx.send((Red, Some("10")))?;
-    //        uprintln!("Start gyro calibration");
-    //        ctx.command_tx.send(Command::GyroCalibration);
-    //        ctx.wait_response(); // Wait for Done
-    //        let offset = ctx.ods.lock().unwrap().imu.gyro_x_offset;
-    //        uprintln!("Gyro offset: {}", offset);
-    //
-    //        ui::countdown(&ctx);
-    //        if config.mode == OperationMode::Search {
-    //            search_run(&ctx, config)?;
-    //        } else {
-    //            test_run(&ctx, config)?;
-    //        }
-    //    }
+    ctx.led_tx.send((Blue, Some("0")))?;
+    if ui::hold_ws(&ctx, Some(500)) == ui::UserOperation::HoldR {
+        buzzer::sound("EFG");
+        ui::wait(&ctx, ui::UserOperation::HoldL);
+        buzzer::sound("b_b_DB_G");
+        // Calibrate the gyro
+        ctx.led_tx.send((Red, Some("10")))?;
+        uprintln!("Start gyro calibration");
+        ctx.command_tx.send(Command::GyroCalibration);
+        ctx.wait_response(); // Wait for Done
+        let offset = ctx.ods.lock().unwrap().imu.gyro_x_offset;
+        uprintln!("Gyro offset: {}", offset);
+
+        // ui::countdown(&ctx);
+        if config.mode == OperationMode::Search {
+            search_run(&ctx, config)?;
+        } else {
+            test_run(&ctx, config)?;
+        }
+    }
     return console.run(&ctx);
 }
 

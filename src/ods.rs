@@ -28,6 +28,11 @@ pub struct OdsWallSensor {
     pub rf_raw: Option<u16>,
     pub rs_raw: Option<u16>,
 
+    pub ls_dist: Option<f32>,
+    pub lf_dist: Option<f32>,
+    pub rf_dist: Option<f32>,
+    pub rs_dist: Option<f32>,
+
     // Wall presence
     pub ls: Option<Wall>,
     pub lf: Option<Wall>,
